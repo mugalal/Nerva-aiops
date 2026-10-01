@@ -1,0 +1,14 @@
+{
+  "incident_id": "INC-001",
+  "recovered": true,
+  "before": {
+    "latency_p95_ms": 820,
+    "http_5xx_rate": 0.14
+  },
+  "after": {
+    "latency_p95_ms": 145,
+    "http_5xx_rate": 0.004
+  },
+  "recovery_time_seconds": 47,
+  "slo_restored": true
+}

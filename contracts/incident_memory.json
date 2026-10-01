@@ -1,0 +1,10 @@
+{
+  "incident_id": "INC-001",
+  "incident_type": "faulty_deployment",
+  "service": "payment-service",
+  "root_cause": "faulty_deployment",
+  "action": "ROLLBACK",
+  "action_success": true,
+  "recovered": true,
+  "tags": ["deployment", "latency", "5xx"]
+}

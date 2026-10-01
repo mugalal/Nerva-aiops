@@ -1,0 +1,10 @@
+{
+  "event_id": "DEP-001",
+  "service": "payment-service",
+  "old_version": "v1",
+  "new_version": "v2",
+  "commit_sha": "abc123",
+  "pipeline_id": "jenkins-42",
+  "timestamp": "2026-09-27T10:00:00Z",
+  "status": "SUCCESS"
+}

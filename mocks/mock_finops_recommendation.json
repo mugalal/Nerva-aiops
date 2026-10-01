@@ -1,0 +1,19 @@
+{
+  "service": "payment-service",
+  "current": {
+    "replicas": 3,
+    "cpu_request_m": 1000,
+    "memory_request_mb": 2048
+  },
+  "observed": {
+    "avg_cpu_pct": 18,
+    "avg_memory_pct": 31
+  },
+  "recommended": {
+    "replicas": 2,
+    "cpu_request_m": 600,
+    "memory_request_mb": 1024
+  },
+  "estimated_monthly_saving_pct": 28.0,
+  "reliability_risk": "LOW"
+}

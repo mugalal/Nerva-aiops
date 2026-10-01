@@ -1,0 +1,33 @@
+# Faulty v2 overlay for Scenario A (bad deployment).
+# Apply AFTER healthy v1 is running:
+#   kubectl apply -f payment-service-v2-faulty.yaml
+# Roll back (M4):
+#   kubectl rollout undo deployment/payment-service -n nexus-demo
+#   # or: kubectl apply -f payment-service.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: nexus-demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: nexus/payment-service:v2
+          ports:
+            - containerPort: 8000
+          env:
+            - name: VERSION
+              value: "v2"
+            - name: FAULT_LATENCY_MS
+              value: "600"
+            - name: FAULT_5XX_RATE
+              value: "0.14"

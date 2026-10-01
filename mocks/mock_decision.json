@@ -1,0 +1,13 @@
+{
+  "incident_id": "INC-001",
+  "recommended_action": "ROLLBACK",
+  "target": "payment-service",
+  "parameters": {
+    "from_version": "v2",
+    "to_version": "v1"
+  },
+  "confidence": 0.92,
+  "risk": "MEDIUM",
+  "reason": "degradation began immediately after deployment",
+  "approval_required": true
+}

@@ -1,0 +1,12 @@
+{
+  "incident_id": "INC-001",
+  "root_cause": "faulty_deployment",
+  "affected_component": "payment-service:v2",
+  "confidence": 0.92,
+  "evidence": [
+    "payment-service:v2 deployed 42 seconds before anomaly",
+    "P95 latency increased after deployment",
+    "HTTP 5xx increased",
+    "traffic increase was insufficient to explain degradation"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "service": "payment-service",
+  "current_replicas": 3,
+  "current_cpu_request_m": 1000,
+  "observed_cpu_pct": 72,
+  "temporary_scale_options": [
+    {"replicas": 4, "estimated_cost_delta": 0.30, "risk": "MEDIUM"},
+    {"replicas": 6, "estimated_cost_delta": 0.75, "risk": "LOW"}
+  ]
+}

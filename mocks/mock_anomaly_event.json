@@ -1,0 +1,14 @@
+{
+  "anomaly_id": "ANO-001",
+  "timestamp": "2026-09-27T10:00:42Z",
+  "service": "payment-service",
+  "score": 0.94,
+  "severity": "high",
+  "model": "isolation_forest",
+  "features": {
+    "request_rate": 180,
+    "latency_p95_ms": 820,
+    "http_5xx_rate": 0.14,
+    "cpu": 0.72
+  }
+}
