@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.api.incidents import router as incidents_router
 from app.api.approvals import router as approvals_router
 from app.api.decisions import router as decisions_router
+from app.api.remediation import router as remediation_router
 
 app = FastAPI(
     title="NEXUS Shared API",
@@ -10,6 +11,7 @@ app = FastAPI(
 app.include_router(incidents_router)
 app.include_router(approvals_router)
 app.include_router(decisions_router)
+app.include_router(remediation_router)
 @app.get("/health")
 def health():
     return {
