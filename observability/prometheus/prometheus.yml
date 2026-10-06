@@ -8,12 +8,26 @@ scrape_configs:
       - targets:
           - localhost:9090
 
-  - job_name: telemetry-intelligence
+  - job_name: payment-service
+    honor_labels: true
     metrics_path: /metrics
     static_configs:
       - targets:
-          - host.docker.internal:8001
+          - payment-service:8000
         labels:
-          service_name: telemetry-intelligence
+          service_name: payment-service
+          namespace: nexus-demo
+          pod: docker-compose
           environment: development
 
+  - job_name: telemetry-intelligence
+    honor_labels: true
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - telemetry-intelligence:8001
+        labels:
+          service_name: telemetry-intelligence
+          namespace: nexus-system
+          pod: docker-compose
+          environment: development

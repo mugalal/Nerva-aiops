@@ -1,29 +1,108 @@
 services:
+  payment-service:
+    build:
+      context: ../apps/demo-microservices/payment-service
+      args:
+        VERSION: v1
+    image: nexus/payment-service:v1
+    container_name: nexus-payment-service
+    environment:
+      SERVICE_NAME: payment-service
+      VERSION: v1
+      ENVIRONMENT: development
+      NAMESPACE: nexus-demo
+      CPU_LIMIT_CORES: "1"
+      MEMORY_LIMIT_BYTES: "536870912"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  telemetry-intelligence:
+    build:
+      context: ..
+      dockerfile: services/telemetry-intelligence/Dockerfile
+    image: nexus/telemetry-intelligence:dev
+    container_name: nexus-telemetry-intelligence
+    environment:
+      SERVICE_NAME: telemetry-intelligence
+      SERVICE_VERSION: 0.1.0
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      M1_PROVIDER_MODE: real
+      PROMETHEUS_BASE_URL: http://prometheus:9090
+      LOKI_BASE_URL: http://loki:3100
+      PAYMENT_SERVICE_BASE_URL: http://payment-service:8000
+      M1_DATA_DIR: /data
+      M1_LATENCY_WINDOW: 1m
+    ports:
+      - "8001:8001"
+    volumes:
+      - "m1-data:/data"
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:v2.55.1
+    container_name: nexus-prometheus
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
     ports:
       - "9090:9090"
     volumes:
       - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "prometheus-data:/prometheus"
+    depends_on:
+      - payment-service
+      - telemetry-intelligence
+    restart: unless-stopped
 
   grafana:
     image: grafana/grafana:11.4.0
+    container_name: nexus-grafana
     ports:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
     volumes:
       - "./grafana/provisioning:/etc/grafana/provisioning:ro"
+      - "./grafana/dashboards:/var/lib/grafana/dashboards:ro"
+      - "grafana-data:/var/lib/grafana"
     depends_on:
       - prometheus
       - loki
+    restart: unless-stopped
 
   loki:
     image: grafana/loki:3.3.2
+    container_name: nexus-loki
     command: "-config.file=/etc/loki/local-config.yaml"
     ports:
       - "3100:3100"
+    volumes:
+      - "loki-data:/tmp/loki"
+    restart: unless-stopped
 
+  alloy:
+    image: grafana/alloy:v1.20.1
+    container_name: nexus-alloy
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    ports:
+      - "12345:12345"
+    volumes:
+      - "./alloy/config.alloy:/etc/alloy/config.alloy:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "alloy-data:/var/lib/alloy/data"
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+volumes:
+  alloy-data:
+  grafana-data:
+  loki-data:
+  m1-data:
+  prometheus-data:
