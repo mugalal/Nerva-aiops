@@ -5,7 +5,7 @@ from app.decision_engine.models import DecisionAction
 from app.remediation.executor import execute_remediation
 from app.api.incidents import find_incident, update_incident_status
 from app.state_machine.states import IncidentStatus
-
+from app.remediation.audit import audit_records
 
 router = APIRouter(
     prefix="/internal/remediation",
@@ -51,3 +51,6 @@ def execute(request: RemediationRequest):
             status_code=400,
             detail=str(error)
         )
+@router.get("/audit")
+def get_audit_records():
+    return audit_records

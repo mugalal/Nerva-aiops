@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 from app.decision_engine.engine import decide_from_rca
 from app.decision_engine.models import DecisionResult
+from app.orchestration.orchestrator import build_decision
 
 
 router = APIRouter(
@@ -19,3 +20,7 @@ def evaluate_decision(request: DecisionRequest):
         request.rca,
         request.finops
     )
+    
+@router.post("/build/{incident_id}", response_model=DecisionResult)
+def build_incident_decision(incident_id: str):
+    return build_decision(incident_id)

@@ -3,6 +3,8 @@ from app.api.incidents import find_incident, update_incident_status
 from app.state_machine.states import IncidentStatus
 from app.state_machine.machine import transition
 from fastapi import APIRouter, HTTPException
+from app.orchestration.orchestrator import execute_approved_action
+from app.decision_engine.models import DecisionAction
 
 router = APIRouter(
     prefix="/api/incidents",
@@ -14,23 +16,33 @@ def approve_incident(incident_id: str):
     incident = find_incident(incident_id)
 
     if incident is None:
-        return {
-            "message": "Incident not found"
-        }
+        raise HTTPException(
+            status_code=404,
+            detail="Incident not found"
+        )
+
+    proposed_action = incident.get("proposed_action")
+
+    if proposed_action is None:
+        raise HTTPException(
+            status_code=400,
+            detail="No proposed action found for this incident"
+        )
 
     try:
-        updated_incident = update_incident_status(
+        result = execute_approved_action(
             incident_id,
-            IncidentStatus.EXECUTING,
+            DecisionAction(proposed_action),
             approved=True
         )
+
+        return result
+
     except ValueError as error:
         raise HTTPException(
             status_code=400,
             detail=str(error)
         )
-
-    return updated_incident
     
 @router.post("/{incident_id}/reject")
 def reject_incident(incident_id: str):

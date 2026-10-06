@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from app.api.incidents import find_incident, update_incident_status
 from app.state_machine.states import IncidentStatus
+from app.orchestration.orchestrator import apply_recovery_result
 
 class RecoveryRequest(BaseModel):
     incident_id: str
@@ -23,20 +24,9 @@ def validate_recovery(request: RecoveryRequest):
         )
 
     try:
-        if request.success:
-            return update_incident_status(
-                request.incident_id,
-                IncidentStatus.RESOLVED,
-                recovery_validated=True
-            )
-
-        update_incident_status(
+        return apply_recovery_result(
             request.incident_id,
-            IncidentStatus.FAILED_REMEDIATION
-        )
-        return update_incident_status(
-            request.incident_id,
-            IncidentStatus.ESCALATED
+            request.success
         )
 
     except ValueError as error:

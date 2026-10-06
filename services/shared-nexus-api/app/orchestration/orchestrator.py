@@ -6,16 +6,35 @@ from app.state_machine.states import IncidentStatus
 from app.remediation.executor import execute_remediation
 from app.remediation.audit import add_audit_record
 from app.providers.recovery_provider import validate_recovery
+from app.api.incidents import find_incident
 
 
 def build_decision(incident_id: str):
-    rca = get_rca_result()
+    update_incident_status(
+        incident_id,
+        IncidentStatus.CORRELATING
+    )
+
+    update_incident_status(
+        incident_id,
+        IncidentStatus.DIAGNOSING
+    )
+    rca = get_rca_result(incident_id)
+    update_incident_status(
+        incident_id,
+        IncidentStatus.DIAGNOSED
+)
     finops = get_finops_context()
 
     result = decide_from_rca(
         rca,
         finops
     )
+    incident = find_incident(incident_id)
+
+    if incident is not None:
+        incident["proposed_action"] = result.action.value
+        incident["scale_option"] = result.scale_option
     add_audit_record(
         incident_id,
         "DECISION_PROPOSED",
