@@ -124,6 +124,30 @@ def test_reject_incident():
         }
     )
 
+    from app.api.incidents import update_incident_status
+    from app.state_machine.states import IncidentStatus
+
+    update_incident_status(
+        "INC-REJECT-001",
+        IncidentStatus.CORRELATING
+    )
+    update_incident_status(
+        "INC-REJECT-001",
+        IncidentStatus.DIAGNOSING
+    )
+    update_incident_status(
+        "INC-REJECT-001",
+        IncidentStatus.DIAGNOSED
+    )
+    update_incident_status(
+        "INC-REJECT-001",
+        IncidentStatus.ACTION_PROPOSED
+    )
+    update_incident_status(
+        "INC-REJECT-001",
+        IncidentStatus.AWAITING_APPROVAL
+    )
+
     response = client.post(
         "/api/incidents/INC-REJECT-001/reject"
     )
@@ -134,3 +158,4 @@ def test_reject_incident():
 
     assert data["incident_id"] == "INC-REJECT-001"
     assert data["approved"] is False
+    assert data["status"] == "ESCALATED"

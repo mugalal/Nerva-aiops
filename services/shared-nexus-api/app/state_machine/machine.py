@@ -18,9 +18,11 @@ ALLOWED_TRANSITIONS = {
     },
     IncidentStatus.AWAITING_APPROVAL: {
         IncidentStatus.EXECUTING,
+        IncidentStatus.ESCALATED,
     },
     IncidentStatus.EXECUTING: {
         IncidentStatus.VALIDATING,
+        IncidentStatus.FAILED_REMEDIATION,
     },
     IncidentStatus.VALIDATING: {
         IncidentStatus.RESOLVED,

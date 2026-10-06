@@ -4,6 +4,7 @@ from app.api.incidents import update_incident_status
 from app.state_machine.states import IncidentStatus
 
 
+
 client = TestClient(app)
 
 
@@ -93,7 +94,8 @@ def test_execute_scale_with_approval():
         json={
             "incident_id": "INC-REMEDIATION-002",
             "action": "SCALE",
-            "approved": True
+            "approved": True,
+            "replicas": 3
         }
     )
 
@@ -139,6 +141,90 @@ def test_execute_without_approval_fails():
             "incident_id": "INC-REMEDIATION-003",
             "action": "ROLLBACK",
             "approved": False
+        }
+    )
+
+    assert response.status_code == 400
+    
+def test_execute_scale_with_unsafe_replica_count_fails():
+    client.post(
+        "/api/incidents/",
+        json={
+            "incident_id": "INC-REMEDIATION-004",
+            "severity": "high"
+        }
+    )
+
+    update_incident_status(
+        "INC-REMEDIATION-004",
+        IncidentStatus.CORRELATING
+    )
+    update_incident_status(
+        "INC-REMEDIATION-004",
+        IncidentStatus.DIAGNOSING
+    )
+    update_incident_status(
+        "INC-REMEDIATION-004",
+        IncidentStatus.DIAGNOSED
+    )
+    update_incident_status(
+        "INC-REMEDIATION-004",
+        IncidentStatus.ACTION_PROPOSED
+    )
+    update_incident_status(
+        "INC-REMEDIATION-004",
+        IncidentStatus.AWAITING_APPROVAL
+    )
+
+    response = client.post(
+        "/internal/remediation/execute",
+        json={
+            "incident_id": "INC-REMEDIATION-004",
+            "action": "SCALE",
+            "approved": True,
+            "replicas": 100
+        }
+    )
+
+    assert response.status_code == 400
+    
+def test_execute_scale_with_zero_replicas_fails():
+    client.post(
+        "/api/incidents/",
+        json={
+            "incident_id": "INC-REMEDIATION-005",
+            "severity": "high"
+        }
+    )
+
+    update_incident_status(
+        "INC-REMEDIATION-005",
+        IncidentStatus.CORRELATING
+    )
+    update_incident_status(
+        "INC-REMEDIATION-005",
+        IncidentStatus.DIAGNOSING
+    )
+    update_incident_status(
+        "INC-REMEDIATION-005",
+        IncidentStatus.DIAGNOSED
+    )
+    update_incident_status(
+        "INC-REMEDIATION-005",
+        IncidentStatus.ACTION_PROPOSED
+    )
+    update_incident_status(
+        "INC-REMEDIATION-005",
+        IncidentStatus.AWAITING_APPROVAL
+    )
+
+    response = client.post(
+        "/internal/remediation/execute",
+        json={
+            "incident_id": "INC-REMEDIATION-005",
+            "action": "SCALE",
+            "approved": True,
+            "replicas": 0
         }
     )
 

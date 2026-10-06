@@ -8,8 +8,8 @@ def test_execute_rollback_with_approval():
         approved=True
     )
 
-    assert result["action"] == "ROLLBACK"
-    assert result["success"] is True
+    assert result.action == DecisionAction.ROLLBACK
+    assert result.success is True
     
 import pytest
 
@@ -24,8 +24,16 @@ def test_execute_rollback_without_approval_fails():
 def test_execute_scale_with_approval():
     result = execute_remediation(
         DecisionAction.SCALE,
-        approved=True
+        approved=True,
+        replicas=3
     )
 
-    assert result["action"] == "SCALE"
-    assert result["success"] is True
+    assert result.action == DecisionAction.SCALE
+    assert result.success is True
+    
+def test_execute_escalate_is_blocked():
+    with pytest.raises(ValueError):
+        execute_remediation(
+            DecisionAction.ESCALATE,
+            approved=True
+        )

@@ -41,8 +41,19 @@ def reject_incident(incident_id: str):
             "message": "Incident not found"
         }
 
+    try:
+        updated_incident = update_incident_status(
+            incident_id,
+            IncidentStatus.ESCALATED
+        )
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error)
+        )
+
     return {
         "incident_id": incident_id,
-        "approved": False,
-        "status": incident["status"]
+        "status": updated_incident["status"],
+        "approved": False
     }

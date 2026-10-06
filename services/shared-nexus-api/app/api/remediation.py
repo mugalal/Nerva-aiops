@@ -16,7 +16,7 @@ class RemediationRequest(BaseModel):
     incident_id: str
     action: DecisionAction
     approved: bool
-    
+    replicas: int | None = None  # Optional field for scaling action
 @router.post("/execute")
 def execute(request: RemediationRequest):
     incident = find_incident(request.incident_id)
@@ -36,7 +36,8 @@ def execute(request: RemediationRequest):
 
         result = execute_remediation(
             request.action,
-            request.approved
+            request.approved,
+            replicas=request.replicas  # Pass replicas for scaling action
         )
         update_incident_status(
         request.incident_id,
