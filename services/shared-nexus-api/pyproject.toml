@@ -1,0 +1,12 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shared-nexus-providers"
+version = "0.1.0"
+description = "Shared provider interfaces for the NEXUS AIOps platform"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
