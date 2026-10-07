@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 
 from shared.config.settings import get_runtime_settings  # noqa: E402
 
-from . import cost_model  # noqa: E402
+from . import cost_model, persistence
 from .models import (  # noqa: E402
     FinOpsContext,
     HealthResponse,
@@ -25,8 +25,9 @@ SERVICE_NAME = "finops-engine"
 
 
 def compute_status() -> str:
-    # M6 has no dependencies yet. Later: "degraded" if the DB is configured
-    # but unreachable, "unavailable" if the cost model cannot load.
+    # "degraded" when a database is configured but unreachable.
+    if persistence.db_configured() and not persistence.db_reachable():
+        return "degraded"
     return "ok"
 
 
@@ -45,11 +46,15 @@ def create_app() -> FastAPI:
     
     @api.post("/internal/finops/recommend", response_model=RecommendResponse)
     def recommend_endpoint(request: RecommendRequest) -> RecommendResponse:
-        return recommend(request)
+        response = recommend(request)
+        persistence.save_recommendation(request, response)
+        return response
 
     @api.post("/internal/finops/scale-options", response_model=FinOpsContext)
     def scale_options_endpoint(request: ScaleOptionsRequest) -> FinOpsContext:
-        return build_scale_options(request)
+        response = build_scale_options(request)
+        persistence.save_scale_options(request, response)
+        return response
 
     @api.get("/internal/finops/assumptions")
     def assumptions() -> dict:
