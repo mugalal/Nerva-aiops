@@ -86,7 +86,7 @@ class RecommendRequest(BaseModel):
 
 
 class ScaleOptionsRequest(BaseModel):
-    """Body of POST /internal/finops/scale-options."""
+    #Body of POST /internal/finops/scale-options.
     model_config = ConfigDict(extra="forbid")
     service: str = Field(min_length=1)
     incident_id: str | None = None
@@ -96,3 +96,11 @@ class ScaleOptionsRequest(BaseModel):
     observed_cpu_pct: float = Field(ge=0, le=100)
     scale_duration_minutes: int = Field(gt=0)
     candidate_replicas: list[int] | None = None
+
+class RecommendResponse(BaseModel):
+    #Body returned by /recommend. The frozen contract sits inside `recommendation`.
+    model_config = ConfigDict(extra="forbid")
+    status: Literal["RECOMMENDED", "NO_RECOMMENDATION", "INSUFFICIENT_EVIDENCE"]
+    reason: str
+    assumptions: list[str]
+    recommendation: FinOpsRecommendation

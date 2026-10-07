@@ -1,7 +1,11 @@
 import sys
 from pathlib import Path
-
 from fastapi import FastAPI
+from . import cost_model
+from shared.config.settings import get_runtime_settings  
+from .models import FinOpsContext, HealthResponse, RecommendRequest, RecommendResponse, ScaleOptionsRequest
+from .rightsizing import recommend
+from .scale_options import build_scale_options
 
 # Make the repo root importable so we can use shared/ (same trick as M1).
 # main.py -> app -> finops-engine -> services -> repo root = parents[3]
@@ -9,9 +13,6 @@ ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from shared.config.settings import get_runtime_settings  # noqa: E402
-
-from .models import HealthResponse  # noqa: E402
 
 SERVICE_NAME = "finops-engine"
 
@@ -34,6 +35,18 @@ def create_app() -> FastAPI:
             version=settings.service_version,
             environment=settings.environment,
         )
+    
+    @api.post("/internal/finops/recommend", response_model=RecommendResponse)
+    def recommend_endpoint(request: RecommendRequest) -> RecommendResponse:
+        return recommend(request)
+
+    @api.post("/internal/finops/scale-options", response_model=FinOpsContext)
+    def scale_options_endpoint(request: ScaleOptionsRequest) -> FinOpsContext:
+        return build_scale_options(request)
+
+    @api.get("/internal/finops/assumptions")
+    def assumptions() -> dict:
+        return {"cost_model": cost_model.ASSUMPTIONS}
 
     return api
 
