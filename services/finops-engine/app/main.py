@@ -1,18 +1,25 @@
 import sys
 from pathlib import Path
+
 from fastapi import FastAPI
-from . import cost_model
-from shared.config.settings import get_runtime_settings  
-from .models import FinOpsContext, HealthResponse, RecommendRequest, RecommendResponse, ScaleOptionsRequest
-from .rightsizing import recommend
-from .scale_options import build_scale_options
 
 # Make the repo root importable so we can use shared/ (same trick as M1).
-# main.py -> app -> finops-engine -> services -> repo root = parents[3]
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from shared.config.settings import get_runtime_settings  # noqa: E402
+
+from . import cost_model  # noqa: E402
+from .models import (  # noqa: E402
+    FinOpsContext,
+    HealthResponse,
+    RecommendRequest,
+    RecommendResponse,
+    ScaleOptionsRequest,
+)
+from .rightsizing import recommend  # noqa: E402
+from .scale_options import build_scale_options  # noqa: E402
 
 SERVICE_NAME = "finops-engine"
 
