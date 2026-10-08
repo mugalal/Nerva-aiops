@@ -99,7 +99,8 @@ environment
 
 ## P0 Signals
 
-The canonical telemetry snapshot must include:
+The frozen `TelemetrySnapshot` contract has `timestamp`, `service`, and `version` at
+the top level. Its `metrics` object contains exactly:
 
 ```text
 request_rate
@@ -108,9 +109,21 @@ http_5xx_rate
 cpu
 memory
 replica_count
-service_health
-version
 ```
+
+`service_health` is evidence, but it is not inside the frozen snapshot. Read it
+from `GET /health` or the Kubernetes context returned by M1 evidence capture.
+
+Units are fixed:
+
+| Field | Unit |
+| --- | --- |
+| `request_rate` | requests per second |
+| `latency_p95_ms` | milliseconds |
+| `http_5xx_rate` | ratio from `0.0` to `1.0` |
+| `cpu` | ratio of used CPU to configured CPU limit |
+| `memory` | ratio of resident bytes to configured memory limit |
+| `replica_count` | running instrumented service instances |
 
 Optional but recommended:
 
@@ -126,8 +139,9 @@ Never fabricate telemetry, recovery, or health data.
 
 When data is missing or stale:
 
-1. Return `status: "degraded"` or a response-specific `unknown` result.
-2. Include a human-readable reason.
-3. Preserve the schema so consumers do not need special-case parsing.
-4. Use canonical mocks only after the 30-minute anti-waiting rule applies.
-
+1. Health endpoints return `degraded` or `unavailable` with dependency details.
+2. Frozen data endpoints return a typed `4xx`/`5xx` error instead of inventing a
+   snapshot that looks real.
+3. Include a human-readable reason and stable error category.
+4. Use canonical mocks only in explicit `M1_PROVIDER_MODE=mock`; never silently
+   fall back from real providers to mock data.
