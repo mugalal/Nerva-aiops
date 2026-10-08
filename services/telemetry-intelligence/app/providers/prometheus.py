@@ -73,12 +73,15 @@ class PrometheusClient:
             for item in data["result"]:
                 timestamp, raw_value = item["value"]
                 value = float(raw_value)
+                timestamp = float(timestamp)
+                if not math.isfinite(timestamp):
+                    raise ValueError("sample timestamp must be finite")
                 if not math.isfinite(value):
                     continue
                 samples.append(
                     PrometheusSample(
                         labels={str(k): str(v) for k, v in item.get("metric", {}).items()},
-                        timestamp=float(timestamp),
+                        timestamp=timestamp,
                         value=value,
                     )
                 )
@@ -122,8 +125,11 @@ class PrometheusClient:
                 values = []
                 for timestamp, raw_value in item.get("values", []):
                     value = float(raw_value)
+                    timestamp = float(timestamp)
+                    if not math.isfinite(timestamp):
+                        raise ValueError("sample timestamp must be finite")
                     if math.isfinite(value):
-                        values.append((float(timestamp), value))
+                        values.append((timestamp, value))
                 series.append(
                     PrometheusSeries(
                         labels={str(k): str(v) for k, v in item.get("metric", {}).items()},
@@ -145,7 +151,7 @@ class PrometheusClient:
         series = await self.query_range(
             query, start=start, end=end, step_seconds=step_seconds
         )
-        if not series:
+        if not series or not any(item.values for item in series):
             raise TelemetryMissing(f"Prometheus returned no range data for query: {query}")
         if len(series) > 1:
             raise ProviderInvalidResponse(

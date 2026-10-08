@@ -43,6 +43,9 @@ Open:
 The M1 health endpoint may say `degraded` in Docker Compose because no Kubernetes
 API is attached. Prometheus telemetry and Loki still remain real. In Kubernetes,
 M1 automatically uses its read-only service account instead of local `kubectl`.
+The smoke checks allow this Compose limitation, but require real M1 providers,
+a fresh payment snapshot with nonzero traffic, and queryable `/pay` logs from
+the last two minutes. A ready Prometheus or Loki process alone is insufficient.
 
 ## M1 API
 
@@ -72,22 +75,61 @@ Metric units are part of the contract:
 
 The baseline latency limit is measured healthy P95 multiplied by `1.25`. The
 error limit is the larger of `1%` or measured healthy P95 error multiplied by
-`1.5`. Both multipliers are environment variables and are saved with the
-resulting baseline values. The local demo uses a one-minute Prometheus decision
+`1.5`. Both multipliers are environment variables; the resulting thresholds are
+saved with the baseline. The local demo uses a one-minute Prometheus decision
 window so recovery can be proven promptly; this is separate from how long a
 baseline run is collected.
+
+Baselines must come from a stable healthy version under real traffic. The default
+quality gates require at least five samples over 60 seconds, 90% sample coverage,
+request rate of at least `0.1` requests/second, and a 5xx ratio no higher than
+`0.01`. Healthy samples also stay within a `500 ms` latency ceiling and CPU/memory
+utilization ratios of `0.85` against their limits. These gates are configurable.
+Historical windows retain the version observed at that historical time;
+windows spanning a version change are rejected. Start/end timestamps must include
+a timezone. The complete settings are in [runtime conventions](docs/runtime-conventions.md).
+
+For example, after starting a healthy v1 stack, collect three minutes of traffic
+and measure the last complete healthy window:
+
+```powershell
+.\scripts\generate-traffic.ps1 -DurationSeconds 180 -Concurrency 5
+$baselineEnd = [DateTimeOffset]::UtcNow.AddSeconds(-15)
+$baselineBody = @{
+    service = "payment-service"
+    start = $baselineEnd.AddSeconds(-75).ToString("o")
+    end = $baselineEnd.ToString("o")
+    step_seconds = 15
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:8001/internal/baselines/measure -ContentType application/json -Body $baselineBody
+```
+
+Keep a separate traffic generator running during fault injection, remediation,
+and recovery validation. Recovery must prove sustained health under load.
 
 For the repeatable bad-deployment drill, start faulty v2 with the Compose
 override, keep traffic running, capture evidence, then recreate v1 from the base
 file:
 
 ```powershell
-docker-compose -f observability/docker-compose.yml -f observability/docker-compose.faulty.yml up -d --build payment-service
-docker-compose -f observability/docker-compose.yml up -d --force-recreate payment-service
+docker compose -f observability/docker-compose.yml -f observability/docker-compose.faulty.yml up -d --build payment-service
+docker compose -f observability/docker-compose.yml up -d --force-recreate payment-service
 ```
 
 M1 requires the post-action version to equal the measured healthy baseline
 version before a bad-deployment incident can be marked recovered.
+Use exactly `bad_deployment` or `traffic_spike` for both capture and validation;
+the validation scenario must match the captured incident. `action_completed_at`
+must be timezone-aware, no earlier than capture, and no later than the current
+time. The validator waits for the longer metric query window to pass after the
+action, then requires 30 seconds of healthy samples (at least three by default).
+With the one-minute query windows this is at least 90 seconds after completion;
+an early request returns retryable HTTP 409 `recovery_pending`. A traffic-spike
+recovery additionally requires more replicas than before the action and continued
+traffic. Exported recovery evidence includes the measured validation window.
+Evidence capture pins the healthy baseline for that incident. A later baseline
+measurement cannot relax its SLO or change its rollback version. When deployment
+evidence is available, rollback must return to its recorded previous version.
 
 ## Team Integration
 
@@ -104,16 +146,71 @@ available only when `M1_PROVIDER_MODE=mock` is intentionally set.
 
 ## Kubernetes
 
-After the payment images and M1 image are available to the cluster:
+Use Linux nodes and a default dynamic StorageClass; the three PVCs must bind.
+Build the application images, then make them available on every node. Docker
+Desktop Kubernetes can use images built in its local Docker engine. For kind or
+minikube, load the images into that cluster; for a remote cluster, push them to a
+registry and update the two application manifests' image references.
 
 ```powershell
-kubectl apply -f observability/k8s/prometheus.yaml
-kubectl apply -f apps/demo-microservices/k8s/payment-service.yaml
-kubectl apply -f services/telemetry-intelligence/k8s/telemetry-intelligence.yaml
+docker build --build-arg VERSION=v1 -t nexus/payment-service:v1 apps/demo-microservices/payment-service
+docker build -f services/telemetry-intelligence/Dockerfile -t nexus/telemetry-intelligence:dev .
+kubectl get nodes
+kubectl get storageclass
 ```
 
-The M1 service account can only read pods, events, and deployments in
+Create the namespace first, before applying any namespaced resource:
+
+```powershell
+kubectl apply -f observability/k8s/namespace.yaml
+kubectl apply -f observability/k8s/prometheus.yaml
+kubectl apply -f observability/k8s/loki.yaml
+kubectl apply -f observability/k8s/alloy.yaml
+kubectl apply -f apps/demo-microservices/k8s/payment-service.yaml
+kubectl apply -f services/telemetry-intelligence/k8s/telemetry-intelligence.yaml
+kubectl get pvc -n nexus-demo
+kubectl rollout status -n nexus-demo deployment/prometheus --timeout=180s
+kubectl rollout status -n nexus-demo deployment/loki --timeout=180s
+kubectl rollout status -n nexus-demo daemonset/alloy --timeout=180s
+kubectl rollout status -n nexus-demo deployment/payment-service --timeout=180s
+kubectl rollout status -n nexus-demo deployment/telemetry-intelligence --timeout=180s
+```
+
+Loki and Prometheus persist their data in PVCs, and M1 persists incident evidence
+in its own PVC. Alloy runs once per Linux node, reads that node's CRI log files
+from `/var/log/pods`, and preserves its read positions in `/var/lib/nexus-alloy`
+across pod restarts on the same node. Node replacement does not preserve that
+node-local position directory. The log pipeline carries `service_name`,
+`namespace`, `pod`, `version`, and `environment`, and sends records to the
+`loki` service. Alloy only has read discovery access to pods in `nexus-demo`.
+
+The M1 service account can only read pods, events, deployments, and ReplicaSets in
 `nexus-demo`; it cannot scale, restart, or roll back workloads.
+
+To check the cluster separately from the Compose ports, run each port-forward in
+its own terminal:
+
+```powershell
+kubectl port-forward -n nexus-demo service/payment-service 18000:80
+kubectl port-forward -n nexus-demo service/telemetry-intelligence 18001:8001
+kubectl port-forward -n nexus-demo service/prometheus 19090:9090
+kubectl port-forward -n nexus-demo service/loki 13100:3100
+```
+
+Then run traffic and the data checks from another terminal. These Kubernetes
+manifests contain the M1 evidence stack; Grafana is provisioned in Compose.
+
+```powershell
+$env:M1_TELEMETRY_BASE_URL = "http://localhost:18001"
+$env:PROMETHEUS_BASE_URL = "http://localhost:19090"
+$env:LOKI_BASE_URL = "http://localhost:13100"
+.\scripts\generate-traffic.ps1 -BaseUrl http://localhost:18000 -DurationSeconds 90 -Concurrency 5
+.\scripts\smoke-check.ps1 -M1Only -SkipGrafana -RequireKubernetes
+```
+
+If a rollout waits indefinitely, inspect `kubectl get pods,pvc -n nexus-demo` and
+the relevant pod's events. Pending PVCs indicate the storage provisioner must be
+configured before the stack can start.
 
 ## Tests
 
@@ -126,4 +223,10 @@ python -m unittest discover -s tests -t . -p "test_*.py"
 
 The cross-module smoke checks remain in `scripts/smoke-check.sh` and
 `scripts/smoke-check.ps1`. During parallel development, unfinished module ports
-are expected to fail; `-M1Only` checks just the M1 stack on Windows.
+are expected to fail. Use `-M1Only` on Windows or `--m1-only` in Bash for the
+M1 stack. Bash requires Python 3 for JSON validation; `PYTHON_BIN` can select its
+executable. Both scripts fail if real telemetry or recent payment request logs
+are missing and print instructions for supplying traffic. Use `-SkipGrafana` or
+`--skip-grafana` for the Kubernetes stack above.
+Add `-RequireKubernetes` or `--require-kubernetes` for cluster validation so an
+unavailable Kubernetes evidence provider fails the smoke check.

@@ -1,8 +1,22 @@
 from dataclasses import dataclass
 import os
+import math
 from pathlib import Path
+import re
 
 from shared.config import RuntimeSettings, get_runtime_settings
+
+
+def duration_seconds(value: str) -> float:
+    """Parse a Prometheus duration without accepting arbitrary PromQL."""
+    units = {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800, "y": 31536000}
+    parts = re.findall(r"(\d+)(ms|s|m|h|d|w|y)", value)
+    if not parts or "".join(number + unit for number, unit in parts) != value:
+        raise ValueError(f"Invalid Prometheus duration: {value}")
+    seconds = sum(int(number) * units[unit] for number, unit in parts)
+    if seconds <= 0:
+        raise ValueError("Prometheus durations must be positive")
+    return seconds
 
 
 @dataclass(frozen=True)
@@ -29,6 +43,49 @@ class M1Settings:
     baseline_error_floor: float
     traffic_continuity_ratio: float
     log_limit: int
+    baseline_min_samples: int = 5
+    baseline_min_duration_seconds: float = 60
+    baseline_min_coverage_ratio: float = 0.9
+    baseline_min_request_rate: float = 0.1
+    baseline_max_error_rate: float = 0.01
+    recovery_hold_seconds: float = 30
+    recovery_min_samples: int = 3
+    baseline_max_latency_ms: float = 500
+    baseline_max_utilization_ratio: float = 0.85
+
+    def __post_init__(self):
+        numeric_settings = (
+            self.provider_timeout_seconds, self.stale_after_seconds,
+            self.baseline_latency_multiplier, self.baseline_error_multiplier,
+            self.baseline_error_floor, self.traffic_continuity_ratio,
+            self.baseline_min_duration_seconds, self.baseline_min_coverage_ratio,
+            self.baseline_min_request_rate, self.baseline_max_error_rate,
+            self.recovery_hold_seconds, self.baseline_max_latency_ms,
+            self.baseline_max_utilization_ratio,
+        )
+        if not all(math.isfinite(value) for value in numeric_settings):
+            raise ValueError("Measurement settings must be finite")
+        duration_seconds(self.request_rate_window)
+        duration_seconds(self.latency_window)
+        if self.baseline_min_samples < 2 or self.recovery_min_samples < 2:
+            raise ValueError("Baseline and recovery require multiple samples")
+        if not 0 < self.baseline_min_coverage_ratio <= 1:
+            raise ValueError("Baseline coverage must be in (0, 1]")
+        if not 0 <= self.baseline_max_error_rate <= 1 or not 0 <= self.baseline_error_floor <= 1:
+            raise ValueError("Baseline error limits must be ratios in [0, 1]")
+        if self.baseline_latency_multiplier < 1 or self.baseline_error_multiplier < 1:
+            raise ValueError("Baseline threshold multipliers must be at least 1")
+        if not 5 <= self.history_step_seconds <= 300:
+            raise ValueError("History step must be between 5 and 300 seconds")
+        if min(self.baseline_min_duration_seconds, self.baseline_min_request_rate,
+               self.recovery_hold_seconds, self.stale_after_seconds, self.baseline_max_latency_ms) <= 0:
+            raise ValueError("Measurement durations, live traffic floor, and freshness limit must be positive")
+        if not 0 < self.baseline_max_utilization_ratio <= 1:
+            raise ValueError("Healthy baseline utilization ceiling must be in (0, 1]")
+        if not 0 < self.traffic_continuity_ratio <= 1 or self.provider_timeout_seconds <= 0:
+            raise ValueError("Traffic continuity must be in (0, 1] and provider timeout positive")
+        if self.recovery_hold_seconds < self.history_step_seconds * (self.recovery_min_samples - 1):
+            raise ValueError("Recovery hold must fit the minimum number of samples")
 
 
 def load_m1_settings() -> M1Settings:
@@ -83,4 +140,13 @@ def load_m1_settings() -> M1Settings:
             os.getenv("M1_TRAFFIC_CONTINUITY_RATIO", "0.5")
         ),
         log_limit=int(os.getenv("M1_LOG_LIMIT", "100")),
+        baseline_min_samples=int(os.getenv("M1_BASELINE_MIN_SAMPLES", "5")),
+        baseline_min_duration_seconds=float(os.getenv("M1_BASELINE_MIN_DURATION_SECONDS", "60")),
+        baseline_min_coverage_ratio=float(os.getenv("M1_BASELINE_MIN_COVERAGE_RATIO", "0.9")),
+        baseline_min_request_rate=float(os.getenv("M1_BASELINE_MIN_REQUEST_RATE", "0.1")),
+        baseline_max_error_rate=float(os.getenv("M1_BASELINE_MAX_ERROR_RATE", "0.01")),
+        recovery_hold_seconds=float(os.getenv("M1_RECOVERY_HOLD_SECONDS", "30")),
+        recovery_min_samples=int(os.getenv("M1_RECOVERY_MIN_SAMPLES", "3")),
+        baseline_max_latency_ms=float(os.getenv("M1_BASELINE_MAX_LATENCY_MS", "500")),
+        baseline_max_utilization_ratio=float(os.getenv("M1_BASELINE_MAX_UTILIZATION_RATIO", "0.85")),
     )

@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+
+
+Scenario = Literal["bad_deployment", "traffic_spike"]
 
 
 class StrictModel(BaseModel):
@@ -40,8 +43,8 @@ class TelemetryWindow(StrictModel):
 
 class TimeWindowRequest(StrictModel):
     service: str = Field(min_length=1)
-    start: datetime
-    end: datetime
+    start: AwareDatetime
+    end: AwareDatetime
     step_seconds: int = Field(default=15, ge=5, le=300)
 
     @model_validator(mode="after")
@@ -104,7 +107,7 @@ class KubernetesContext(StrictModel):
 class CaptureEvidenceRequest(StrictModel):
     incident_id: str = Field(min_length=1)
     service: str = Field(min_length=1)
-    scenario: str = Field(min_length=1)
+    scenario: Scenario
 
 
 class IncidentEvidence(StrictModel):
@@ -117,13 +120,14 @@ class IncidentEvidence(StrictModel):
     kubernetes: KubernetesContext | None
     deployment_event: DeploymentEvent | None
     provider_errors: list[str]
+    baseline: HealthyBaseline | None = None
 
 
 class RecoveryValidationRequest(StrictModel):
     incident_id: str = Field(min_length=1)
     service: str = Field(min_length=1)
-    action_completed_at: datetime
-    scenario: str = Field(min_length=1)
+    action_completed_at: AwareDatetime
+    scenario: Scenario
 
 
 class RecoveryMetrics(StrictModel):
@@ -149,6 +153,7 @@ class RecoveryEvidenceRecord(StrictModel):
     before: TelemetrySnapshot
     after: TelemetrySnapshot
     result: RecoveryResult
+    measurement_window: TelemetryWindow | None = None
 
 
 class DependencyHealth(StrictModel):

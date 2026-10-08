@@ -1,6 +1,7 @@
 """Observable demo payment service used by both NEXUS P0 scenarios."""
 
 from datetime import datetime, timezone
+import hashlib
 import json
 import logging
 import os
@@ -22,6 +23,9 @@ FAULT_LATENCY_MS = int(os.getenv("FAULT_LATENCY_MS", "600" if VERSION == "v2" el
 FAULT_5XX_RATE = float(os.getenv("FAULT_5XX_RATE", "0.14" if VERSION == "v2" else "0.0"))
 CPU_LIMIT_CORES = float(os.getenv("CPU_LIMIT_CORES", "1"))
 MEMORY_LIMIT_BYTES = float(os.getenv("MEMORY_LIMIT_BYTES", "536870912"))
+PAYMENT_WORK_ITERATIONS = int(os.getenv("PAYMENT_WORK_ITERATIONS", "0"))
+if not 0 <= PAYMENT_WORK_ITERATIONS <= 1_000_000:
+    raise ValueError("PAYMENT_WORK_ITERATIONS must be between 0 and 1000000")
 
 
 class JsonFormatter(logging.Formatter):
@@ -129,6 +133,7 @@ def health() -> dict:
         "service": SERVICE_NAME,
         "version": VERSION,
         "environment": ENVIRONMENT,
+        "payment_work_iterations": PAYMENT_WORK_ITERATIONS,
     }
 
 
@@ -144,6 +149,13 @@ def metrics() -> Response:
 
 @app.post("/pay")
 def pay(response: Response) -> dict:
+    # Optional, constant payment processing work makes CPU capacity measurable.
+    # Keep this setting unchanged before, during, and after a scaling drill.
+    if PAYMENT_WORK_ITERATIONS:
+        hashlib.pbkdf2_hmac(
+            "sha256", b"nexus-demo-payment", b"nexus-demo-fixed-salt",
+            PAYMENT_WORK_ITERATIONS,
+        )
     if FAULT_LATENCY_MS:
         time.sleep(FAULT_LATENCY_MS / 1000.0)
 
