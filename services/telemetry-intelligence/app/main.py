@@ -8,6 +8,8 @@ import time
 
 from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 
@@ -227,12 +229,12 @@ def create_app(
         end: datetime = Query(),
         step_seconds: int = Query(default=15, ge=5, le=300),
     ) -> TelemetryWindow:
-        request = TimeWindowRequest(
-            service=requested_service,
-            start=start,
-            end=end,
-            step_seconds=step_seconds,
-        )
+        try:
+            request = TimeWindowRequest(
+                service=requested_service, start=start, end=end, step_seconds=step_seconds,
+            )
+        except ValidationError as exc:
+            raise RequestValidationError(exc.errors(include_context=False)) from exc
         return await service.window(request)
 
     @api.post("/internal/baselines/measure", response_model=HealthyBaseline)

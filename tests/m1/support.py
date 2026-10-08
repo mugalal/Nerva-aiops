@@ -47,7 +47,7 @@ def make_settings(data_dir: Path) -> M1Settings:
         stale_after_seconds=60,
         history_step_seconds=15,
         request_rate_window="1m",
-        latency_window="5m",
+        latency_window="1m",
         baseline_latency_multiplier=1.25,
         baseline_error_multiplier=1.5,
         baseline_error_floor=0.01,
@@ -79,7 +79,7 @@ def make_snapshot(
     )
 
 
-def make_window(snapshot: TelemetrySnapshot, sample_count: int = 4) -> TelemetryWindow:
+def make_window(snapshot: TelemetrySnapshot, sample_count: int = 5) -> TelemetryWindow:
     end = datetime.now(timezone.utc)
     start = end - timedelta(seconds=(sample_count - 1) * 15)
     return TelemetryWindow(
@@ -102,8 +102,17 @@ class FakeTelemetry:
     mode = "real"
 
     def __init__(self, current: TelemetrySnapshot):
-        self.current = current
+        self._current = current
         self.history = make_window(current)
+
+    @property
+    def current(self):
+        return self._current
+
+    @current.setter
+    def current(self, value):
+        self._current = value
+        self.history = make_window(value)
 
     async def ready(self) -> tuple[bool, str]:
         return True, "fake Prometheus is ready"
@@ -118,12 +127,17 @@ class FakeTelemetry:
         end: datetime,
         step_seconds: int,
     ) -> TelemetryWindow:
+        count = min(len(self.history.points), int((end - start).total_seconds() // step_seconds) + 1)
         return self.history.model_copy(
             update={
                 "service": service,
                 "start": start,
                 "end": end,
                 "step_seconds": step_seconds,
+                "points": [
+                    point.model_copy(update={"timestamp": start + timedelta(seconds=index * step_seconds)})
+                    for index, point in enumerate(self.history.points[:count])
+                ],
             }
         )
 

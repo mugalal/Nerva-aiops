@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -74,6 +75,28 @@ class M1ApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 404)
         self.assertEqual(response.json()["detail"]["category"], "evidence_not_found")
         self.assertFalse(response.json()["detail"]["retryable"])
+
+    async def test_bad_time_windows_return_422_instead_of_500(self):
+        now = datetime.now(timezone.utc)
+        for start, end in [(now, now - timedelta(minutes=1)),
+                           (now.replace(tzinfo=None), now),
+                           (now, now + timedelta(minutes=1))]:
+            with self.subTest(start=start, end=end):
+                response = await self.client.get("/internal/telemetry/window", params={
+                    "service": "payment-service", "start": start.isoformat(), "end": end.isoformat()
+                })
+                self.assertEqual(response.status_code, 422)
+
+    async def test_unknown_scenarios_and_naive_action_times_are_rejected(self):
+        response = await self.client.post("/internal/evidence/capture", json={
+            "incident_id": "INC-TYPO", "service": "payment-service", "scenario": "bad_release"
+        })
+        self.assertEqual(response.status_code, 422)
+        response = await self.client.post("/internal/recovery/validate", json={
+            "incident_id": "INC-TYPO", "service": "payment-service", "scenario": "bad_deployment",
+            "action_completed_at": "2026-10-08T10:00:00"
+        })
+        self.assertEqual(response.status_code, 422)
 
 
 if __name__ == "__main__":

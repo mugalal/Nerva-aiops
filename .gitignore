@@ -6,6 +6,7 @@ venv/
 *.log
 .DS_Store
 services/telemetry-intelligence/data/
+/.review-branches/
 
 # Local source runbooks (not published with the working repository)
 /00_TEAM_QUICK_START (1).md
