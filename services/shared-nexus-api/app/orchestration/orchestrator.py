@@ -7,6 +7,7 @@ from app.remediation.executor import execute_remediation
 from app.remediation.audit import add_audit_record
 from app.providers.recovery_provider import validate_recovery
 from app.api.incidents import find_incident
+from app.providers.evidence_provider import capture_incident_evidence
 
 
 def build_decision(incident_id: str):
@@ -23,7 +24,12 @@ def build_decision(incident_id: str):
     update_incident_status(
         incident_id,
         IncidentStatus.DIAGNOSED
-)
+)   
+    evidence = capture_incident_evidence(
+        incident_id=incident_id,
+        service="payment-service",
+        scenario=rca["root_cause"]
+    )
     finops = get_finops_context()
 
     result = decide_from_rca(

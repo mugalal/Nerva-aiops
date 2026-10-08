@@ -16,20 +16,6 @@ def test_full_m4_e2e_flow():
         "status": IncidentStatus.DETECTED,
     })
 
-    update_incident_status(
-        incident_id,
-        IncidentStatus.CORRELATING
-    )
-
-    update_incident_status(
-        incident_id,
-        IncidentStatus.DIAGNOSING
-    )
-
-    update_incident_status(
-        incident_id,
-        IncidentStatus.DIAGNOSED
-    )
 
     decision = build_decision(incident_id)
 

@@ -22,18 +22,7 @@ def test_build_decision_returns_result():
         }
     )
 
-    update_incident_status(
-        "INC-ORCH-001",
-        IncidentStatus.CORRELATING
-    )
-    update_incident_status(
-        "INC-ORCH-001",
-        IncidentStatus.DIAGNOSING
-    )
-    update_incident_status(
-        "INC-ORCH-001",
-        IncidentStatus.DIAGNOSED
-    )
+
 
     result = build_decision("INC-ORCH-001")
 
@@ -60,18 +49,7 @@ def test_execute_approved_action_moves_to_validating():
         }
     )
 
-    update_incident_status(
-        "INC-ORCH-002",
-        IncidentStatus.CORRELATING
-    )
-    update_incident_status(
-        "INC-ORCH-002",
-        IncidentStatus.DIAGNOSING
-    )
-    update_incident_status(
-        "INC-ORCH-002",
-        IncidentStatus.DIAGNOSED
-    )
+    
 
     decision = build_decision("INC-ORCH-002")
 
@@ -98,18 +76,7 @@ def test_apply_recovery_result_resolves_incident():
         }
     )
 
-    update_incident_status(
-        "INC-ORCH-003",
-        IncidentStatus.CORRELATING
-    )
-    update_incident_status(
-        "INC-ORCH-003",
-        IncidentStatus.DIAGNOSING
-    )
-    update_incident_status(
-        "INC-ORCH-003",
-        IncidentStatus.DIAGNOSED
-    )
+   
 
     decision = build_decision("INC-ORCH-003")
 
@@ -135,18 +102,7 @@ def test_apply_recovery_result_escalates_on_failure():
         }
     )
 
-    update_incident_status(
-        "INC-ORCH-004",
-        IncidentStatus.CORRELATING
-    )
-    update_incident_status(
-        "INC-ORCH-004",
-        IncidentStatus.DIAGNOSING
-    )
-    update_incident_status(
-        "INC-ORCH-004",
-        IncidentStatus.DIAGNOSED
-    )
+   
 
     decision = build_decision("INC-ORCH-004")
 
