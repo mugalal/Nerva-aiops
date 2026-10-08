@@ -1,0 +1,46 @@
+name: M5 checks
+on:
+  push:
+    paths: ['services/incident-memory/**', 'ui/**', 'contracts/**', 'mocks/**', 'shared/**', '.github/workflows/m5.yml']
+  pull_request:
+    paths: ['services/incident-memory/**', 'ui/**', 'contracts/**', 'mocks/**', 'shared/**', '.github/workflows/m5.yml']
+jobs:
+  memory:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: nexus_test
+          POSTGRES_USER: nexus
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ['5432:5432']
+        options: --health-cmd "pg_isready -U nexus -d nexus_test" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -r services/incident-memory/requirements.txt
+      - run: python -m unittest discover -s tests -v
+        working-directory: services/incident-memory
+        env:
+          M5_TEST_DATABASE_URL: postgresql://nexus:ci-only-password@localhost:5432/nexus_test
+      - run: python scripts/evaluate.py
+        working-directory: services/incident-memory
+      - run: docker compose -f services/incident-memory/compose.yml up --build -d
+        env:
+          M5_DB_PASSWORD: ci-compose-only-password
+          M5_UI_MODE: mock
+      - run: python services/incident-memory/scripts/verify_docker.py
+        env:
+          M5_DB_PASSWORD: ci-compose-only-password
+          M5_UI_MODE: mock
+      - if: always()
+        run: docker compose -f services/incident-memory/compose.yml logs --no-color
+        env:
+          M5_DB_PASSWORD: ci-compose-only-password
+      - if: always()
+        run: docker compose -f services/incident-memory/compose.yml down
+        env:
+          M5_DB_PASSWORD: ci-compose-only-password

@@ -41,3 +41,10 @@ bash scripts/smoke-check.sh
 
 The smoke check expects all module services to expose `GET /health`. Early in the project, failures for modules that are not built yet are expected and useful.
 
+## M5 Incident Memory & Copilot
+
+The M5 service and shared UI are implemented in `services/incident-memory/` and `ui/`.
+See [setup and behavior](services/incident-memory/README.md), [team integration protocol](docs/M5_INTEGRATION.md), and [verification / pending gates](docs/M5_EVALUATION.md).
+M5 uses port 8005; PostgreSQL is supported for integration, with SQLite for local development.
+Mock previews are explicitly labeled. The shared frozen contracts are unchanged.
+

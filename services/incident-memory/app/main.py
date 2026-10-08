@@ -1,0 +1,128 @@
+from contextlib import asynccontextmanager
+import logging
+import os
+from pathlib import Path
+import sys
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
+from shared.config import get_runtime_settings
+from shared.logging import configure_json_logging
+
+from .models import StoreRequest, SearchRequest, CopilotRequest, ApprovalRequest
+from .storage import Repository, StorageUnavailable, MemoryConflict
+from .retrieval import search
+from .copilot import answer
+from .providers import Provider, ProviderUnavailable
+
+settings = get_runtime_settings("incident-memory")
+configure_json_logging(settings.service_name, settings.service_version, settings.environment, settings.log_level)
+logger = logging.getLogger(__name__)
+
+
+def create_app(repository=None, provider=None):
+    repo = repository or Repository()
+    upstream = provider or Provider()
+
+    @asynccontextmanager
+    async def lifespan(app):
+        try:
+            repo.initialize()
+        except StorageUnavailable:
+            logger.error("memory storage unavailable at startup")
+        yield
+
+    app = FastAPI(title="NEXUS Incident Memory & Copilot", version=settings.service_version, lifespan=lifespan)
+    app.state.repository = repo
+    app.state.provider = upstream
+
+    @app.exception_handler(StorageUnavailable)
+    async def storage_error(request, exc):
+        return JSONResponse(status_code=503, content={"status": "unavailable", "detail": str(exc)})
+
+    @app.exception_handler(ProviderUnavailable)
+    async def provider_error(request, exc):
+        return JSONResponse(status_code=503, content={"status": "degraded", "detail": str(exc), "source": upstream.mode})
+
+    @app.exception_handler(MemoryConflict)
+    async def conflict(request, exc):
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @app.get("/health")
+    def health():
+        try:
+            repo.initialize()  # Also recovers after an initial DB outage.
+            status, reason = "ok", None
+        except StorageUnavailable:
+            status, reason = "unavailable", "Incident memory database is unavailable"
+        if status == "ok":
+            if upstream.mode == "mock":
+                status, reason = "degraded", "UI is using explicitly selected mock data"
+            else:
+                try:
+                    upstream.overview()
+                except ProviderUnavailable:
+                    status, reason = "degraded", "Shared UI API is unavailable; memory endpoints remain available"
+        return {"service": settings.service_name, "status": status, "version": settings.service_version,
+                "environment": settings.environment, "storage": "postgresql" if repo.postgres else "sqlite",
+                "ui_mode": upstream.mode, "reason": reason}
+
+    @app.post("/internal/memory/store")
+    def store(request: StoreRequest):
+        record, status = repo.save(request)
+        logger.info("incident memory stored", extra={"incident_id": request.memory.incident_id})
+        return {"status": status, "record": record}
+
+    @app.post("/internal/memory/search")
+    def memory_search(request: SearchRequest):
+        return search(repo, request)
+
+    @app.get("/internal/memory/{incident_id}")
+    def memory_get(incident_id: str, source: str = Query("real", pattern="^(real|mock)$")):
+        record = repo.get(incident_id, source)
+        if not record:
+            raise HTTPException(404, "No memory record exists for this incident and source")
+        return {"record": record}
+
+    @app.post("/internal/copilot/query")
+    def copilot(request: CopilotRequest):
+        return answer(repo, request)
+
+    @app.get("/internal/ui/config")
+    def config():
+        return {"source": "mock" if upstream.mode == "mock" else "real", "ui_mode": upstream.mode,
+                "approval_enabled": upstream.mode == "live" and bool(os.getenv("M5_APPROVAL_PATH"))}
+
+    @app.get("/internal/ui/overview")
+    def overview():
+        return upstream.overview()
+
+    @app.get("/internal/ui/incidents/{incident_id}")
+    def detail(incident_id: str):
+        result = upstream.detail(incident_id)
+        if result is None:
+            raise HTTPException(404, "Incident not found")
+        return result
+
+    @app.post("/internal/ui/incidents/{incident_id}/approval")
+    def approval(incident_id: str, request: ApprovalRequest, raw: Request):
+        # Same-origin browser requests only. M4 still owns auth and approval policy.
+        origin = raw.headers.get("origin")
+        if origin and origin != str(raw.base_url).rstrip("/"):
+            raise HTTPException(403, "Cross-origin approvals are not accepted")
+        return upstream.approval(incident_id, request.decision)
+
+    app.mount("/assets", StaticFiles(directory=ROOT / "ui"), name="ui")
+
+    @app.get("/", include_in_schema=False)
+    def index():
+        return FileResponse(ROOT / "ui" / "index.html")
+
+    return app
+
+
+app = create_app()

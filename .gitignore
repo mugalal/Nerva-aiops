@@ -4,6 +4,7 @@ __pycache__/
 venv/
 .env
 *.log
+services/incident-memory/data/
 .DS_Store
 
 # Local source runbooks (not published with the working repository)

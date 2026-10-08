@@ -1,0 +1,3 @@
+import {element, panel, fields} from '../components/render.js';
+export const questions=['What happened?','What changed before the incident?','What is the root cause?','Have we seen this before?','What action was taken?','Did it work?'];
+export function renderAnswer(result){const root=document.querySelector('#answer');root.replaceChildren();const box=panel('Recorded answer');box.append(element('span',`${result.status} · ${result.source}`,'badge'),element('p',result.answer,'answer-text'));root.append(box);for(const citation of result.citations){const card=panel(`Source: ${citation.incident_id}`);card.append(fields({source:citation.source,field:citation.field,recorded_value:citation.value}));root.append(card);}}
