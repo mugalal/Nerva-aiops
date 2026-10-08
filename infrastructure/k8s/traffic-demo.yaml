@@ -1,0 +1,48 @@
+# First create the script ConfigMap from scripts/k8s-traffic.py (see drill guide).
+# This Pod sends fresh connections to Service DNS; host port-forwarding cannot
+# distribute requests across payment replicas.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: payment-traffic
+  namespace: nexus-demo
+  labels:
+    app: payment-traffic
+    service_name: payment-traffic
+spec:
+  automountServiceAccountToken: false
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 45
+  containers:
+    - name: traffic
+      image: nexus/payment-service:v1
+      imagePullPolicy: IfNotPresent
+      command: [python, /traffic/k8s-traffic.py]
+      env:
+        - name: TARGET_URL
+          value: http://payment-service/pay
+        - name: RPS
+          value: "90"
+        - name: DURATION_SECONDS
+          value: "600"
+        - name: MAX_IN_FLIGHT
+          value: "300"
+        - name: REQUEST_TIMEOUT_SECONDS
+          value: "10"
+        - name: REPORT_INTERVAL_SECONDS
+          value: "10"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 64Mi
+        limits:
+          cpu: "1"
+          memory: 384Mi
+      volumeMounts:
+        - name: script
+          mountPath: /traffic
+          readOnly: true
+  volumes:
+    - name: script
+      configMap:
+        name: payment-traffic-script

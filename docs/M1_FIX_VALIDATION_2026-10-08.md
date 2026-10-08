@@ -1,6 +1,6 @@
 # M1 fixes and validation — 8 October 2026
 
-Implemented on m1/prometheus-integration after the readiness review. Changes are local; no commits, merges, or pushes were made.
+Implemented on `m1/prometheus-integration` after the readiness review. The M1 hardening changes were committed and pushed as `a4098ac`; review continues in PR #3.
 
 ## Changes
 
@@ -36,6 +36,16 @@ The stored before/after record is available at `GET /internal/recovery/M1-FIX-20
 After deploying the final baseline-pinning changes and restarting M1, the stored result and its three-sample validation window were still readable. The 360-second drill traffic run sent 25,335 requests; its failures include the deliberate faulty deployment and transient connections during container replacement.
 The final healthy traffic check sent 4,676 requests, all successful. Smoke passed on the final image at 80.16 requests/sec and 9.53 ms P95. Recovery was validated again successfully; subsequent validations update the stored record with their latest measurement window and elapsed time.
 
+## Kubernetes scaling drill
+
+Added opt-in, constant payment CPU processing work, a bounded fixed-rate traffic generator, an in-cluster traffic Pod, and a reproducible guide in `docs/M1_K8S_SCALING_DRILL.md`. Processing work defaults to zero. During the drill, only payment replicas change; the image, processing work, resource limits, and offered spike load remain fixed. Evidence checks include observed replica counts, per-pod request rates, image digests, and sustained recovery against the pinned baseline.
+
+The generator was exercised against a local HTTP server: 40/40 requests completed at 20 requests/sec over two seconds. An overloaded two-request in-flight bound reported dropped slots explicitly and maintained request accounting. Invalid input and the payment work setting were checked. All 53 M1 tests passed again.
+
+Created a local three-node kind cluster using an isolated, ignored kubeconfig. All three nodes reached Ready; Prometheus, Loki, and M1 PVCs were Bound. Applied the stack and configured payment with 20000 processing iterations and one replica before baseline collection.
+
+The live run then hit a host limitation: C: filled while loading the Kubernetes images. The cached multi-platform image import also required a Linux amd64 archive. Removed the verified temporary archive from this attempt; Docker was stopped to prevent further image pulls while disk space is freed. Application readiness, live Kubernetes evidence/RBAC, and traffic-spike recovery are still pending. No successful Kubernetes scaling result is claimed.
+
 ## Runtime limits
 
-This machine has no configured Kubernetes context. Cluster manifests and configurations are implemented and validated locally, but live installation, PVC binding, Kubernetes evidence/RBAC, and traffic-spike scaling still require a cluster run. Scaling recovery logic passed automated tests. Compose honestly remains degraded for unavailable Kubernetes evidence; idle telemetry requires fresh payment traffic.
+The Docker bad-deployment recovery above is validated; live Kubernetes scaling remains pending sufficient host disk space and completion of the drill. The existing Compose stack reports degraded when Kubernetes evidence is unavailable. Idle telemetry requires fresh payment traffic.

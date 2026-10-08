@@ -1,0 +1,171 @@
+#!/usr/bin/env python3
+"""Fixed-rate payment traffic through Kubernetes Service DNS (stdlib only)."""
+
+import argparse
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+import http.client
+import json
+import math
+import os
+import queue
+import signal
+import threading
+import time
+from urllib.parse import urlsplit
+
+
+def arguments():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--target", default=os.getenv("TARGET_URL", "http://payment-service/pay"))
+    parser.add_argument("--rps", type=float, default=os.getenv("RPS", "90"))
+    parser.add_argument("--duration", type=float, default=os.getenv("DURATION_SECONDS", "600"))
+    parser.add_argument("--max-in-flight", type=int, default=os.getenv("MAX_IN_FLIGHT", "300"))
+    parser.add_argument("--timeout", type=float, default=os.getenv("REQUEST_TIMEOUT_SECONDS", "10"))
+    parser.add_argument("--report-interval", type=float, default=os.getenv("REPORT_INTERVAL_SECONDS", "10"))
+    args = parser.parse_args()
+    parsed = urlsplit(args.target)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+        parser.error("target must be an http(s) URL without credentials")
+    for name, value, ceiling in (
+        ("rps", args.rps, 10000), ("duration", args.duration, 86400),
+        ("timeout", args.timeout, 60), ("report_interval", args.report_interval, 3600),
+    ):
+        if not math.isfinite(value) or not 0 < value <= ceiling:
+            parser.error(f"{name} must be positive and at most {ceiling}")
+    if not 1 <= args.max_in_flight <= 512:
+        parser.error("max-in-flight must be between 1 and 512")
+    return args, parsed
+
+
+def main():
+    args, target = arguments()
+    stopped = threading.Event()
+    for signal_name in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(signal_name, lambda _signum, _frame: stopped.set())
+
+    completions = queue.SimpleQueue()
+    statuses = Counter()
+    errors = Counter()
+    # Integer millisecond buckets bound memory while reporting P95 to 1 ms.
+    latency_buckets = Counter()
+    scheduled = submitted = completed = successful = in_flight = 0
+    capacity_dropped = scheduler_skipped = peak_in_flight = 0
+    path = target.path or "/"
+    if target.query:
+        path += "?" + target.query
+
+    def send_request():
+        started_request = time.monotonic()
+        status = 0
+        error = None
+        connection = None
+        try:
+            connection_type = http.client.HTTPSConnection if target.scheme == "https" else http.client.HTTPConnection
+            connection = connection_type(target.hostname, target.port, timeout=args.timeout)
+            # A fresh TCP connection lets kube-proxy select a Service endpoint
+            # for each request, including replicas added while traffic runs.
+            connection.request("POST", path, body=b"{}", headers={
+                "Content-Type": "application/json", "Connection": "close",
+            })
+            response = connection.getresponse()
+            response.read()
+            status = response.status
+        except Exception as exc:
+            error = type(exc).__name__
+        finally:
+            if connection is not None:
+                connection.close()
+            completions.put((status, (time.monotonic() - started_request) * 1000, error))
+
+    started = time.monotonic()
+    deadline = started + args.duration
+    report_at = started + args.report_interval
+    send_ended = None
+    previous_report = {
+        "at": started, "submitted": 0, "capacity_dropped": 0, "scheduler_skipped": 0,
+    }
+
+    def collect():
+        nonlocal completed, successful, in_flight
+        while True:
+            try:
+                status, latency_ms, error = completions.get_nowait()
+            except queue.Empty:
+                return
+            completed += 1
+            in_flight -= 1
+            statuses[str(status)] += 1
+            successful += int(200 <= status < 300)
+            latency_buckets[math.ceil(latency_ms)] += 1
+            if error:
+                errors[error] += 1
+
+    def report(kind):
+        now = time.monotonic()
+        load_ended_at = send_ended or now
+        load_elapsed = max(0.001, load_ended_at - started)
+        interval_elapsed = max(0.001, load_ended_at - previous_report["at"])
+        interval_submitted = submitted - previous_report["submitted"]
+        rank = math.ceil(completed * 0.95)
+        seen = 0
+        p95 = None
+        for milliseconds, count in sorted(latency_buckets.items()):
+            seen += count
+            if seen >= rank:
+                p95 = milliseconds
+                break
+        print(json.dumps({
+            "kind": kind, "timestamp": datetime.now(timezone.utc).isoformat(),
+            "target": args.target, "configured_rps": args.rps,
+            "configured_duration_seconds": args.duration,
+            "load_elapsed_seconds": round(load_elapsed, 3),
+            "scheduled": scheduled, "submitted": submitted, "completed": completed,
+            "actual_offered_rps": round(submitted / load_elapsed, 3),
+            "successful": successful, "failed": completed - successful,
+            "statuses": dict(statuses), "errors": dict(errors),
+            "latency_p95_ms": p95, "latency_precision_ms": 1,
+            "in_flight": in_flight, "peak_in_flight": peak_in_flight,
+            "capacity_dropped": capacity_dropped, "scheduler_skipped": scheduler_skipped,
+            "interval_load_seconds": round(interval_elapsed, 3),
+            "interval_submitted": interval_submitted,
+            "interval_actual_offered_rps": round(interval_submitted / interval_elapsed, 3),
+            "interval_capacity_dropped": capacity_dropped - previous_report["capacity_dropped"],
+            "interval_scheduler_skipped": scheduler_skipped - previous_report["scheduler_skipped"],
+            "stopped_by_signal": stopped.is_set(),
+        }, separators=(",", ":")), flush=True)
+        previous_report.update(at=load_ended_at, submitted=submitted,
+                               capacity_dropped=capacity_dropped, scheduler_skipped=scheduler_skipped)
+
+    report("started")
+    with ThreadPoolExecutor(max_workers=args.max_in_flight) as executor:
+        while not stopped.is_set() and time.monotonic() < deadline:
+            collect()
+            now = time.monotonic()
+            due = min(math.ceil(args.duration * args.rps), int((now - started) * args.rps) + 1)
+            if due > scheduled:
+                # Do not turn a delayed scheduler into a catch-up traffic burst.
+                scheduler_skipped += due - scheduled - 1
+                scheduled = due
+                if in_flight >= args.max_in_flight:
+                    capacity_dropped += 1
+                else:
+                    in_flight += 1
+                    submitted += 1
+                    peak_in_flight = max(peak_in_flight, in_flight)
+                    executor.submit(send_request)
+            if now >= report_at:
+                report("progress")
+                report_at = now + args.report_interval
+            next_send = started + scheduled / args.rps
+            stopped.wait(max(0, min(next_send, deadline, report_at) - time.monotonic()))
+        send_ended = time.monotonic()
+        # On SIGTERM, stop scheduling and finish the bounded active requests.
+        # The Pod grants 45s, longer than the default request timeout.
+    collect()
+    report("summary")
+
+
+if __name__ == "__main__":
+    main()
