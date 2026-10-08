@@ -104,3 +104,21 @@ class RecommendResponse(BaseModel):
     reason: str
     assumptions: list[str]
     recommendation: FinOpsRecommendation
+
+class LiveRecommendRequest(BaseModel):
+    """Body of POST /internal/finops/recommend-live (M6 fetches the data from M1)."""
+    model_config = ConfigDict(extra="forbid")
+    service: str = Field(min_length=1)
+    current: ResourceSpec
+    cpu_limit_m: int = Field(default=500, gt=0)
+    memory_limit_mb: int = Field(default=512, gt=0)
+    window_start: datetime
+    window_end: datetime
+    step_seconds: int = Field(default=15, ge=5, le=300)
+    traffic_pattern: str | None = None
+
+    @model_validator(mode="after")
+    def end_after_start(self):
+        if self.window_end <= self.window_start:
+            raise ValueError("window_end must be after window_start")
+        return self

@@ -61,8 +61,8 @@ def save_recommendation(req, resp) -> bool:
         "estimated_monthly_saving_pct": rec.estimated_monthly_saving_pct,
         "reliability_risk": rec.reliability_risk,
         "assumptions": resp.assumptions,
-        "window_start": req.window.start,
-        "window_end": req.window.end,
+        "window_start": req.window.start if hasattr(req, "window") else req.window_start,
+        "window_end": req.window.end if hasattr(req, "window") else req.window_end,
     })
 
 

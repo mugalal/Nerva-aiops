@@ -14,12 +14,14 @@ from . import cost_model, persistence
 from .models import (  # noqa: E402
     FinOpsContext,
     HealthResponse,
+    LiveRecommendRequest,
     RecommendRequest,
     RecommendResponse,
     ScaleOptionsRequest,
 )
 from .rightsizing import recommend  # noqa: E402
 from .scale_options import build_scale_options  # noqa: E402
+from .live_recommend import recommend_live
 
 SERVICE_NAME = "finops-engine"
 
@@ -59,6 +61,12 @@ def create_app() -> FastAPI:
     @api.get("/internal/finops/assumptions")
     def assumptions() -> dict:
         return {"cost_model": cost_model.ASSUMPTIONS}
+
+    @api.post("/internal/finops/recommend-live", response_model=RecommendResponse)
+    def recommend_live_endpoint(request: LiveRecommendRequest) -> RecommendResponse:
+        response = recommend_live(request, settings.m1_telemetry_base_url)
+        persistence.save_recommendation(request, response)
+        return response
 
     return api
 
