@@ -13,7 +13,7 @@ Local verification: **2026-10-08**. All fixture data is explicitly mock. No real
 - Cross-incident records and conflicting archived evidence are rejected; identical retries and missing-context enrichment are accepted.
 - Live adapter and approval requests use a simulated HTTP transport. This verifies routing and payloads, **not integration with M4 or shared core**.
 
-GitHub workflow `.github/workflows/m5.yml` provisions PostgreSQL, runs the evaluation, builds the Docker image and checks restarts and database outage/retry behavior. GitHub execution status is tracked in the pull request checks.
+GitHub workflow `.github/workflows/m5.yml` provisions PostgreSQL, runs the evaluation, builds the Docker image and checks restarts and database outage/retry behavior. [Run 37793551276](https://github.com/mugalal/Nerva-aiops/actions/runs/37793551276) passed every step for implementation commit `dc03d0078746c6fbaf89f12dc9d079ccc8a97e06` on 2026-10-08.
 
 ## Docker / PostgreSQL standalone verification
 
