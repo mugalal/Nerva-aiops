@@ -1,5 +1,6 @@
 import os
 import json
+import requests
 from pathlib import Path
 
 MOCK_FILE = Path(__file__).resolve().parents[4] / "mocks" / "mock_finops_context.json"
@@ -14,9 +15,18 @@ def get_finops_context():
             return json.load(file)
 
     if FINOPS_PROVIDER == "real":
-        raise NotImplementedError(
-            "Real M6 FINOPS integration is not connected yet"
+        response = requests.get(
+            M6_FINOPS_URL,
+            timeout=10,
         )
+
+    if response.status_code != 200:
+        raise ValueError(
+            f"M6 FinOps request failed with status "
+            f"{response.status_code}: {response.text}"
+        )
+
+    return response.json()
 
     raise ValueError(
         f"Unsupported FINOPS provider: {FINOPS_PROVIDER}"
