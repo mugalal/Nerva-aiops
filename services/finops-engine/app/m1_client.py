@@ -61,3 +61,15 @@ def build_window_usage(summary, cpu_limit_m, memory_limit_mb,
         avg_memory_pct=pct(summary["avg_memory_frac"], memory_limit_mb, memory_request_mb),
         peak_memory_pct=pct(summary["peak_memory_frac"], memory_limit_mb, memory_request_mb),
     )
+
+def fetch_snapshot(base_url, service, timeout=5.0) -> dict:
+    try:
+        response = httpx.get(
+            f"{base_url}/internal/telemetry/snapshot",
+            params={"service": service},
+            timeout=timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise M1Unavailable(str(exc)) from exc

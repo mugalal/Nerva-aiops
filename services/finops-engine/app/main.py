@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Query
 
 # Make the repo root importable so we can use shared/ (same trick as M1).
 ROOT = Path(__file__).resolve().parents[3]
@@ -22,6 +22,7 @@ from .models import (  # noqa: E402
 from .rightsizing import recommend  # noqa: E402
 from .scale_options import build_scale_options  # noqa: E402
 from .live_recommend import recommend_live
+from .context_provider import ContextUnavailable, build_context  # noqa: E402
 
 SERVICE_NAME = "finops-engine"
 
@@ -67,6 +68,17 @@ def create_app() -> FastAPI:
         response = recommend_live(request, settings.m1_telemetry_base_url)
         persistence.save_recommendation(request, response)
         return response
+
+    @api.api_route("/internal/finops/context", methods=["GET", "POST"],
+                   response_model=FinOpsContext)
+    def context_endpoint(service: str | None = Query(default=None)) -> FinOpsContext:
+        # No body needed: this is the path M4's provider already uses.
+        try:
+            context, request = build_context(settings.m1_telemetry_base_url, service)
+        except ContextUnavailable as exc:
+            raise HTTPException(status_code=503, detail=str(exc))
+        persistence.save_scale_options(request, context)
+        return context
 
     return api
 
