@@ -294,3 +294,70 @@ def test_default_config_beats_the_placeholder_and_stays_inside_the_false_alarm_b
     assert tuned.snapshot_fpr <= 0.002
     assert tuned.recall_by_scenario["bad_deployment"] >= 0.95
     assert tuned.f1 >= 0.82   # measured 0.871; slack for harmless numeric drift
+
+
+# ---------------------------------------------------------------------------
+# Fault severity dial (Day 4)
+# ---------------------------------------------------------------------------
+
+def test_default_severity_leaves_the_standard_data_unchanged():
+    profile = scenarios.PROFILES[1]
+    for scenario in ("bad_deployment", "traffic_spike"):
+        a = scenarios.generate_run(profile, scenario, seed=13)
+        b = scenarios.generate_run(profile, scenario, seed=13, severity=1.0)
+        assert a.snapshots == b.snapshots
+
+
+def test_lower_severity_gives_a_smaller_fault_but_identical_healthy_stretch():
+    profile = scenarios.PROFILES[0]
+    full = scenarios.generate_run(profile, "bad_deployment", seed=13)
+    mild = scenarios.generate_run(profile, "bad_deployment", seed=13, severity=0.3)
+    f = full.fault_start
+    assert mild.fault_start == f
+    assert mild.snapshots[:f] == full.snapshots[:f]          # before the fault: same data
+    late = slice(f + 4, None)
+    assert mean(s.metrics.latency_p95_ms for s in mild.snapshots[late]) < \
+           mean(s.metrics.latency_p95_ms for s in full.snapshots[late])
+    assert mean(s.metrics.http_5xx_rate for s in mild.snapshots[late]) < \
+           mean(s.metrics.http_5xx_rate for s in full.snapshots[late])
+
+
+def test_lower_severity_gives_a_smaller_traffic_spike():
+    profile = scenarios.PROFILES[0]
+    full = scenarios.generate_run(profile, "traffic_spike", seed=13)
+    mild = scenarios.generate_run(profile, "traffic_spike", seed=13, severity=0.3)
+    late = slice(full.fault_start + 4, None)
+    assert mean(s.metrics.request_rate for s in mild.snapshots[late]) < \
+           mean(s.metrics.request_rate for s in full.snapshots[late])
+
+
+@pytest.mark.parametrize("bad", [0, -0.5])
+def test_severity_must_be_above_zero(bad):
+    with pytest.raises(ValueError):
+        scenarios.generate_run(scenarios.PROFILES[0], "bad_deployment", seed=1, severity=bad)
+
+
+def test_dataset_passes_severity_through():
+    standard = scenarios.generate_dataset(base_seed=6, per_cell=1)
+    mild = scenarios.generate_dataset(base_seed=6, per_cell=1, severity=0.3)
+    assert [r.snapshots for r in standard if r.scenario == "healthy"] == \
+           [r.snapshots for r in mild if r.scenario == "healthy"]
+    assert [r.snapshots for r in standard if r.scenario != "healthy"] != \
+           [r.snapshots for r in mild if r.scenario != "healthy"]
+
+
+# ---------------------------------------------------------------------------
+# One verdict function for every detector
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("scenario", scenarios.SCENARIOS)
+def test_result_from_scores_matches_the_baseline_path(scenario):
+    run = scenarios.generate_run(scenarios.PROFILES[3], scenario, seed=21)
+    prepared = metrics.prepare(run)
+    config = baseline_mod.DEFAULT_CONFIG
+    thresholds, total = config.compiled()
+    scores = [baseline_mod.score_values(v, thresholds, total) for v in prepared.values]
+
+    direct = metrics.evaluate_prepared(prepared, config)
+    shared = metrics.result_from_scores(run, scores, baseline_mod.alert_cutoff(config))
+    assert direct == shared

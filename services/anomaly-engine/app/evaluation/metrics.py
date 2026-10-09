@@ -20,6 +20,7 @@ or after it. It is only defined for faulty runs that were detected.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from statistics import mean, median
 
@@ -37,16 +38,20 @@ class PreparedRun:
     """
 
     run: Run
-    values: tuple[tuple[float, ...], ...]
+    values: tuple[tuple[float, ...], ...]          # the baseline's 6 rule features
+    full: tuple[tuple[float, ...], ...] = ()       # all 8 features, for the model
 
 
 def prepare(run: Run) -> PreparedRun:
     values = []
+    full = []
     previous = None
     for snapshot in run.snapshots:
-        values.append(values_of(extract_features(snapshot, previous)))
+        features = extract_features(snapshot, previous)
+        values.append(values_of(features))
+        full.append(features.as_vector())
         previous = snapshot
-    return PreparedRun(run=run, values=tuple(values))
+    return PreparedRun(run=run, values=tuple(values), full=tuple(full))
 
 
 def prepare_all(runs: list[Run]) -> list[PreparedRun]:
@@ -66,10 +71,13 @@ class RunResult:
     normal_snapshots: int
 
 
-def evaluate_prepared(prepared: PreparedRun, config: BaselineConfig) -> RunResult:
-    thresholds, total = config.compiled()
-    cutoff = alert_cutoff(config)
-    run = prepared.run
+def result_from_scores(run: Run, scores: Sequence[float], cutoff: float) -> RunResult:
+    """Turn one run's per-snapshot scores into a verdict.
+
+    This is the one place that decides what counts as a hit, a miss or a false
+    alarm, so every detector (the baseline, the model) is judged identically.
+    A snapshot is an alert when its score reaches `cutoff`.
+    """
     fault = run.fault_start
 
     first_alert_after_fault = None
@@ -78,8 +86,7 @@ def evaluate_prepared(prepared: PreparedRun, config: BaselineConfig) -> RunResul
     normal = 0
     top_score = 0.0
 
-    for i, values in enumerate(prepared.values):
-        score = score_values(values, thresholds, total)
+    for i, score in enumerate(scores):
         alert = score >= cutoff
         in_fault = fault is not None and i >= fault
 
@@ -119,6 +126,13 @@ def evaluate_prepared(prepared: PreparedRun, config: BaselineConfig) -> RunResul
         false_alert_snapshots=false_alerts,
         normal_snapshots=normal,
     )
+
+
+def evaluate_prepared(prepared: PreparedRun, config: BaselineConfig) -> RunResult:
+    """Score a run with the threshold baseline and judge it."""
+    thresholds, total = config.compiled()
+    scores = [score_values(values, thresholds, total) for values in prepared.values]
+    return result_from_scores(prepared.run, scores, alert_cutoff(config))
 
 
 def evaluate(prepared_runs: list[PreparedRun], config: BaselineConfig) -> list[RunResult]:

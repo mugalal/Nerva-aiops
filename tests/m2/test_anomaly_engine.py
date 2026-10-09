@@ -142,10 +142,22 @@ def client():
     return TestClient(main_mod.app)
 
 
-def test_health(client):
+def test_health_has_the_four_fields_the_runtime_conventions_require(client):
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json()["status"] == "ok"
+    body = r.json()
+    assert set(body) == {"service", "status", "version", "environment"}
+    assert body["status"] in {"ok", "degraded", "unavailable"}
+    assert body["service"] == "anomaly-engine"
+
+
+def test_health_reads_the_shared_runtime_variables(client, monkeypatch):
+    monkeypatch.setenv("SERVICE_NAME", "m2-test")
+    monkeypatch.setenv("SERVICE_VERSION", "9.9.9")
+    monkeypatch.setenv("ENVIRONMENT", "integration")
+    assert client.get("/health").json() == {
+        "service": "m2-test", "status": "ok", "version": "9.9.9", "environment": "integration",
+    }
 
 
 def test_evaluate_returns_a_valid_contract_event(client):

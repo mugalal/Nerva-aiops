@@ -3,8 +3,9 @@ Threshold baseline (M2 runbook, Day 2). Not ML.
 
 Fixed rules, no learning, no history. It exists to be the yardstick the
 Day 4 model (Isolation Forest / One-Class SVM) is compared against on
-precision, recall, F1, false-positive rate and detection latency. If the
-model can't beat it, the baseline ships; that is a valid Day 5 outcome.
+precision, recall, F1, false-positive rate and detection latency. The
+runbook says to "select empirically" on Day 5; my reading is that a simple
+detector can be the one selected if it wins. Confirm that with the team lead.
 
 Each rule says: "if this feature is above its threshold, that's a breach".
 The score is the weighted share of the active rules that are breached, and a

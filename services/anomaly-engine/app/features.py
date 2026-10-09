@@ -29,6 +29,10 @@ class FeatureVector(BaseModel):
     memory: float
     replica_count: int
 
+    def as_vector(self) -> tuple[float, ...]:
+        """All 8 features as plain numbers, always in FEATURE_ORDER."""
+        return tuple(float(getattr(self, name)) for name in FEATURE_ORDER)
+
     def to_contract(self) -> AnomalyFeatures:
         """The 4-field subset the frozen AnomalyEvent contract carries."""
         return AnomalyFeatures(
@@ -37,6 +41,11 @@ class FeatureVector(BaseModel):
             http_5xx_rate=self.http_5xx_rate,
             cpu=self.cpu,
         )
+
+
+# The model reads the 8 features in this fixed order. It is the field order of
+# FeatureVector above, so adding or reordering a field changes it everywhere.
+FEATURE_ORDER = tuple(FeatureVector.model_fields)
 
 
 def _relative_change(previous: float, current: float) -> float:

@@ -79,10 +79,23 @@ def _uniform(rng: random.Random, low: float, high: float) -> float:
     return low + (high - low) * rng.random()
 
 
-def generate_run(profile: ServiceProfile, scenario: str, seed: int, run_id: str | None = None) -> Run:
-    """Build one run. Same (profile, scenario, seed) always gives the same run."""
+def generate_run(
+    profile: ServiceProfile,
+    scenario: str,
+    seed: int,
+    run_id: str | None = None,
+    severity: float = 1.0,
+) -> Run:
+    """Build one run. Same (profile, scenario, seed) always gives the same run.
+
+    `severity` scales how big the fault is: 1.0 is the standard fault, 0.3
+    leaves only 30% of each fault's effect, down towards "barely noticeable".
+    Healthy data is not affected by it.
+    """
     if scenario not in SCENARIOS:
         raise ValueError(f"unknown scenario {scenario!r}; expected one of {SCENARIOS}")
+    if severity <= 0:
+        raise ValueError("severity must be above 0")
 
     rng = random.Random(seed)
 
@@ -96,6 +109,14 @@ def generate_run(profile: ServiceProfile, scenario: str, seed: int, run_id: str 
     cpu_add = _uniform(rng, 0.0, 0.25)          # bad_deployment: retries burn some CPU
     spike_mult = _uniform(rng, 2.0, 4.5)        # traffic_spike: traffic x2 .. x4.5
     ramp = 2 if scenario == "bad_deployment" else 4   # snapshots to reach full effect
+
+    # Only touch the numbers when asked, so the standard data stays bit-for-bit
+    # what it was (the Day-2 results depend on it).
+    if severity != 1.0:
+        latency_mult = 1 + (latency_mult - 1) * severity
+        error_add *= severity
+        cpu_add *= severity
+        spike_mult = 1 + (spike_mult - 1) * severity
 
     snapshots = []
     for i in range(RUN_LENGTH):
@@ -150,7 +171,7 @@ def generate_run(profile: ServiceProfile, scenario: str, seed: int, run_id: str 
     )
 
 
-def generate_dataset(base_seed: int, per_cell: int) -> list[Run]:
+def generate_dataset(base_seed: int, per_cell: int, severity: float = 1.0) -> list[Run]:
     """`per_cell` runs for every (service, scenario) pair.
 
     Different `base_seed` values give independent datasets from the same
@@ -167,6 +188,7 @@ def generate_dataset(base_seed: int, per_cell: int) -> list[Run]:
                         scenario,
                         seed,
                         run_id=f"s{base_seed}-{profile.name}-{scenario}-{k:02d}",
+                        severity=severity,
                     )
                 )
     return runs

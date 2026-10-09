@@ -14,6 +14,7 @@ and the AnomalyEvent it returns stay the same.
 
 from __future__ import annotations
 
+import os
 import uuid
 
 from fastapi import FastAPI
@@ -23,7 +24,14 @@ from shared.contracts import AnomalyEvent, TelemetrySnapshot
 from .baseline import MODEL_NAME, baseline_score
 from .features import extract_features
 
-app = FastAPI(title="M2 Anomaly Engine")
+SERVICE_NAME_DEFAULT = "anomaly-engine"
+SERVICE_VERSION_DEFAULT = "0.1.0"
+ENVIRONMENT_DEFAULT = "development"
+
+app = FastAPI(
+    title="M2 Anomaly Engine",
+    version=os.getenv("SERVICE_VERSION", SERVICE_VERSION_DEFAULT),
+)
 
 # Previous snapshot per service, used for the *_change features. In memory
 # only. Day 3 (real M1 windows) decides whether this needs persisting.
@@ -37,7 +45,19 @@ def reset_state() -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "anomaly-engine"}
+    """The minimum health response from docs/runtime-conventions.md.
+
+    SERVICE_NAME, SERVICE_VERSION and ENVIRONMENT are the shared runtime
+    variables every module supports. M2 needs no other service to score a
+    reading it is sent, so it is always "ok" once it is running. It becomes
+    "degraded" only when M2 starts pulling history from M1 itself (Day 5).
+    """
+    return {
+        "service": os.getenv("SERVICE_NAME", SERVICE_NAME_DEFAULT),
+        "status": "ok",
+        "version": os.getenv("SERVICE_VERSION", SERVICE_VERSION_DEFAULT),
+        "environment": os.getenv("ENVIRONMENT", ENVIRONMENT_DEFAULT),
+    }
 
 
 @app.post("/internal/anomalies/evaluate", response_model=AnomalyEvent)
