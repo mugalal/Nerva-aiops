@@ -52,11 +52,18 @@ def test_execute_approved_action_moves_to_validating():
     
 
     decision = build_decision("INC-ORCH-002")
+    
+    replicas = (
+        decision.scale_option["replicas"]
+        if decision.action == DecisionAction.SCALE
+        else None
+)
 
     result = execute_approved_action(
         "INC-ORCH-002",
         decision.action,
-        approved=True
+        approved=True,
+        replicas=replicas
     )
 
     assert result.success is True
@@ -79,11 +86,19 @@ def test_apply_recovery_result_resolves_incident():
    
 
     decision = build_decision("INC-ORCH-003")
+    
+    
+    replicas = (
+        decision.scale_option["replicas"]
+        if decision.action == DecisionAction.SCALE
+        else None
+)
 
     execute_approved_action(
         "INC-ORCH-003",
         decision.action,
-        approved=True
+        approved=True,
+        replicas=replicas
     )
 
     incident = apply_recovery_result(
@@ -105,11 +120,17 @@ def test_apply_recovery_result_escalates_on_failure():
    
 
     decision = build_decision("INC-ORCH-004")
+    replicas = (
+        decision.scale_option["replicas"]
+        if decision.action == DecisionAction.SCALE
+        else None
+)
 
     execute_approved_action(
         "INC-ORCH-004",
         decision.action,
-        approved=True
+        approved=True,
+        replicas=replicas
     )
 
     incident = apply_recovery_result(

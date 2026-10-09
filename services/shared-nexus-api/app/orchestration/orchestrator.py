@@ -1,13 +1,22 @@
+
+from datetime import datetime, timezone
+
 from app.providers.rca_provider import get_rca_result
 from app.providers.finops_provider import get_finops_context
+from app.providers.evidence_provider import capture_incident_evidence
+from app.providers.recovery_provider import validate_recovery
+
 from app.decision_engine.engine import decide_from_rca
-from app.api.incidents import update_incident_status
+
+from app.api.incidents import (
+    update_incident_status,
+    find_incident,
+)
+
 from app.state_machine.states import IncidentStatus
+
 from app.remediation.executor import execute_remediation
 from app.remediation.audit import add_audit_record
-from app.providers.recovery_provider import validate_recovery
-from app.api.incidents import find_incident
-from app.providers.evidence_provider import capture_incident_evidence
 
 
 def build_decision(incident_id: str):
@@ -20,27 +29,35 @@ def build_decision(incident_id: str):
         incident_id,
         IncidentStatus.DIAGNOSING
     )
+
     rca = get_rca_result(incident_id)
+
     update_incident_status(
         incident_id,
         IncidentStatus.DIAGNOSED
-)   
+    )
+
+    # Capture real M1 telemetry before remediation.
     evidence = capture_incident_evidence(
         incident_id=incident_id,
         service="payment-service",
         scenario=rca["root_cause"]
     )
+
     finops = get_finops_context()
 
     result = decide_from_rca(
         rca,
         finops
     )
+
     incident = find_incident(incident_id)
 
     if incident is not None:
+        incident["root_cause"] = rca["root_cause"]
         incident["proposed_action"] = result.action.value
         incident["scale_option"] = result.scale_option
+
     add_audit_record(
         incident_id,
         "DECISION_PROPOSED",
@@ -51,18 +68,20 @@ def build_decision(incident_id: str):
             "approval_required": result.approval_required,
             "scale_option": result.scale_option,
         }
-)
+    )
 
     update_incident_status(
         incident_id,
         IncidentStatus.ACTION_PROPOSED
     )
+
     update_incident_status(
         incident_id,
         IncidentStatus.AWAITING_APPROVAL
     )
 
     return result
+
 
 def execute_approved_action(
     incident_id: str,
@@ -75,6 +94,7 @@ def execute_approved_action(
         IncidentStatus.EXECUTING,
         approved=approved
     )
+
     add_audit_record(
         incident_id,
         "ACTION_APPROVED",
@@ -83,13 +103,15 @@ def execute_approved_action(
             "replicas": replicas,
         }
     )
+
     try:
         result = execute_remediation(
             action,
             approved=approved,
             replicas=replicas
         )
-    except ValueError as exc:   
+
+    except ValueError as exc:
         add_audit_record(
             incident_id,
             "ACTION_EXECUTION_FAILED",
@@ -98,16 +120,28 @@ def execute_approved_action(
                 "error": str(exc),
             }
         )
+
         update_incident_status(
             incident_id,
             IncidentStatus.FAILED_REMEDIATION
         )
+
         update_incident_status(
             incident_id,
             IncidentStatus.ESCALATED
         )
+
         raise
-  
+
+    # Record when the Jenkins remediation completed successfully.
+    # M1 needs this timestamp to evaluate post-action telemetry.
+    incident = find_incident(incident_id)
+
+    if incident is not None and result.success:
+        incident["action_completed_at"] = datetime.now(
+            timezone.utc
+        ).isoformat()
+
     add_audit_record(
         incident_id,
         "ACTION_EXECUTED",
@@ -118,6 +152,7 @@ def execute_approved_action(
             "execution_id": result.execution_id,
         }
     )
+
     update_incident_status(
         incident_id,
         IncidentStatus.VALIDATING
@@ -125,16 +160,40 @@ def execute_approved_action(
 
     return result
 
+
 def validate_and_apply_recovery(incident_id: str):
-    recovery = validate_recovery(incident_id)
+    incident = find_incident(incident_id)
+
+    if incident is None:
+        raise ValueError("Incident not found")
+
+    scenario = incident.get("root_cause")
+
+    if scenario not in ("traffic_spike", "faulty_deployment"):
+        raise ValueError(
+            "Missing or unsupported incident root cause"
+        )
+
+    action_completed_at = incident.get("action_completed_at")
+
+    if not action_completed_at:
+        raise ValueError(
+            "Missing remediation completion timestamp"
+        )
+
+    recovery = validate_recovery(
+        incident_id,
+        scenario=scenario,
+        action_completed_at=action_completed_at
+    )
 
     return apply_recovery_result(
         incident_id,
         recovery["success"]
     )
 
+
 def apply_recovery_result(
-    
     incident_id: str,
     success: bool
 ):
@@ -145,6 +204,7 @@ def apply_recovery_result(
             "success": success,
         }
     )
+
     if success:
         return update_incident_status(
             incident_id,

@@ -47,6 +47,6 @@ def choose_scale_option(finops: dict):
 
     return min(
         options,
-        key=lambda option: option["estimated_cost"]
+        key=lambda option: option["estimated_cost_delta"]
     )
     

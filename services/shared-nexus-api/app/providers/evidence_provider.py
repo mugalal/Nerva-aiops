@@ -14,12 +14,19 @@ def capture_incident_evidence(
     service: str,
     scenario: str
 ):
+    m1_scenario = (
+        "bad_deployment"
+        if scenario == "faulty_deployment"
+        else scenario
+    )
+
+
     response = requests.post(
         M1_EVIDENCE_URL,
         json={
             "incident_id": incident_id,
             "service": service,
-            "scenario": scenario,
+            "scenario": m1_scenario,
         },
         timeout=10,
     )

@@ -7,7 +7,7 @@ from app.orchestration.orchestrator import (
 )
 
 
-def test_full_m4_e2e_flow():
+def test_full_m4_e2e_flow(monkeypatch):
     incident_id = "INC-E2E-M4-001"
 
     incidents.append({
@@ -38,7 +38,14 @@ def test_full_m4_e2e_flow():
     )
 
     assert result.success is True
-
+    monkeypatch.setattr(
+        "app.orchestration.orchestrator.validate_recovery",
+        lambda incident_id, scenario, action_completed_at: {
+            "incident_id": incident_id,
+            "success": True,
+            "source": "mock"
+        }
+    )
     final_incident = validate_and_apply_recovery(
         incident_id
     )

@@ -36,7 +36,7 @@ def test_evaluate_decision_returns_scale():
                 "temporary_scale_options": [
                     {
                         "replicas": 3,
-                        "estimated_cost": 5.0
+                        "estimated_cost_delta": 5.0
                     }
                 ]
             }

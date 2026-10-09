@@ -23,14 +23,23 @@ def test_traffic_spike_returns_scale():
     assert action == DecisionAction.SCALE
 
 
+def test_decision_using_rca_provider(monkeypatch):
+    monkeypatch.setattr(
+        "app.providers.rca_provider.RCA_PROVIDER",
+        "mock"
+    )
 
-def test_decision_using_rca_provider():
     rca = get_rca_result()
 
     action = decide_action(rca["root_cause"])
 
-    assert action == DecisionAction.ROLLBACK
-    
+    expected_actions = {
+        "faulty_deployment": DecisionAction.ROLLBACK,
+        "traffic_spike": DecisionAction.SCALE,
+    }
+
+    assert rca["root_cause"] in expected_actions
+    assert action == expected_actions[rca["root_cause"]]
 
 
 
@@ -56,7 +65,7 @@ def test_decide_from_rca_accepts_finops_context():
         "temporary_scale_options": [
             {
                 "replicas": 3,
-                "estimated_cost": 5.0
+                "estimated_cost_delta": 5.0
             }
         ]
     }
@@ -68,15 +77,15 @@ def test_decide_from_rca_accepts_finops_context():
 def test_choose_scale_option_returns_cheapest():
     finops = {
         "temporary_scale_options": [
-            {"replicas": 3, "estimated_cost": 5.0},
-            {"replicas": 4, "estimated_cost": 8.0},
+            {"replicas": 3, "estimated_cost_delta": 5.0},
+            {"replicas": 4, "estimated_cost_delta": 8.0},
         ]
     }
 
     option = choose_scale_option(finops)
 
     assert option["replicas"] == 3
-    assert option["estimated_cost"] == 5.0
+    assert option["estimated_cost_delta"] == 5.0
     
 def test_choose_scale_option_returns_none_when_no_options():
     finops = {
@@ -111,7 +120,7 @@ def test_scale_with_finops_option_stays_scale():
         "temporary_scale_options": [
             {
                 "replicas": 3,
-                "estimated_cost": 5.0
+                "estimated_cost_delta": 5.0
             }
         ]
     }
@@ -128,8 +137,8 @@ def test_scale_decision_returns_selected_option():
 
     finops = {
         "temporary_scale_options": [
-            {"replicas": 3, "estimated_cost": 5.0},
-            {"replicas": 4, "estimated_cost": 8.0}
+            {"replicas": 3, "estimated_cost_delta": 5.0},
+            {"replicas": 4, "estimated_cost_delta": 8.0}
         ]
     }
 
@@ -137,7 +146,7 @@ def test_scale_decision_returns_selected_option():
 
     assert result.action == DecisionAction.SCALE
     assert result.scale_option["replicas"] == 3
-    assert result.scale_option["estimated_cost"] == 5.0
+    assert result.scale_option["estimated_cost_delta"] == 5.0
     
 def test_rollback_decision_has_reason():
     rca = {
