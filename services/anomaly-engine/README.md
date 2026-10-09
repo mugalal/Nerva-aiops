@@ -6,6 +6,7 @@ in `/contracts/anomaly_event.json`).
 ```
 GET  /health
 POST /internal/anomalies/evaluate               TelemetrySnapshot -> AnomalyEvent
+GET  /internal/anomalies?incident_id=...        ONE anomaly for an incident (the route M3 calls)
 GET  /internal/anomalies/recent                 recent alerts, newest first
 GET  /internal/correlation/incidents            incident candidates (the frozen Incident contract)
 GET  /internal/correlation/incidents/{id}       one candidate plus the evidence behind it
@@ -36,6 +37,7 @@ python -m pytest tests -v
 | `app/pipeline.py` | One reading in, one `AnomalyEvent` out; alerts are correlated and their evidence saved |
 | `app/correlation.py` | Consecutive alerts for a service become **one** incident candidate, with the signals involved |
 | `app/evidence.py` | Append-only log of every alert with all 8 features and per-feature distances |
+| `app/handoff.py` | Hands an incident and its anomalies to the shared API, in the team's documented two-call sequence |
 | `app/poller.py` | Pulls live snapshots from M1; skips stale, repeated, missing and malformed data |
 | `app/reference.py` | The frozen reference file: each service's normal plus the alert line |
 | `app/model.py` | The two detectors that learn each service's normal: Isolation Forest, and a plain z-score ruler (**not ML**) |
@@ -50,6 +52,7 @@ python -m pytest tests -v
 | `app/realdata/capture.py` | Day 3: the capture file (M1's readings plus the answer key) and its conversion to `Run`s |
 | `app/realdata/report.py` | Day 3: how the detectors do on real readings |
 | `app/realdata/train.py` | Builds the reference from captures and chooses the alert line from the data |
+| `app/realdata/push.py` | `handoff` command: gives the shared API an incident from the running M2, by hand |
 | `app/realdata/final.py` | `evaluate` (results table) and `live-check` (running M2 against the drill) |
 
 The shared models live in `shared/contracts/` (`from shared.contracts import ...`).
@@ -390,19 +393,85 @@ Nothing below ever produces a made-up reading or a confident anomaly:
 `/health` is `ok` or `degraded` and also reports `detector` and `dependencies`
 (`m1`, `reference`).
 
+### Handing incidents to the shared API (Days 5 and 8, M3)
+
+The team's integration (`docs/REAL_SERVICE_INTEGRATION.md`,
+`scripts/run-integration-incident.ps1`) says plainly that "automatic trained M2
+detection is not established": an operator hand-writes an anomaly labelled
+`manual-m1-observation` and posts it. M2 can now supply the real thing.
+
+M2 repeats the operator's two calls exactly (the shared API is the M4 service,
+`127.0.0.1:18004` in the team's script):
+
+1. `POST /api/incidents/` with `incident_id, started_at, severity,
+   affected_services, anomaly_ids: []`
+2. `POST /internal/anomalies?incident_id=...` with the `AnomalyEvent`, unchanged
+
+**Which anomalies, and why.** The shared API tells M3 about the *latest* linked
+anomaly. A fault takes about a minute to show fully in M1's one-minute
+windows, so the first alert can be a half-developed reading. M2 therefore links
+the **first alert the moment the incident opens**, and the **strongest alert once
+the incident has `M2_HANDOFF_SETTLE_ALERTS` alerts** (default 4, about a
+minute). From then on that is what M3 reads.
+
+**Rules taken from the shared API's own routes**, and what M2 does about them:
+
+| The shared API | M2 |
+|---|---|
+| the path is `/api/incidents/` with the trailing slash (without it: 307) | uses the exact path |
+| an incident or anomaly may not be in the future | caps the incident start at the current time; an anomaly refused as "future" is never altered, and is retried on a later alert |
+| an existing incident answers 409 | counted as done, so a half-finished handoff can be completed |
+| the same anomaly id with different evidence answers 409 | ids are unique, and events are never changed |
+| an anomaly's service must be one of the incident's services | always true: an incident is per service |
+
+A failed delivery **never stops scoring**. It is recorded on the incident
+(`handoff` in `GET /internal/correlation/incidents/{id}`), shown in `/health`
+(`dependencies.shared_api`, status `degraded`), logged as a warning, and retried
+on a later alert, no sooner than 10 seconds after the last try.
+
+It is **off by default**. To turn it on:
+
+```bash
+M2_HANDOFF_ENABLED=true M2_HANDOFF_URL=http://127.0.0.1:18004 \
+M2_POLL_ENABLED=true python -m uvicorn app.main:app --port 8002
+```
+
+To do it once, by hand, from a running M2 (it also prints what M3 will read):
+
+```bash
+python -m app.realdata handoff --to http://127.0.0.1:18004
+```
+
+**M2's own route for M3.** `GET /internal/anomalies?incident_id=...` returns one
+`AnomalyEvent` in exactly the frozen shape, which is what M3's HTTP provider
+expects. `pick=peak` (default), `first` or `latest` chooses the alert.
+
+**What has and has not been verified.** The handoff was run against the shared
+API's own `incidents.py`, `anomalies.py`, `contracts.py` and state machine, taken
+from the integration branch: an incident was created, its anomalies linked, and
+`GET /internal/anomalies` returned the strongest. A stand-in that enforces the
+same rules answers identically on 21 requests, and the tests use it. It has
+**not** been run against a deployed shared API, nor with M3 or M4 calling it:
+that needs the team's stack.
+
 ### Settings (environment variables)
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `M2_REFERENCE_PATH` | `reference/reference.json` if it exists | the frozen reference; `none` = threshold alarm only |
 | `M2_POLL_ENABLED` | false | pull live snapshots from M1 |
-| `M1_TELEMETRY_BASE_URL` | `http://localhost:8001` | where M1 is |
+| `M1_TELEMETRY_BASE_URL` | `http://localhost:8001` | where M1 is (shared setting) |
 | `M2_POLL_SERVICES` | `payment-service` | comma-separated services to watch |
 | `M2_POLL_INTERVAL_S` | 15 | seconds between polls |
 | `M2_STALE_AFTER_S` | 120 | a reading older than this is ignored |
 | `M2_CORRELATION_GAP_S` | 120 | alerts closer than this are one incident |
 | `M2_EVIDENCE_PATH` | `data/evidence.jsonl` when polling | where evidence is appended |
-| `SERVICE_NAME`, `SERVICE_VERSION`, `ENVIRONMENT` | `anomaly-engine`, `0.1.0`, `development` | the shared runtime variables |
+| `M2_HANDOFF_ENABLED` | false | hand incidents to the shared API as they open |
+| `M2_HANDOFF_URL` | `SHARED_NEXUS_API_BASE_URL` | where the shared API is (the team's script uses `http://127.0.0.1:18004`) |
+| `M2_HANDOFF_SETTLE_ALERTS` | 4 | alerts after which the strongest one is linked too |
+| `M2_JSON_LOGGING` | on | `off` leaves logging alone |
+| `SERVICE_NAME`, `SERVICE_VERSION`, `ENVIRONMENT`, `LOG_LEVEL` | `anomaly-engine`, `0.1.0`, `development`, `INFO` | the shared runtime variables (via `shared.config`) |
+| `SHARED_NEXUS_API_BASE_URL` | `http://localhost:8000` | the shared settings default; note the team's script uses port 18004, so set `M2_HANDOFF_URL` |
 
 ### From captures to a running detector
 
@@ -449,16 +518,17 @@ if every fault was caught and nothing false-alarmed.
   a longer, wavier healthy period than the drill produces.
 * **One demo service.** Per-service references have only been exercised on
   `payment-service`. Other services use the threshold alarm until trained.
-* **M3 does not consume this yet.** M2 exposes incident candidates for M3 and
-  the shared core to read. Whether M3 pulls them or expects a push is for the
-  team to agree; nothing here assumes it.
+* **M3 has not been run against M2.** The route M3's provider calls exists, and
+  the handoff to the shared API (where the integration keeps incidents and
+  anomalies) matches the shared API's own routes. A full run (M2 live, handoff
+  on, M3 and M4 reading it, approval, recovery) needs the team's stack and has not
+  been done. Scores near 1 saturate, so "the strongest alert" among near-ties is
+  arbitrary; it does not change which fault was seen.
 * **Cross-service grouping is not done.** Correlation is per service. Grouping
   incidents across services (for example by a shared deployment) needs a second
   service to try it on.
 * **Severity is a label.** `high` starts at 4 times the alert line. It has not
   been evaluated; don't build on it.
-* **Not wired to the shared logging helpers.** M2 uses the standard `logging`
-  module; `shared/logging` and `shared/config` are not used yet.
 * **Incident candidates live in memory.** A restart forgets them (the evidence
   file keeps the alerts). Persisting candidates is not done.
 
@@ -466,9 +536,8 @@ if every fault was caught and nothing false-alarmed.
 
 * **Port 8002 is the agreed port** (`docs/runtime-conventions.md`). `/health`
   returns the four fields that document requires (`service`, `status`,
-  `version`, `environment`) and reads `SERVICE_NAME`, `SERVICE_VERSION` and
-  `ENVIRONMENT`. Not done yet: structured JSON logging through
-  `shared/logging`, which that document also requires.
+  `version`, `environment`) through `shared.config`, and logs structured JSON
+  through `shared.logging`, both as that document requires.
 * **Every snapshot gets an event,** including healthy ones with a low score.
   When to emit versus stay quiet is a Day 5 decision.
 * **Events carry the snapshot's timestamp,** not the wall clock, so replayed

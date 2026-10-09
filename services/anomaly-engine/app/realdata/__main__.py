@@ -7,6 +7,7 @@ Day 3 from the command line. Run from services/anomaly-engine:
     python -m app.realdata train  capture1.json capture2.json   # build the frozen reference + alert line
     python -m app.realdata evaluate capture3.json               # the results table, frozen reference
     python -m app.realdata live-check capture3.json             # compare the RUNNING M2 with the drill
+    python -m app.realdata handoff --to http://127.0.0.1:18004  # give the shared API an incident from the running M2
 """
 
 from __future__ import annotations
@@ -33,6 +34,7 @@ from ..evaluation.run import write_day11_table
 from ..reference import load_reference
 from .final import LiveCheckError, format_live_check, live_check, run_evaluate
 from .m1_client import DEFAULT_M1_URL, M1Client, M1Error
+from .push import HandoffError, LiveCheckError as PushError, push_incident
 from .report import build_report
 from .train import TrainError, train_reference
 
@@ -198,6 +200,16 @@ def cmd_live_check(args: argparse.Namespace) -> int:
     return 0 if caught_all and not result.false_alarms else 1
 
 
+def cmd_handoff(args: argparse.Namespace) -> int:
+    try:
+        lines = push_incident(args.m2_url, args.to, args.incident)
+    except (PushError, HandoffError) as exc:
+        print(f"Could not hand over: {exc}")
+        return 2
+    print("\n".join(lines))
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.realdata", description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -240,6 +252,12 @@ def main(argv: list[str] | None = None) -> int:
     live.add_argument("capture")
     live.add_argument("--m2-url", default="http://localhost:8002")
     live.set_defaults(func=cmd_live_check)
+
+    handoff = sub.add_parser("handoff", help="give the shared API an incident from the running M2, by hand")
+    handoff.add_argument("--m2-url", default="http://localhost:8002")
+    handoff.add_argument("--to", default="http://127.0.0.1:18004", help="the shared API (default: the team script's address)")
+    handoff.add_argument("--incident", help="an incident id (default: the newest)")
+    handoff.set_defaults(func=cmd_handoff)
 
     args = parser.parse_args(argv)
     return args.func(args)

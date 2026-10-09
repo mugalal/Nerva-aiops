@@ -88,7 +88,7 @@ def test_with_a_reference_loaded_the_service_scores_with_the_ruler(serve):
 def test_health_says_which_detector_is_running_and_what_it_depends_on(serve):
     health = serve().get("/health").json()
     assert health["status"] == "ok" and health["detector"] == "z_score_per_service"
-    assert health["dependencies"] == {"m1": "disabled", "reference": "loaded"}
+    assert health["dependencies"] == {"m1": "disabled", "shared_api": "disabled", "reference": "loaded"}
 
 
 def test_a_missing_reference_is_fine_and_the_threshold_alarm_takes_over(serve, tmp_path):

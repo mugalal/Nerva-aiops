@@ -73,7 +73,10 @@ class Poller:
         if state == "ok":
             entry["last_ok"] = entry["last_poll"]
         elif state != "starting":
-            log.warning("m1 poll for %s: %s %s", service, state, message)
+            log.warning(
+                "m1 poll for %s: %s %s", service, state, message,
+                extra={"service_name": service, "provider": "m1", "error_category": state},
+            )
 
     def dependency_state(self) -> str:
         """"ok" while every watched service is fine (or not yet polled),

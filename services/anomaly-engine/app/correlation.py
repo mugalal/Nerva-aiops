@@ -21,6 +21,10 @@ incident?", plus any deployment context seen just before it began.
 
 The candidate is handed on as the frozen `Incident` contract with status
 DETECTED. Moving it through the later states is for the modules after M2.
+
+Each candidate keeps its actual `AnomalyEvent`s, so a consumer can ask for one
+(the first, the strongest, or the latest) and the handoff to the shared API can
+say what has already been delivered.
 """
 
 from __future__ import annotations
@@ -31,6 +35,29 @@ from datetime import datetime
 from shared.contracts import AnomalyEvent, Incident
 
 _RANK = {"low": 0, "medium": 1, "high": 2}
+
+
+@dataclass
+class HandoffState:
+    """How much of this incident the shared API has been given."""
+
+    incident_created: bool = False
+    linked: set[str] = field(default_factory=set)       # anomaly ids the shared API now holds
+    peak_done: bool = False                             # the strongest alert was linked after settling
+    attempts: int = 0
+    last_attempt: datetime | None = None
+    error: str | None = None
+    in_flight: bool = False
+
+    def summary(self) -> dict:
+        return {
+            "incident_created": self.incident_created,
+            "linked_anomaly_ids": sorted(self.linked),
+            "attempts": self.attempts,
+            "last_attempt": None if self.last_attempt is None
+            else self.last_attempt.isoformat().replace("+00:00", "Z"),
+            "error": self.error,
+        }
 
 
 @dataclass
@@ -45,6 +72,22 @@ class Candidate:
     peak_score: float = 0.0
     context: dict | None = None
     events: list[dict] = field(default_factory=list)
+    anomaly_events: list[AnomalyEvent] = field(default_factory=list)
+    handoff: HandoffState = field(default_factory=HandoffState)
+
+    def onset(self) -> AnomalyEvent:
+        """The first alert: when the incident began."""
+        return min(self.anomaly_events, key=lambda e: e.timestamp)
+
+    def peak(self) -> AnomalyEvent:
+        """The strongest alert so far (the latest one if scores tie)."""
+        return max(self.anomaly_events, key=lambda e: (e.score, e.timestamp))
+
+    def latest(self) -> AnomalyEvent:
+        return max(self.anomaly_events, key=lambda e: e.timestamp)
+
+    def pick(self, which: str) -> AnomalyEvent:
+        return {"first": self.onset, "peak": self.peak, "latest": self.latest}[which]()
 
     def to_incident(self) -> Incident:
         return Incident(
@@ -65,6 +108,7 @@ class Candidate:
             "peak_score": self.peak_score,
             "signals": sorted(self.signals),
             "context": self.context,
+            "handoff": self.handoff.summary(),
             "events": self.events,
         }
 
@@ -118,6 +162,7 @@ class Correlator:
 
         record["incident_id"] = candidate.incident_id
         candidate.anomaly_ids.append(event.anomaly_id)
+        candidate.anomaly_events.append(event)
         candidate.events.append(record)
         return candidate
 
