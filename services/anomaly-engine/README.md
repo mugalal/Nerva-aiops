@@ -267,42 +267,62 @@ more than once and pass every capture to `report`: each detector is then
 trained on more normal readings, and the runbook's Day 7 asks for three
 bad-deployment runs anyway.
 
-### Results on real readings (two drills)
+### Results on real readings (three drills)
 
-Two 27-minute drills against M1's demo `payment-service` (`capture1`, `capture2`).
-Each detector is trained on the normal readings of every *other* run (116
-readings) and scored on the run being judged. "Caught" is the share of fault
-readings scoring above the highest normal reading of the same run, i.e. what
-an alert line with zero false alarms would catch.
+Three 27-minute drills against M1's demo `payment-service` (`capture1`, `capture2`,
+`capture3`). Each detector is trained on the normal readings of every *other* run
+(180 readings) and scored on the run being judged. "Caught" is the share of fault
+readings scoring above the highest normal reading of the same run, i.e. what an
+alert line with zero false alarms would catch.
 
 | run | threshold alarm | ruler | forest |
 |---|---|---|---|
 | capture1, bad deployment | 95% | **100%** | 100% |
 | capture1, traffic spike | 6% | **100%** | 100% |
-| capture2, bad deployment | 90% | **95%** | 10% |
-| capture2, traffic spike | 12% | **100%** | 25% |
+| capture2, bad deployment | 90% | **95%** | 15% |
+| capture2, traffic spike | 12% | **94%** | 94% |
+| capture3, bad deployment | 95% | **100%** | 100% |
+| capture3, traffic spike | 12% | **94%** | 6% |
 
-* **The ruler repeated.** AUC 0.992 to 1.000 on all four faults. The noisiest
-  normal reading was 6.3 wobbles from normal; the faults reached 380 to 1,660.
-* **The forest was inconsistent.** Perfect on capture1, near-failing on
-  capture2. Trained on capture1 alone (52 readings) it missed the spike
-  entirely: unseen normal readings fell outside its tiny, calm training range
-  and scored as high as the spike, because the forest cannot tell "slightly
-  outside" from "far outside". More varied training data fixed capture1 but not
-  capture2. It *can* work; it is not reliable.
-* **"Normal" differs between drills.** Before the faults, capture2's request
-  rate wobbled 2.0 (capture1: 0.27), latency 0.92 (0.19), CPU 0.035 (0.007).
-  The ruler's highest normal score doubled as a result, but stayed far below
-  the faults.
-* **The threshold alarm is steady but weak on spikes** (6% and 12%): it fires
-  once at the jump and then goes quiet.
+* **The ruler repeated across all three drills:** 94 to 100% caught in every run,
+  AUC 0.979 to 1.000. The noisiest normal reading was 6.2 wobbles from normal; the
+  faults reached hundreds to over a thousand.
+* **The forest was inconsistent:** 100% in three runs, 94% in one, and 15% and 6%
+  in the other two. The two near-failures are the drills with the noisier normal
+  (capture2, capture3). Its score stops growing once a reading is outside the range
+  it learned, so it cannot tell "slightly outside" from "far outside". The ruler's
+  score keeps growing with distance.
+* **The threshold alarm** raised no false alarm in 120 healthy readings (40 per
+  drill) and caught bad deployments (90 to 95%), but caught only 6 to 12% of
+  spike readings: it fires once at the jump and then goes quiet.
+* **"Normal" differs between drills.** Capture1's normal was very calm; capture2's
+  and capture3's wobbled several times more (request rate 0.27 versus 2.0 and 0.88,
+  latency 0.19 versus 0.92 and 1.01). The ruler's alert line still sat about 8 times
+  above the noisiest normal reading.
+
+### Live result (capture3)
+
+The frozen reference was trained on capture1 and capture2 only (alert line 48.9
+wobbles, margin 60x). M2 then ran live against M1 while the drill produced
+capture3, a run the reference had never seen. `live-check`:
+
+| | bad deployment | traffic spike |
+|---|---|---|
+| fault really started | 17:50:00 | 18:00:03 |
+| M2 opened an incident | 17:50:29 | 18:00:17 |
+| delay | 29 s | 14 s |
+| alerts, all in ONE incident | 22 | 21 |
+
+False alarms: none. Detection delays include M1's one-minute averaging window and
+M2's 15-second poll.
 
 **Limits.** The drill's healthy traffic is perfectly flat, so "normal" is
-unrealistically calm: a normal swing in a real service could be tens of
-wobbles. These results show the ruler separates these faults from this normal;
-they do not show it stays quiet through a real busy day. That needs a long
-healthy interval with natural variation (runbook Day 10). One demo service,
-two runs of each fault.
+unrealistically calm: a normal swing in a real service could be tens of wobbles. These
+results show the ruler separates these faults from this normal and stayed quiet for
+about 15 healthy minutes; they do not show it stays quiet through a real busy day.
+That needs a long healthy interval with natural variation (runbook Day 10). One demo
+service. Only one live, fully independent run so far; the runbook's Day 7 asks for
+three bad-deployment runs.
 
 ### Reading the report
 
