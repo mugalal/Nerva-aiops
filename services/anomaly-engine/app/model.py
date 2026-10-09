@@ -28,11 +28,28 @@ from collections.abc import Mapping, Sequence
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
+from .features import FEATURE_ORDER
+
 # Key the single pooled model is stored under when per_service=False.
 POOLED_KEY = "*"
 
 # A model trained on fewer healthy readings than this would just be noise.
 MIN_TRAINING_SAMPLES = 50
+
+# Features that are RECORDED but never SCORED by the ruler. The replica count is
+# changed on purpose by the system's own remediation (M4 scales a service from 1
+# to 10 copies to cure a traffic spike). A reference learned while there was
+# always 1 copy would otherwise call the cure a fault, and keep calling it one
+# for as long as the extra copies run. They still appear in the evidence log.
+DEFAULT_CONTEXT_FEATURES = ("replica_count",)
+
+
+def context_columns(names: Sequence[str] = DEFAULT_CONTEXT_FEATURES) -> tuple[int, ...]:
+    """Column positions of the named features in the 8-feature vector."""
+    unknown = [n for n in names if n not in FEATURE_ORDER]
+    if unknown:
+        raise ValueError(f"not features of the standard vector: {unknown}")
+    return tuple(FEATURE_ORDER.index(n) for n in names)
 
 
 class UnknownServiceError(KeyError):
@@ -137,8 +154,12 @@ class ZScoreDetector:
     It exists as a control. If it does as well as the forest, then "knowing
     each service's normal" is what helps, not the forest.
 
+    The replica count is the exception to "every feature counts": it is
+    changed on purpose by remediation, so it is not scored (see
+    DEFAULT_CONTEXT_FEATURES).
+
     A feature that never varied in healthy history (an error rate that is
-    always exactly 0, a fixed replica count) has a wobble of 0, which would
+    always exactly 0) has a wobble of 0, which would
     make any change infinitely large. It is given a small minimum wobble
     instead, so it is still measured: if it moves, that counts as a big
     change. (An earlier version skipped such features, which would have made
@@ -155,10 +176,24 @@ class ZScoreDetector:
     MIN_RELATIVE_SPREAD = 0.01
     MIN_ABSOLUTE_SPREAD = 0.001
 
-    def __init__(self, min_samples: int = MIN_TRAINING_SAMPLES) -> None:
+    def __init__(
+        self,
+        min_samples: int = MIN_TRAINING_SAMPLES,
+        ignore_columns: Sequence[int] | None = None,
+    ) -> None:
+        """`ignore_columns` are columns that are never scored (see
+        DEFAULT_CONTEXT_FEATURES). None means: for the standard 8-feature
+        vector, ignore the default context features; for any other width,
+        ignore nothing. Pass `()` to score every column."""
         self.min_samples = min_samples
+        self.ignore_columns = None if ignore_columns is None else tuple(ignore_columns)
         self._stats: dict[str, tuple[np.ndarray, np.ndarray]] = {}
         self._counts: dict[str, int] = {}
+
+    def _ignored(self, width: int) -> tuple[int, ...]:
+        if self.ignore_columns is not None:
+            return self.ignore_columns
+        return context_columns() if width == len(FEATURE_ORDER) else ()
 
     def fit(self, healthy: Mapping[str, Sequence[Sequence[float]]]) -> "ZScoreDetector":
         if not healthy:
@@ -205,8 +240,8 @@ class ZScoreDetector:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "ZScoreDetector":
-        detector = cls()
+    def from_dict(cls, data: dict, ignore_columns: Sequence[int] | None = None) -> "ZScoreDetector":
+        detector = cls(ignore_columns=ignore_columns)
         for service, entry in data["services"].items():
             detector._stats[service] = (
                 np.asarray(entry["mean"], dtype=float),
@@ -232,6 +267,8 @@ class ZScoreDetector:
         out = np.zeros(matrix.shape)
         if usable.any():
             out[usable] = np.abs(matrix[usable] - mean) / spread
+            for column in self._ignored(matrix.shape[1]):
+                out[:, column] = 0.0          # recorded elsewhere, never scored
         return out
 
     def distance_many(self, service: str, rows: Sequence[Sequence[float]]) -> np.ndarray:

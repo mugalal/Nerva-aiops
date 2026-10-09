@@ -8,6 +8,8 @@ training at start-up:
     and how many healthy readings they came from
     the alert line: how many wobbles from normal counts as an alert
     where it came from (which captures, how clean the separation was)
+    which features are context only: recorded with every alert but never
+    scored (the replica count, which the system's own remediation changes)
 
 It is small, plain JSON, and meant to be committed, so the config the team is
 running is visible and the same for everyone. It is produced by
@@ -25,7 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .features import FEATURE_ORDER
-from .model import ZScoreDetector
+from .model import DEFAULT_CONTEXT_FEATURES, ZScoreDetector, context_columns
 
 FORMAT_VERSION = 1
 DETECTOR_NAME = "z_score_per_service"
@@ -56,6 +58,7 @@ class Reference:
     alert: AlertLine
     trained_on: tuple[str, ...]
     created: str
+    context_features: tuple[str, ...] = DEFAULT_CONTEXT_FEATURES
 
     @property
     def services(self) -> list[str]:
@@ -69,6 +72,7 @@ def save_reference(path: str | Path, reference: Reference) -> None:
         "created": reference.created,
         "trained_on": list(reference.trained_on),
         "feature_order": list(FEATURE_ORDER),
+        "context_features": list(reference.context_features),
         "alert": {
             "wobbles": reference.alert.wobbles,
             "normal_max_wobbles": reference.alert.normal_max_wobbles,
@@ -93,8 +97,11 @@ def load_reference(path: str | Path) -> Reference:
         # wrong feature, so refuse rather than score nonsense.
         raise ValueError(f"{path}: made for a different feature order; train it again")
     alert = body["alert"]
+    # An older file has no such list; it gets the default (the replica count).
+    context = tuple(body.get("context_features", DEFAULT_CONTEXT_FEATURES))
     return Reference(
-        detector=ZScoreDetector.from_dict(body),
+        detector=ZScoreDetector.from_dict(body, ignore_columns=context_columns(context)),
+        context_features=context,
         alert=AlertLine(
             wobbles=float(alert["wobbles"]),
             normal_max_wobbles=alert.get("normal_max_wobbles"),

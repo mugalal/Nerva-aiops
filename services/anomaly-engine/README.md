@@ -374,6 +374,28 @@ TelemetrySnapshot -> score -> AnomalyEvent
   polling is on; `M2_EVIDENCE_PATH` to move it, `none` to turn it off).
   `data/` is git-ignored.
 
+### The replica count is context, not a symptom
+
+M4's own remediation changes the replica count (a traffic spike is cured by
+scaling 1 to 10 copies). A ruler that learned "normal = 1 replica" from drills
+that always ran one copy scored that cure at 100 to 900 "wobbles" and kept
+alerting for as long as the extra copies ran, which could open a new incident
+while M4 was still confirming recovery.
+
+So the ruler **records** the replica count with every alert (it is in the
+evidence log) but never **scores** it. It also never appears among an incident's
+signals. This is listed in the reference file (`context_features`); a file
+without the list, such as one made before this change, gets the default without
+retraining. `ZScoreDetector(ignore_columns=())` scores every column.
+
+The replica count never moved in any of the real drills, so it never contributed
+to a score: ignoring it changes none of the validated results (tested: the
+frozen reference gives identical results on drill-shaped data, and the Day 2 and
+Day 4 comparisons are unchanged).
+
+Not a bug, and not hidden by this: if the traffic itself is still high after a
+scale-up, M2 keeps alerting on the request rate. That is the spike, not the cure.
+
 ### Bad data (runbook Day 12)
 
 Nothing below ever produces a made-up reading or a confident anomaly:
