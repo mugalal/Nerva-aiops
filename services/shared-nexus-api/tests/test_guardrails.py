@@ -23,7 +23,7 @@ def test_scale_is_allowed():
 def test_escalate_is_blocked():
     with pytest.raises(ValueError):
         validate_action_allowed(DecisionAction.ESCALATE)
-        
+
 def test_valid_replica_count_is_allowed():
     validate_replica_count(3)
 
@@ -36,4 +36,3 @@ def test_replica_count_below_minimum_is_blocked():
 def test_replica_count_above_maximum_is_blocked():
     with pytest.raises(ValueError):
         validate_replica_count(100)
-        

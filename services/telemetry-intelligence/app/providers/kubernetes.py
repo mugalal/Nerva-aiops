@@ -6,6 +6,7 @@ from typing import Any
 
 from ..errors import ProviderInvalidResponse, ProviderUnavailable
 from ..models import DeploymentEvent, KubernetesContext
+from .resources import application_resources
 
 
 def _pod_version(pod: dict[str, Any]) -> str | None:
@@ -253,6 +254,14 @@ class KubectlKubernetesClient:
             "-n", namespace, "-o", "json",
         )
         return _build_deployment_event(deployment, replica_sets, service)
+
+    async def resource_config(self, service: str, namespace: str):
+        deployment = await asyncio.to_thread(
+            self._run_json, "get", "deployment", service, "-n", namespace, "-o", "json"
+        )
+        if not _rollout_ready(deployment):
+            raise ProviderUnavailable(self.name, "Application rollout is not complete")
+        return application_resources(deployment, service)
 
     @staticmethod
     def _deployment_version(deployment: dict[str, Any]) -> str | None:

@@ -1,3 +1,5 @@
+"""Conservative deterministic attribution from observed, linked evidence."""
+
 from dataclasses import dataclass
 
 from .models import EvidenceBundle
@@ -16,191 +18,97 @@ class ScoringResult:
     evidence: list[str]
 
 
+def _limits(bundle):
+    baseline = bundle.baseline
+    return ((baseline.thresholds.latency_p95_ms_max, baseline.thresholds.http_5xx_rate_max)
+            if baseline is not None else (500.0, 0.05))
+
+
+def _recent_changed_deployment(bundle):
+    if bundle.deployment is None or bundle.anomaly is None:
+        return False
+    event = bundle.deployment
+    delta = (bundle.anomaly.timestamp - event.timestamp).total_seconds()
+    return (event.old_version != event.new_version
+            and event.status.upper() == "SUCCESS" and 0 <= delta <= 300)
+
+
 def _deployment_score(bundle: EvidenceBundle) -> tuple[float, list[str]]:
-    """
-    Calculate evidence supporting a faulty deployment.
-    """
-
-    score = 0.0
-    evidence: list[str] = []
-
-    anomaly = bundle.anomaly
-    telemetry = bundle.telemetry
-    deployment = bundle.deployment
-
-    if anomaly is None:
-        return score, evidence
-
-    if deployment is not None:
-        if deployment.service == anomaly.service:
-
-            time_difference = (
-                anomaly.timestamp - deployment.timestamp
-            ).total_seconds()
-
-            if 0 <= time_difference <= 300:
-                score += 0.40
-
-                evidence.append(
-                    f"{deployment.service}:{deployment.new_version} "
-                    f"deployed {int(time_difference)} seconds before anomaly"
-                )
-
-            score += 0.10
-
-    if anomaly.features.latency_p95_ms >= 500:
-        score += 0.15
-
-        evidence.append(
-            "P95 latency increased after deployment"
-        )
-
-    if anomaly.features.http_5xx_rate >= 0.05:
-        score += 0.15
-
-        evidence.append(
-            "HTTP 5xx increased"
-        )
-
-    if telemetry is not None:
-
-        if telemetry.metrics.latency_p95_ms >= 500:
-            score += 0.05
-
-        if telemetry.metrics.http_5xx_rate >= 0.05:
-            score += 0.05
-
+    anomaly, telemetry, deployment = bundle.anomaly, bundle.telemetry, bundle.deployment
+    if (anomaly is None or telemetry is None or deployment is None
+            or not _recent_changed_deployment(bundle)
+            or deployment.service != anomaly.service or telemetry.service != anomaly.service
+            or deployment.new_version != telemetry.version
+            or (bundle.baseline is not None and bundle.baseline.version != deployment.old_version)):
+        return 0.0, []
+    latency_limit, error_limit = _limits(bundle)
+    latency = min(anomaly.features.latency_p95_ms, telemetry.metrics.latency_p95_ms)
+    errors = min(anomaly.features.http_5xx_rate, telemetry.metrics.http_5xx_rate)
+    latency_degraded = latency > latency_limit if bundle.baseline is not None else latency >= latency_limit
+    errors_degraded = errors > error_limit if bundle.baseline is not None else errors >= error_limit
+    # A recent release by itself does not establish a faulty release.
+    if not latency_degraded and not errors_degraded:
+        return 0.0, []
+    delta = (anomaly.timestamp - deployment.timestamp).total_seconds()
+    evidence = [f"{deployment.service}:{deployment.new_version} deployed {int(delta)} seconds before anomaly"]
+    if (bundle.baseline is not None
+            and min(anomaly.features.request_rate, telemetry.metrics.request_rate)
+            >= bundle.baseline.request_rate.average * 1.5):
+        evidence.append("Recent deployment and elevated traffic overlap; root cause is ambiguous")
+        return 0.50, evidence
+    score = 0.50
+    if latency_degraded:
+        score += 0.20
+        evidence.append("P95 latency increased after deployment")
+    if errors_degraded:
+        score += 0.20
+        evidence.append("HTTP 5xx increased")
     return min(score, 1.0), evidence
 
 
 def _traffic_score(bundle: EvidenceBundle) -> tuple[float, list[str]]:
-    """
-    Calculate evidence supporting a traffic spike.
-    """
-
-    score = 0.0
-    evidence: list[str] = []
-
-    anomaly = bundle.anomaly
-    telemetry = bundle.telemetry
-    deployment = bundle.deployment
-
-    if anomaly is None:
-        return score, evidence
-
-    if anomaly.features.request_rate >= 300:
-        score += 0.35
-
-        evidence.append(
-            "Request rate increased significantly"
-        )
-
-    if anomaly.features.cpu >= 0.85:
+    anomaly, telemetry, baseline = bundle.anomaly, bundle.telemetry, bundle.baseline
+    if anomaly is None or telemetry is None or anomaly.service != telemetry.service:
+        return 0.0, []
+    # Do not call a new, recently changed version a capacity issue.
+    if _recent_changed_deployment(bundle):
+        return 0.0, []
+    if baseline is not None and telemetry.version != baseline.version:
+        return 0.0, []
+    rate_limit = max(0.1, baseline.request_rate.average * 1.5) if baseline is not None else 300.0
+    latency_limit, error_limit = _limits(bundle)
+    rate_increased = (anomaly.features.request_rate >= rate_limit
+                      and telemetry.metrics.request_rate >= rate_limit)
+    latency = min(anomaly.features.latency_p95_ms, telemetry.metrics.latency_p95_ms)
+    latency_degraded = latency > latency_limit if baseline is not None else latency >= latency_limit
+    if (not rate_increased or not latency_degraded
+            or anomaly.features.http_5xx_rate > error_limit or telemetry.metrics.http_5xx_rate > error_limit):
+        return 0.0, []
+    evidence = ["Request rate increased significantly"]
+    if baseline is not None:
+        evidence.append(f"Request rate exceeds measured healthy baseline {baseline.request_rate.average:.2f} requests/sec by at least 1.5x")
+    score = 0.35 + 0.15 + 0.15  # Increased load, degraded latency, current telemetry corroboration.
+    if anomaly.features.cpu >= 0.85 and telemetry.metrics.cpu >= 0.85:
         score += 0.25
-
-        evidence.append(
-            "CPU utilization increased significantly"
-        )
-
-    if anomaly.features.latency_p95_ms >= 500:
-        score += 0.15
-
-    if telemetry is not None:
-
-        if telemetry.metrics.request_rate >= 300:
-            score += 0.15
-
-    # Important:
-    # We only treat the absence of deployment evidence as useful
-    # when the deployment provider actually returned successfully.
-    if deployment is None and not bundle.provider_errors:
+        evidence.append("CPU utilization increased significantly")
+    if not bundle.provider_errors:
         score += 0.10
-
     return min(score, 1.0), evidence
 
 
-def determine_root_cause(
-    bundle: EvidenceBundle,
-) -> ScoringResult:
-
-    deployment_score, deployment_evidence = _deployment_score(
-        bundle
-    )
-
-    traffic_score, traffic_evidence = _traffic_score(
-        bundle
-    )
-
-    candidates = [
-        (
-            FAULTY_DEPLOYMENT,
-            deployment_score,
-            deployment_evidence,
-        ),
-        (
-            TRAFFIC_SPIKE,
-            traffic_score,
-            traffic_evidence,
-        ),
-    ]
-
-    candidates.sort(
-        key=lambda item: item[1],
-        reverse=True,
-    )
-
-    best_cause, best_score, best_evidence = candidates[0]
-
-    second_score = candidates[1][1]
-
-    # Not enough evidence.
-    if best_score < 0.60:
-        return ScoringResult(
-            root_cause=UNKNOWN,
-            confidence=round(best_score, 2),
-            affected_component=(
-                bundle.anomaly.service
-                if bundle.anomaly
-                else "unknown"
-            ),
-            evidence=best_evidence,
-        )
-
-    # Evidence is too close to confidently distinguish causes.
-    if (best_score - second_score) < 0.10:
-        return ScoringResult(
-            root_cause=UNKNOWN,
-            confidence=round(best_score, 2),
-            affected_component=(
-                bundle.anomaly.service
-                if bundle.anomaly
-                else "unknown"
-            ),
-            evidence=best_evidence,
-        )
-
-    if best_cause == FAULTY_DEPLOYMENT:
-
-        if bundle.deployment is not None:
-            affected_component = (
-                f"{bundle.deployment.service}:"
-                f"{bundle.deployment.new_version}"
-            )
-        elif bundle.anomaly is not None:
-            affected_component = bundle.anomaly.service
-        else:
-            affected_component = "unknown"
-
-    else:
-        affected_component = (
-            bundle.anomaly.service
-            if bundle.anomaly
-            else "unknown"
-        )
-
-    return ScoringResult(
-        root_cause=best_cause,
-        confidence=round(best_score, 2),
-        affected_component=affected_component,
-        evidence=best_evidence,
-    )
+def determine_root_cause(bundle: EvidenceBundle) -> ScoringResult:
+    deployment_score, deployment_evidence = _deployment_score(bundle)
+    traffic_score, traffic_evidence = _traffic_score(bundle)
+    candidates = [(FAULTY_DEPLOYMENT, deployment_score, deployment_evidence),
+                  (TRAFFIC_SPIKE, traffic_score, traffic_evidence)]
+    candidates.sort(key=lambda item: item[1], reverse=True)
+    cause, score, evidence = candidates[0]
+    service = bundle.anomaly.service if bundle.anomaly else (
+        bundle.telemetry.service if bundle.telemetry else bundle.incident.affected_services[0])
+    if bundle.provider_errors:
+        # Incomplete source coverage cannot authorize a confident automated cause.
+        return ScoringResult(UNKNOWN, round(min(score, 0.59), 2), service, evidence)
+    if score < 0.60 or score - candidates[1][1] < 0.10:
+        return ScoringResult(UNKNOWN, round(score, 2), service, evidence)
+    component = f"{bundle.deployment.service}:{bundle.deployment.new_version}" if cause == FAULTY_DEPLOYMENT else service
+    return ScoringResult(cause, round(score, 2), component, evidence)

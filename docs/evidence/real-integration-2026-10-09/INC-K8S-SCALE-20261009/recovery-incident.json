@@ -1,0 +1,12 @@
+{
+  "incident_id": "INC-K8S-SCALE-20261009",
+  "started_at": "2026-10-09T09:56:15.285Z",
+  "status": "ESCALATED",
+  "severity": "high",
+  "affected_services": [
+    "payment-service"
+  ],
+  "anomaly_ids": [
+    "ANOM-K8S-SCALE-20261009"
+  ]
+}

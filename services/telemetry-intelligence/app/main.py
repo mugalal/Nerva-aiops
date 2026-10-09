@@ -24,6 +24,7 @@ from .errors import M1Error
 from .models import (
     CaptureEvidenceRequest,
     DeploymentEvent,
+    EvidencePreview,
     HealthResponse,
     HealthyBaseline,
     IncidentEvidence,
@@ -248,6 +249,12 @@ def create_app(
     @api.post("/internal/evidence/capture", response_model=IncidentEvidence)
     async def capture_evidence(request: CaptureEvidenceRequest) -> IncidentEvidence:
         return await service.capture_evidence(request)
+
+    @api.get("/internal/evidence/preview", response_model=EvidencePreview)
+    async def evidence_preview(
+        requested_service: str = Query(alias="service", min_length=1),
+    ) -> EvidencePreview:
+        return await service.preview_evidence(requested_service)
 
     @api.get("/internal/evidence/{incident_id}", response_model=IncidentEvidence)
     async def get_evidence(incident_id: str) -> IncidentEvidence:

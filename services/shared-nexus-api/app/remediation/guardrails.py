@@ -20,7 +20,7 @@ MAX_REPLICAS = 10
 
 
 def validate_replica_count(replicas: int):
-    if replicas < MIN_REPLICAS or replicas > MAX_REPLICAS:
+    if isinstance(replicas, bool) or not isinstance(replicas, int) or replicas < MIN_REPLICAS or replicas > MAX_REPLICAS:
         raise ValueError(
             f"Replica count must be between {MIN_REPLICAS} and {MAX_REPLICAS}"
         )

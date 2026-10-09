@@ -13,8 +13,9 @@ def test_successful_recovery_resolves_incident():
         "/api/incidents/",
         json={
             "incident_id": "INC-RECOVERY-001",
-            "severity": "high"
-        }
+            "severity": "high",
+
+        "affected_services": ["payment-service"],}
     )
 
     update_incident_status(
@@ -52,21 +53,22 @@ def test_successful_recovery_resolves_incident():
         json={
             "incident_id": "INC-RECOVERY-001",
             "success": True
-            
+
         }
     )
-    
+
 
     assert response.status_code == 200
     assert response.json()["status"] == "RESOLVED"
-   
+
     def test_failed_recovery_marks_failed_remediation():
         client.post(
             "/api/incidents/",
             json={
                 "incident_id": "INC-RECOVERY-002",
-                "severity": "high"
-            }
+                "severity": "high",
+
+        "affected_services": ["payment-service"],}
         )
 
         update_incident_status(

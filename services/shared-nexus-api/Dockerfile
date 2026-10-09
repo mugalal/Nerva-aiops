@@ -1,13 +1,17 @@
-FROM python:3.13-slim
+FROM python:3.11-slim
 
-WORKDIR /app
+WORKDIR /app/services/shared-nexus-api
 
-COPY requirements.txt .
+COPY services/shared-nexus-api/requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY services/shared-nexus-api/install_kubectl.py /tmp/install_kubectl.py
+RUN python /tmp/install_kubectl.py
+COPY services/shared-nexus-api/app ./app
+COPY services/shared-nexus-api/shared_nexus_providers ./shared_nexus_providers
+COPY mocks /app/mocks
 
-EXPOSE 8000
+EXPOSE 8004
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8004"]

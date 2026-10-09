@@ -18,8 +18,9 @@ def test_build_decision_returns_result():
         "/api/incidents/",
         json={
             "incident_id": "INC-ORCH-001",
-            "severity": "high"
-        }
+            "severity": "high",
+
+        "affected_services": ["payment-service"],}
     )
 
 
@@ -38,21 +39,22 @@ def test_build_decision_returns_result():
     incident_data = incident_response.json()
 
     assert incident_data["status"] == "AWAITING_APPROVAL"
-    
-    
+
+
 def test_execute_approved_action_moves_to_validating():
     client.post(
         "/api/incidents/",
         json={
             "incident_id": "INC-ORCH-002",
-            "severity": "high"
-        }
+            "severity": "high",
+
+        "affected_services": ["payment-service"],}
     )
 
-    
+
 
     decision = build_decision("INC-ORCH-002")
-    
+
     replicas = (
         decision.scale_option["replicas"]
         if decision.action == DecisionAction.SCALE
@@ -79,15 +81,16 @@ def test_apply_recovery_result_resolves_incident():
         "/api/incidents/",
         json={
             "incident_id": "INC-ORCH-003",
-            "severity": "high"
-        }
+            "severity": "high",
+
+        "affected_services": ["payment-service"],}
     )
 
-   
+
 
     decision = build_decision("INC-ORCH-003")
-    
-    
+
+
     replicas = (
         decision.scale_option["replicas"]
         if decision.action == DecisionAction.SCALE
@@ -107,17 +110,18 @@ def test_apply_recovery_result_resolves_incident():
     )
 
     assert incident["status"] == "RESOLVED"
-    
+
 def test_apply_recovery_result_escalates_on_failure():
     client.post(
         "/api/incidents/",
         json={
             "incident_id": "INC-ORCH-004",
-            "severity": "high"
-        }
+            "severity": "high",
+
+        "affected_services": ["payment-service"],}
     )
 
-   
+
 
     decision = build_decision("INC-ORCH-004")
     replicas = (

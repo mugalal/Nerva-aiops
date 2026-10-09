@@ -1,0 +1,26 @@
+[
+  {
+    "name": "TARGET_URL",
+    "value": "http://payment-service/pay"
+  },
+  {
+    "name": "RPS",
+    "value": "90"
+  },
+  {
+    "name": "DURATION_SECONDS",
+    "value": "1200"
+  },
+  {
+    "name": "MAX_IN_FLIGHT",
+    "value": "300"
+  },
+  {
+    "name": "REQUEST_TIMEOUT_SECONDS",
+    "value": "10"
+  },
+  {
+    "name": "REPORT_INTERVAL_SECONDS",
+    "value": "10"
+  }
+]

@@ -13,6 +13,7 @@ def test_full_m4_e2e_flow(monkeypatch):
     incidents.append({
         "incident_id": incident_id,
         "severity": "HIGH",
+        "affected_services": ["payment-service"],
         "status": IncidentStatus.DETECTED,
     })
 
@@ -40,7 +41,7 @@ def test_full_m4_e2e_flow(monkeypatch):
     assert result.success is True
     monkeypatch.setattr(
         "app.orchestration.orchestrator.validate_recovery",
-        lambda incident_id, scenario, action_completed_at: {
+        lambda incident_id, scenario, action_completed_at, service: {
             "incident_id": incident_id,
             "success": True,
             "source": "mock"

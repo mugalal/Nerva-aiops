@@ -1,0 +1,10 @@
+{
+  "incident_id": "INC-K8S-ROLLBACK-20261009",
+  "started_at": "2026-10-09T09:40:21.52Z",
+  "status": "DETECTED",
+  "severity": "high",
+  "affected_services": [
+    "payment-service"
+  ],
+  "anomaly_ids": []
+}

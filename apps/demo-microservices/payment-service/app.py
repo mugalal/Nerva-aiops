@@ -127,7 +127,7 @@ async def observe_http_request(request: Request, call_next):
 
 
 @app.get("/health")
-def health() -> dict:
+async def health() -> dict:
     return {
         "status": "ok",
         "service": SERVICE_NAME,
@@ -138,12 +138,12 @@ def health() -> dict:
 
 
 @app.get("/ready")
-def ready() -> dict:
-    return health()
+async def ready() -> dict:
+    return await health()
 
 
 @app.get("/metrics", include_in_schema=False)
-def metrics() -> Response:
+async def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
@@ -168,5 +168,5 @@ def pay(response: Response) -> dict:
 
 
 @app.get("/version")
-def version() -> dict:
+async def version() -> dict:
     return {"service": SERVICE_NAME, "version": VERSION}

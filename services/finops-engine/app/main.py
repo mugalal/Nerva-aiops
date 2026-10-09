@@ -9,6 +9,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from shared.config.settings import get_runtime_settings  # noqa: E402
+from shared.logging import configure_json_logging  # noqa: E402
 
 from . import cost_model, persistence
 from .models import (  # noqa: E402
@@ -23,6 +24,7 @@ from .rightsizing import recommend  # noqa: E402
 from .scale_options import build_scale_options  # noqa: E402
 from .live_recommend import recommend_live
 from .context_provider import ContextUnavailable, build_context  # noqa: E402
+from .m1_client import SERVICE_PATTERN
 
 SERVICE_NAME = "finops-engine"
 
@@ -36,6 +38,8 @@ def compute_status() -> str:
 
 def create_app() -> FastAPI:
     settings = get_runtime_settings(SERVICE_NAME)
+    configure_json_logging(settings.service_name, settings.service_version,
+                           settings.environment, settings.log_level)
     api = FastAPI(title=SERVICE_NAME, version=settings.service_version)
 
     @api.get("/health", response_model=HealthResponse)
@@ -71,7 +75,8 @@ def create_app() -> FastAPI:
 
     @api.api_route("/internal/finops/context", methods=["GET", "POST"],
                    response_model=FinOpsContext)
-    def context_endpoint(service: str | None = Query(default=None)) -> FinOpsContext:
+    def context_endpoint(service: str | None = Query(default=None, min_length=1, max_length=253,
+                                                     pattern=f"^{SERVICE_PATTERN}$")) -> FinOpsContext:
         # No body needed: this is the path M4's provider already uses.
         try:
             context, request = build_context(settings.m1_telemetry_base_url, service)

@@ -1,223 +1,216 @@
-
 from datetime import datetime, timezone
-
+from uuid import uuid4
+from app.api.incidents import find_incident, lock_for, update_incident_status
+from app.contracts import ActionResult, DecisionProposal
+from app.decision_engine.engine import decide_from_rca
+from app.decision_engine.models import DecisionAction, DecisionResult
 from app.providers.rca_provider import get_rca_result
 from app.providers.finops_provider import get_finops_context
 from app.providers.evidence_provider import capture_incident_evidence
+from app.providers import evidence_provider as evidence_backend
 from app.providers.recovery_provider import validate_recovery
-
-from app.decision_engine.engine import decide_from_rca
-
-from app.api.incidents import (
-    update_incident_status,
-    find_incident,
-)
-
+from app.providers.errors import IntegrationError
+from app.remediation import executor as remediation_backend
+from app.remediation.executor import execute_remediation
+from app.remediation.models import RemediationResult
+from app.remediation.guardrails import validate_service_allowed, validate_replica_count, validate_action_allowed
+from app.remediation.audit import add_audit_record
 from app.state_machine.states import IncidentStatus
 
-from app.remediation.executor import execute_remediation
-from app.remediation.audit import add_audit_record
+
+def incident_service(incident):
+    services = incident.get("affected_services", [])
+    if len(services) != 1 or not services[0]:
+        raise ValueError("Automated remediation requires one explicit affected service")
+    return services[0]
+
+
+def invalidate_diagnosis(incident):
+    for key in ("_rca", "_evidence", "_expected_state"):
+        incident.pop(key, None)
 
 
 def build_decision(incident_id: str):
-    update_incident_status(
-        incident_id,
-        IncidentStatus.CORRELATING
-    )
+    with lock_for(incident_id):
+        incident = find_incident(incident_id)
+        if incident is None:
+            raise ValueError("Incident not found")
+        if incident.get("_decision") is not None:
+            return DecisionResult.model_validate(incident["_decision"])
+        state = IncidentStatus(incident["status"])
+        if state == IncidentStatus.DETECTED:
+            update_incident_status(incident_id, IncidentStatus.CORRELATING)
+            state = IncidentStatus.CORRELATING
+        if state == IncidentStatus.CORRELATING:
+            update_incident_status(incident_id, IncidentStatus.DIAGNOSING)
+            state = IncidentStatus.DIAGNOSING
+        if state not in {IncidentStatus.DIAGNOSING, IncidentStatus.DIAGNOSED}:
+            raise ValueError("Incident is not ready for diagnosis")
+        service = incident_service(incident)
+        rca = incident.get("_rca")
+        if rca is None:
+            rca = get_rca_result(incident_id)
+            if rca.get("incident_id") != incident_id:
+                raise IntegrationError("RCA result belongs to another incident", status_code=502, retryable=False)
+            incident["_rca"] = rca
+        if state == IncidentStatus.DIAGNOSING:
+            update_incident_status(incident_id, IncidentStatus.DIAGNOSED)
+        result = decide_from_rca(rca)
+        finops = None
+        # FinOps is needed only for a confident scaling diagnosis.
+        if rca["root_cause"] == "traffic_spike" and rca["confidence"] >= 0.7:
+            try:
+                finops = get_finops_context(service)
+                result = decide_from_rca(rca, finops)
+            except (IntegrationError, ValueError) as exc:
+                add_audit_record(incident_id, "FINOPS_UNAVAILABLE", {"message": str(exc)})
+                result = decide_from_rca(rca, None)
+        if result.action != DecisionAction.ESCALATE:
+            try:
+                validate_service_allowed(service)
+            except ValueError:
+                result = DecisionResult(action=DecisionAction.ESCALATE, confidence=rca["confidence"],
+                                        reason="Affected service is outside remediation guardrails", approval_required=False)
+        if result.action != DecisionAction.ESCALATE:
+            if not (rca["affected_component"] == service or rca["affected_component"].startswith(service + ":")):
+                raise IntegrationError("RCA component does not match the affected service", status_code=502, retryable=False)
+            evidence = incident.get("_evidence")
+            if evidence is None:
+                evidence = capture_incident_evidence(incident_id, service, rca["root_cause"],
+                                                     incident_started_at=incident.get("started_at"))
+                incident["_evidence"] = evidence
+            before = evidence["before"]
+            if (evidence_backend.EVIDENCE_PROVIDER == "real"
+                    and rca["affected_component"] != service + ":" + before["version"]):
+                invalidate_diagnosis(incident)
+                raise IntegrationError("Deployment version changed after RCA; diagnose again", status_code=409)
+            context = evidence.get("kubernetes") or {}
+            captured_replicas = context.get("desired_replicas", before.get("metrics", {}).get("replica_count"))
+            if (isinstance(captured_replicas, bool) or not isinstance(captured_replicas, int) or captured_replicas < 1
+                    or not before.get("version") or before["version"].lower() == "unknown"
+                    or context.get("version", before["version"]) != before["version"]
+                    or (finops is not None and finops["current_replicas"] != captured_replicas)):
+                invalidate_diagnosis(incident)
+                raise IntegrationError("Captured deployment state changed during diagnosis; diagnose again", status_code=409)
+            incident["_expected_state"] = {"version": before["version"], "replicas": captured_replicas}
+            incident["recovery_scenario"] = evidence["scenario"]
+        parameters = {}
+        if result.action == DecisionAction.ROLLBACK:
+            deployment = incident["_evidence"].get("deployment_event")
+            if not deployment or deployment.get("service") != service:
+                raise IntegrationError("Rollback requires captured deployment evidence", status_code=502, retryable=False)
+            if rca["affected_component"] != service + ":" + deployment["new_version"]:
+                invalidate_diagnosis(incident)
+                raise IntegrationError("Deployment version changed after RCA; diagnose again", status_code=409)
+            parameters = {"from_version": deployment["new_version"], "to_version": deployment["old_version"]}
+        elif result.action == DecisionAction.SCALE:
+            parameters = {"replicas": result.scale_option["replicas"]}
+        if result.action != DecisionAction.ESCALATE and remediation_backend.REMEDIATION_BACKEND == "kubernetes":
+            try:
+                incident["_expected_state"] = remediation_backend.bind_live_preconditions(
+                    service, incident["_expected_state"],
+                    cpu_request_m=finops["current_cpu_request_m"] if finops is not None else None,
+                    rollback_target=parameters.get("to_version"))
+            except Exception as exc:
+                invalidate_diagnosis(incident)
+                raise IntegrationError(f"Live remediation preconditions could not be captured: {exc}", status_code=409) from exc
+        proposal = DecisionProposal(incident_id=incident_id, recommended_action=result.action.value,
+                                    target=service, parameters=parameters, confidence=result.confidence,
+                                    risk="MEDIUM" if result.action == DecisionAction.ROLLBACK else "LOW" if result.action == DecisionAction.SCALE else "HIGH",
+                                    reason=result.reason, approval_required=result.approval_required)
+        incident.update(root_cause=rca["root_cause"], proposed_action=result.action.value,
+                        scale_option=result.scale_option, _proposal=proposal.model_dump(mode="json"),
+                        _decision=result.model_dump(mode="json"))
+        add_audit_record(incident_id, "DECISION_PROPOSED", proposal.model_dump(mode="json"))
+        update_incident_status(incident_id, IncidentStatus.ACTION_PROPOSED)
+        update_incident_status(incident_id, IncidentStatus.ESCALATED if result.action == DecisionAction.ESCALATE else IncidentStatus.AWAITING_APPROVAL)
+        return result
 
-    update_incident_status(
-        incident_id,
-        IncidentStatus.DIAGNOSING
-    )
 
-    rca = get_rca_result(incident_id)
-
-    update_incident_status(
-        incident_id,
-        IncidentStatus.DIAGNOSED
-    )
-
-    # Capture real M1 telemetry before remediation.
-    evidence = capture_incident_evidence(
-        incident_id=incident_id,
-        service="payment-service",
-        scenario=rca["root_cause"]
-    )
-
-    finops = get_finops_context()
-
-    result = decide_from_rca(
-        rca,
-        finops
-    )
-
-    incident = find_incident(incident_id)
-
-    if incident is not None:
-        incident["root_cause"] = rca["root_cause"]
-        incident["proposed_action"] = result.action.value
-        incident["scale_option"] = result.scale_option
-
-    add_audit_record(
-        incident_id,
-        "DECISION_PROPOSED",
-        {
-            "action": result.action.value,
-            "reason": result.reason,
-            "confidence": result.confidence,
-            "approval_required": result.approval_required,
-            "scale_option": result.scale_option,
-        }
-    )
-
-    update_incident_status(
-        incident_id,
-        IncidentStatus.ACTION_PROPOSED
-    )
-
-    update_incident_status(
-        incident_id,
-        IncidentStatus.AWAITING_APPROVAL
-    )
-
-    return result
-
-
-def execute_approved_action(
-    incident_id: str,
-    action,
-    approved: bool,
-    replicas: int | None = None
-):
-    update_incident_status(
-        incident_id,
-        IncidentStatus.EXECUTING,
-        approved=approved
-    )
-
-    add_audit_record(
-        incident_id,
-        "ACTION_APPROVED",
-        {
-            "action": action.value,
-            "replicas": replicas,
-        }
-    )
-
-    try:
-        result = execute_remediation(
-            action,
-            approved=approved,
-            replicas=replicas
-        )
-
-    except ValueError as exc:
-        add_audit_record(
-            incident_id,
-            "ACTION_EXECUTION_FAILED",
-            {
-                "action": action.value,
-                "error": str(exc),
-            }
-        )
-
-        update_incident_status(
-            incident_id,
-            IncidentStatus.FAILED_REMEDIATION
-        )
-
-        update_incident_status(
-            incident_id,
-            IncidentStatus.ESCALATED
-        )
-
-        raise
-
-    # Record when the Jenkins remediation completed successfully.
-    # M1 needs this timestamp to evaluate post-action telemetry.
-    incident = find_incident(incident_id)
-
-    if incident is not None and result.success:
-        incident["action_completed_at"] = datetime.now(
-            timezone.utc
-        ).isoformat()
-
-    add_audit_record(
-        incident_id,
-        "ACTION_EXECUTED",
-        {
-            "action": action.value,
-            "success": result.success,
-            "message": result.message,
-            "execution_id": result.execution_id,
-        }
-    )
-
-    update_incident_status(
-        incident_id,
-        IncidentStatus.VALIDATING
-    )
-
-    return result
+def execute_approved_action(incident_id: str, action, approved: bool, replicas: int | None = None):
+    with lock_for(incident_id):
+        incident = find_incident(incident_id)
+        if incident is None:
+            raise ValueError("Incident not found")
+        action = DecisionAction(action)
+        if not approved:
+            raise ValueError("Remediation cannot execute without approval")
+        service = incident_service(incident)
+        validate_service_allowed(service)
+        validate_action_allowed(action)
+        if action == DecisionAction.SCALE:
+            validate_replica_count(replicas)
+        proposed = incident.get("proposed_action")
+        if proposed is not None and proposed != action.value:
+            raise ValueError("Requested action does not match the approved proposal")
+        if action == DecisionAction.SCALE and incident.get("scale_option") is not None:
+            if incident["scale_option"].get("replicas") != replicas:
+                raise ValueError("Replica count does not match the approved proposal")
+        if remediation_backend.REMEDIATION_BACKEND != "mock" and not incident.get("_proposal"):
+            raise ValueError("Real remediation requires a stored decision proposal")
+        if incident.get("_execution_result") is not None:
+            return RemediationResult.model_validate(incident["_execution_result"])
+        update_incident_status(incident_id, IncidentStatus.EXECUTING, approved=True)
+        started_at = datetime.now(timezone.utc)
+        action_id = "ACT-" + uuid4().hex
+        add_audit_record(incident_id, "ACTION_APPROVED", {"action": action.value, "replicas": replicas, "target": service})
+        try:
+            result = execute_remediation(action, approved=True, replicas=replicas, service=service,
+                                         expected_state=incident.get("_expected_state"),
+                                         rollback_target=incident.get("_proposal", {}).get("parameters", {}).get("to_version"))
+            if not result.success:
+                raise ValueError("Remediation reported failure")
+        except Exception as exc:
+            completed_at = datetime.now(timezone.utc)
+            incident["_action_result"] = ActionResult(action_id=action_id, incident_id=incident_id,
+                action=action.value, status="FAILED", started_at=started_at, completed_at=completed_at).model_dump(mode="json")
+            add_audit_record(incident_id, "ACTION_EXECUTION_FAILED", {"action": action.value, "message": str(exc)})
+            update_incident_status(incident_id, IncidentStatus.FAILED_REMEDIATION)
+            update_incident_status(incident_id, IncidentStatus.ESCALATED)
+            raise ValueError(f"Remediation failed: {exc}") from exc
+        completed_at = datetime.now(timezone.utc)
+        incident["action_completed_at"] = completed_at.isoformat()
+        incident["_execution_result"] = result.model_dump(mode="json")
+        incident["_action_result"] = ActionResult(action_id=action_id, incident_id=incident_id,
+            action=action.value, status="SUCCESS", started_at=started_at, completed_at=completed_at).model_dump(mode="json")
+        incident["action_completed_at"] = incident["_action_result"]["completed_at"]
+        add_audit_record(incident_id, "ACTION_EXECUTED", incident["_action_result"])
+        update_incident_status(incident_id, IncidentStatus.VALIDATING)
+        return result
 
 
 def validate_and_apply_recovery(incident_id: str):
-    incident = find_incident(incident_id)
+    with lock_for(incident_id):
+        incident = find_incident(incident_id)
+        if incident is None:
+            raise ValueError("Incident not found")
+        if incident["status"] in {IncidentStatus.RESOLVED.value, IncidentStatus.ESCALATED.value} and "_recovery" in incident:
+            return incident
+        if incident["status"] != IncidentStatus.VALIDATING.value:
+            raise ValueError("Incident must be in VALIDATING state")
+        scenario = incident.get("recovery_scenario")
+        # Legacy scenario inference is allowed only for explicitly mock execution.
+        if scenario is None and remediation_backend.REMEDIATION_BACKEND == "mock":
+            scenario = {"faulty_deployment": "bad_deployment", "traffic_spike": "traffic_spike"}.get(incident.get("root_cause"))
+        if scenario not in {"bad_deployment", "traffic_spike"}:
+            raise ValueError("Missing captured remediation scenario")
+        completion = incident.get("action_completed_at")
+        if not completion:
+            raise ValueError("Missing remediation completion timestamp")
+        recovery = validate_recovery(incident_id, scenario=scenario, action_completed_at=completion,
+                                     service=incident_service(incident))
+        if recovery.get("incident_id") != incident_id:
+            raise IntegrationError("Recovery result belongs to another incident", status_code=502, retryable=False)
+        incident["_recovery"] = recovery
+        return apply_recovery_result(incident_id, recovery["success"] is True)
 
+
+def apply_recovery_result(incident_id: str, success: bool):
+    incident = find_incident(incident_id)
     if incident is None:
         raise ValueError("Incident not found")
-
-    scenario = incident.get("root_cause")
-
-    if scenario not in ("traffic_spike", "faulty_deployment"):
-        raise ValueError(
-            "Missing or unsupported incident root cause"
-        )
-
-    action_completed_at = incident.get("action_completed_at")
-
-    if not action_completed_at:
-        raise ValueError(
-            "Missing remediation completion timestamp"
-        )
-
-    recovery = validate_recovery(
-        incident_id,
-        scenario=scenario,
-        action_completed_at=action_completed_at
-    )
-
-    return apply_recovery_result(
-        incident_id,
-        recovery["success"]
-    )
-
-
-def apply_recovery_result(
-    incident_id: str,
-    success: bool
-):
-    add_audit_record(
-        incident_id,
-        "RECOVERY_VALIDATION",
-        {
-            "success": success,
-        }
-    )
-
+    add_audit_record(incident_id, "RECOVERY_VALIDATION", {"success": success})
     if success:
-        return update_incident_status(
-            incident_id,
-            IncidentStatus.RESOLVED,
-            recovery_validated=True
-        )
-
-    update_incident_status(
-        incident_id,
-        IncidentStatus.FAILED_REMEDIATION
-    )
-
-    return update_incident_status(
-        incident_id,
-        IncidentStatus.ESCALATED
-    )
+        return update_incident_status(incident_id, IncidentStatus.RESOLVED, recovery_validated=True)
+    update_incident_status(incident_id, IncidentStatus.FAILED_REMEDIATION)
+    return update_incident_status(incident_id, IncidentStatus.ESCALATED)

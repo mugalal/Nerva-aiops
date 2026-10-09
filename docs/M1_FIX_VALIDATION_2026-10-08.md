@@ -49,3 +49,13 @@ The live run then hit a host limitation: C: filled while loading the Kubernetes 
 ## Runtime limits
 
 The Docker bad-deployment recovery above is validated; live Kubernetes scaling remains pending sufficient host disk space and completion of the drill. The existing Compose stack reports degraded when Kubernetes evidence is unavailable. Idle telemetry requires fresh payment traffic.
+
+## 2026-10-09 integration follow-up
+
+The disk limitation was cleared and actual M1/M3/M4/M6 Kubernetes integration
+was exercised. Guarded rollback resolved successfully; M6 selected ten replicas
+and M4 completed real scaling, then correctly escalated because the strict
+measured latency ceiling was exceeded. The current evidence and exact limits
+are in [the integration proof](evidence/real-integration-2026-10-09/README.md).
+This follow-up supersedes the earlier pending cluster execution status without
+claiming successful traffic-spike SLO recovery.

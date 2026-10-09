@@ -1,0 +1,14 @@
+{
+  "service": "payment-service",
+  "severity": "high",
+  "model": "manual-m1-observation",
+  "timestamp": "2026-10-09T09:56:15.285Z",
+  "anomaly_id": "ANOM-K8S-SCALE-20261009",
+  "features": {
+    "request_rate": 68.78236326866237,
+    "cpu": 0.9951774562748629,
+    "latency_p95_ms": 4875.0,
+    "http_5xx_rate": 0.0
+  },
+  "score": 1.0
+}

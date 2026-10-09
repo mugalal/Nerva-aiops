@@ -1,0 +1,98 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-zhmrt"
+        },
+        "value": [
+          1791539934.1,
+          "8.82300648946573"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-hfgxd"
+        },
+        "value": [
+          1791539934.1,
+          "9.089696861943283"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-5zck6"
+        },
+        "value": [
+          1791539934.1,
+          "8.511489399528868"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-gv6xp"
+        },
+        "value": [
+          1791539934.1,
+          "8.444632102935621"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-9vdtf"
+        },
+        "value": [
+          1791539934.1,
+          "9.244855326903417"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-zghfl"
+        },
+        "value": [
+          1791539934.1,
+          "9.40062670844723"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-n9zbn"
+        },
+        "value": [
+          1791539934.1,
+          "9.978443007311599"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-4clbn"
+        },
+        "value": [
+          1791539934.1,
+          "8.64367611767843"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-wzzfl"
+        },
+        "value": [
+          1791539934.1,
+          "8.845230687172192"
+        ]
+      },
+      {
+        "metric": {
+          "pod": "payment-service-5dd84d4cf5-5wg9r"
+        },
+        "value": [
+          1791539934.1,
+          "8.778558094052805"
+        ]
+      }
+    ]
+  }
+}

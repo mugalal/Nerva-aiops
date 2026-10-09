@@ -1,52 +1,41 @@
+import math
 from app.decision_engine.models import DecisionAction, DecisionResult
-from app.decision_engine.models import DecisionResult
 
+MIN_RCA_CONFIDENCE = 0.7
 
-    
 def decide_action(root_cause: str) -> DecisionAction:
-    if root_cause == "faulty_deployment":
-        return DecisionAction.ROLLBACK
+    return {"faulty_deployment": DecisionAction.ROLLBACK, "traffic_spike": DecisionAction.SCALE}.get(root_cause, DecisionAction.ESCALATE)
 
-    if root_cause == "traffic_spike":
-        return DecisionAction.SCALE
 
-    return DecisionAction.ESCALATE
+def choose_scale_option(finops: dict):
+    current = finops.get("current_replicas")
+    if isinstance(current, bool) or not isinstance(current, int) or current < 1:
+        return None
+    candidates = []
+    for option in finops.get("temporary_scale_options", []):
+        if not isinstance(option, dict):
+            continue
+        replicas, cost = option.get("replicas"), option.get("estimated_cost_delta")
+        if (isinstance(replicas, int) and not isinstance(replicas, bool) and current < replicas <= 10
+                and isinstance(cost, (int, float)) and not isinstance(cost, bool) and math.isfinite(cost)
+                and cost >= 0 and option.get("risk") == "LOW"):
+            candidates.append(option)
+    return min(candidates, key=lambda option: option["estimated_cost_delta"]) if candidates else None
+
 
 def decide_from_rca(rca: dict, finops: dict | None = None) -> DecisionResult:
-    action = decide_action(rca["root_cause"])
-    scale_option = None
-    if action == DecisionAction.SCALE:
-        scale_option = choose_scale_option(finops or {})
-
-        if scale_option is None:
-            action = DecisionAction.ESCALATE
-    if action == DecisionAction.ROLLBACK:
-        reason = "Faulty deployment detected"
-
-    elif action == DecisionAction.SCALE:
-        reason = "Traffic spike detected and a safe scale option is available"
-
-    else:
-        reason = "No safe automated action available"
-
-    return DecisionResult(
-        action=action,
-        reason=reason,
-        approval_required=action in {
-            DecisionAction.ROLLBACK,
-            DecisionAction.SCALE
-        },
-        confidence=rca.get("confidence", 0.0),
-        scale_option=scale_option
-    )
-def choose_scale_option(finops: dict):
-    options = finops.get("temporary_scale_options", [])
-
-    if not options:
-        return None
-
-    return min(
-        options,
-        key=lambda option: option["estimated_cost_delta"]
-    )
-    
+    confidence = rca.get("confidence", 0.0)
+    action = decide_action(rca.get("root_cause", "unknown"))
+    if (not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
+            or not math.isfinite(confidence) or not MIN_RCA_CONFIDENCE <= confidence <= 1):
+        action = DecisionAction.ESCALATE
+        confidence = confidence if isinstance(confidence, (int, float)) and math.isfinite(confidence) and 0 <= confidence <= 1 else 0.0
+    scale_option = choose_scale_option(finops or {}) if action == DecisionAction.SCALE else None
+    if action == DecisionAction.SCALE and scale_option is None:
+        action = DecisionAction.ESCALATE
+    reason = {DecisionAction.ROLLBACK: "Faulty deployment detected",
+              DecisionAction.SCALE: "Traffic spike detected and a safe scale option is available",
+              DecisionAction.ESCALATE: "No safe automated action available"}[action]
+    return DecisionResult(action=action, reason=reason,
+                          approval_required=action in {DecisionAction.ROLLBACK, DecisionAction.SCALE},
+                          confidence=confidence, scale_option=scale_option)

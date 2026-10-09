@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-10-09T09:40:21.52Z",
+  "severity": "high",
+  "score": 1.0,
+  "model": "manual-m1-observation",
+  "service": "payment-service",
+  "features": {
+    "cpu": 0.1444540747160922,
+    "http_5xx_rate": 0.13777777777777778,
+    "request_rate": 10.000666711114075,
+    "latency_p95_ms": 737.5
+  },
+  "anomaly_id": "ANOM-K8S-ROLLBACK-20261009"
+}
