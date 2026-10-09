@@ -1,0 +1,3199 @@
+{
+  "apiVersion": "v1",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-2spbg",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37017",
+        "uid": "8b0acfae-68fb-42d4-9251-b693a1112fd7"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-xv5k7",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-xv5k7",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:32Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://78bb5d1d0039806c33ed236a85d39f0e82a463685c09ce159d83c179c886e6b9",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:33Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-xv5k7",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.2.25",
+        "podIPs": [
+          {
+            "ip": "10.244.2.25"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:32:04Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-6p6f7",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "36306",
+        "uid": "3eca47c9-1ab8-4e54-aa71-a9b04936c032"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-lffqx",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker2",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-lffqx",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:32:05Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:32:04Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:32:11Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:32:11Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:32:04Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://7be2405c831300f389cca688a552a9cb0d7bf265c0367e33dc7e56a95e9a3931",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:32:05Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-lffqx",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.3",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.3"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.1.25",
+        "podIPs": [
+          {
+            "ip": "10.244.1.25"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:32:04Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-bskmw",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37050",
+        "uid": "f7b32fce-02bb-46a7-931d-86defa4a6197"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-cfl64",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker2",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-cfl64",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:33Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:41Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:41Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://df701f4089aedcf9039b71bec68643ec27dedb3e0b69d0d7b96f9a7022425721",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:34Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-cfl64",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.3",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.3"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.1.29",
+        "podIPs": [
+          {
+            "ip": "10.244.1.29"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-dlrft",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37021",
+        "uid": "510abb8a-905f-4cba-97db-aa04d1d2ca0e"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-2rtk4",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-2rtk4",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:32Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://53578fe3c26aaaa1fd3c5abf25da69fed761870feae322cd20df5d59bb8bb562",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:33Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-2rtk4",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.2.26",
+        "podIPs": [
+          {
+            "ip": "10.244.2.26"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-jsfvg",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37010",
+        "uid": "bc84bf7e-cf35-4be9-9cab-57f3a0a7b7af"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-4kdts",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-4kdts",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:33Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://a4195802749256844549b6aa3dcd5c36eeb173f08c67958d9f688658614aedb0",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:34Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-4kdts",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.2.29",
+        "podIPs": [
+          {
+            "ip": "10.244.2.29"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-nw2cj",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37015",
+        "uid": "782f8030-8e9e-4e93-b61c-ae97bcc3e772"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-f7knm",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-f7knm",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:33Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://f973eea037cf6a332fab6d5856af5d5f3a4236a0ce40a9b1957d4e1b7ffd2b4b",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:33Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-f7knm",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.2.28",
+        "podIPs": [
+          {
+            "ip": "10.244.2.28"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-r2dcd",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37044",
+        "uid": "8d9c5a51-c6f9-40be-ab42-cf1db1babb09"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-sjxlk",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker2",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-sjxlk",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:33Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:41Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:41Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://47f7c31f7f9217f701e9f2a1a5d7a5088e9ee8919299b1a4124aa6c242cd7789",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:34Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-sjxlk",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.3",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.3"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.1.28",
+        "podIPs": [
+          {
+            "ip": "10.244.1.28"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-v9nf7",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37037",
+        "uid": "2f597e3c-b347-415c-b914-979b9fe901e1"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-7rxvn",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker2",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-7rxvn",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:33Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:40Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:40Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://9bafa4ec3332dd115bdc7cd4d36ef8575c135c92a1bbfeb5efd96daf86197c18",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:34Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-7rxvn",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.3",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.3"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.1.27",
+        "podIPs": [
+          {
+            "ip": "10.244.1.27"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-vj6dw",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37026",
+        "uid": "9e8bc27c-5eb6-4490-a0c0-bbe62a75727a"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-mxt9z",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-mxt9z",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:33Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:39Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://0a740348b6f50f14f8cca3a22336fd90c0b1ca5813874d68ac5cdef6023cc461",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:34Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-mxt9z",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.2",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.2"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.2.27",
+        "podIPs": [
+          {
+            "ip": "10.244.2.27"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Pod",
+      "metadata": {
+        "annotations": {
+          "prometheus.io/path": "/metrics",
+          "prometheus.io/port": "8000",
+          "prometheus.io/scrape": "true"
+        },
+        "creationTimestamp": "2026-10-09T10:37:31Z",
+        "generateName": "payment-service-5d9466d7dd-",
+        "generation": 1,
+        "labels": {
+          "app": "payment-service",
+          "environment": "development",
+          "pod-template-hash": "5d9466d7dd",
+          "service_name": "payment-service",
+          "version": "v1"
+        },
+        "name": "payment-service-5d9466d7dd-wbvbw",
+        "namespace": "nexus-demo",
+        "ownerReferences": [
+          {
+            "apiVersion": "apps/v1",
+            "blockOwnerDeletion": true,
+            "controller": true,
+            "kind": "ReplicaSet",
+            "name": "payment-service-5d9466d7dd",
+            "uid": "2c7a4f84-d881-45b4-a654-53c5fecba5e1"
+          }
+        ],
+        "resourceVersion": "37000",
+        "uid": "41e3cca1-ee87-43d9-9b04-ccba4a46b85a"
+      },
+      "spec": {
+        "containers": [
+          {
+            "env": [
+              {
+                "name": "SERVICE_NAME",
+                "value": "payment-service"
+              },
+              {
+                "name": "VERSION",
+                "value": "v1"
+              },
+              {
+                "name": "ENVIRONMENT",
+                "value": "development"
+              },
+              {
+                "name": "NAMESPACE",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.namespace"
+                  }
+                }
+              },
+              {
+                "name": "POD_NAME",
+                "valueFrom": {
+                  "fieldRef": {
+                    "apiVersion": "v1",
+                    "fieldPath": "metadata.name"
+                  }
+                }
+              },
+              {
+                "name": "CPU_LIMIT_CORES",
+                "value": "0.5"
+              },
+              {
+                "name": "MEMORY_LIMIT_BYTES",
+                "value": "536870912"
+              },
+              {
+                "name": "PAYMENT_WORK_ITERATIONS",
+                "value": "20000"
+              }
+            ],
+            "image": "nexus/payment-service:v1-recovery-safe",
+            "imagePullPolicy": "IfNotPresent",
+            "livenessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 5,
+              "periodSeconds": 10,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "name": "payment-service",
+            "ports": [
+              {
+                "containerPort": 8000,
+                "protocol": "TCP"
+              }
+            ],
+            "readinessProbe": {
+              "failureThreshold": 3,
+              "httpGet": {
+                "path": "/health",
+                "port": 8000,
+                "scheme": "HTTP"
+              },
+              "initialDelaySeconds": 3,
+              "periodSeconds": 5,
+              "successThreshold": 1,
+              "timeoutSeconds": 1
+            },
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-wx5fv",
+                "readOnly": true
+              }
+            ]
+          }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker2",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30,
+        "tolerations": [
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          },
+          {
+            "effect": "NoExecute",
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "tolerationSeconds": 300
+          }
+        ],
+        "volumes": [
+          {
+            "name": "kube-api-access-wx5fv",
+            "projected": {
+              "defaultMode": 420,
+              "sources": [
+                {
+                  "serviceAccountToken": {
+                    "expirationSeconds": 3607,
+                    "path": "token"
+                  }
+                },
+                {
+                  "configMap": {
+                    "items": [
+                      {
+                        "key": "ca.crt",
+                        "path": "ca.crt"
+                      }
+                    ],
+                    "name": "kube-root-ca.crt"
+                  }
+                },
+                {
+                  "downwardAPI": {
+                    "items": [
+                      {
+                        "fieldRef": {
+                          "apiVersion": "v1",
+                          "fieldPath": "metadata.namespace"
+                        },
+                        "path": "namespace"
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "status": {
+        "allocatedResources": {
+          "cpu": "100m",
+          "memory": "128Mi"
+        },
+        "conditions": [
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:32Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodReadyToStartContainers"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Initialized"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:38Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "Ready"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:38Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "ContainersReady"
+          },
+          {
+            "lastProbeTime": null,
+            "lastTransitionTime": "2026-10-09T10:37:31Z",
+            "observedGeneration": 1,
+            "status": "True",
+            "type": "PodScheduled"
+          }
+        ],
+        "containerStatuses": [
+          {
+            "allocatedResources": {
+              "cpu": "100m",
+              "memory": "128Mi"
+            },
+            "containerID": "containerd://38a62fb5ccda20683b9280959325a7d5693c6cb08fa37211fb5f0b8de107ba27",
+            "image": "docker.io/nexus/payment-service:v1-recovery-safe",
+            "imageID": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+            "lastState": {},
+            "name": "payment-service",
+            "ready": true,
+            "resources": {
+              "limits": {
+                "cpu": "500m",
+                "memory": "512Mi"
+              },
+              "requests": {
+                "cpu": "100m",
+                "memory": "128Mi"
+              }
+            },
+            "restartCount": 0,
+            "started": true,
+            "state": {
+              "running": {
+                "startedAt": "2026-10-09T10:37:33Z"
+              }
+            },
+            "user": {
+              "linux": {
+                "gid": 0,
+                "supplementalGroups": [
+                  0
+                ],
+                "uid": 0
+              }
+            },
+            "volumeMounts": [
+              {
+                "mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+                "name": "kube-api-access-wx5fv",
+                "readOnly": true,
+                "recursiveReadOnly": "Disabled"
+              }
+            ]
+          }
+        ],
+        "hostIP": "172.23.0.3",
+        "hostIPs": [
+          {
+            "ip": "172.23.0.3"
+          }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.1.26",
+        "podIPs": [
+          {
+            "ip": "10.244.1.26"
+          }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          },
+          "requests": {
+            "cpu": "79m",
+            "memory": "128Mi"
+          }
+        },
+        "startTime": "2026-10-09T10:37:31Z"
+      }
+    }
+  ],
+  "kind": "List",
+  "metadata": {
+    "resourceVersion": ""
+  }
+}

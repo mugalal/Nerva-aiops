@@ -1,0 +1,14 @@
+﻿{
+    "incident_id":  "INC-K8S-SCALE-20261009T113539Z",
+    "recovered":  true,
+    "before":  {
+                   "latency_p95_ms":  4875.0,
+                   "http_5xx_rate":  0.0
+               },
+    "after":  {
+                  "latency_p95_ms":  9.791709492167636,
+                  "http_5xx_rate":  0.0
+              },
+    "recovery_time_seconds":  127.916474,
+    "slo_restored":  true
+}

@@ -23,17 +23,36 @@ class PrometheusSeries:
 class PrometheusClient:
     name = "prometheus"
 
-    def __init__(self, base_url: str, timeout: float = 5.0):
+    def __init__(self, base_url: str, timeout: float = 5.0,
+                 *, transport: httpx.AsyncBaseTransport | None = None):
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self._transport = transport
+        self._http_client: httpx.AsyncClient | None = None
+
+    def _client(self) -> httpx.AsyncClient:
+        if self._http_client is None or self._http_client.is_closed:
+            # No await precedes assignment, so concurrent query batches share
+            # one pool. Keep connections across the 15-second recovery polls.
+            self._http_client = httpx.AsyncClient(
+                timeout=self.timeout, transport=self._transport,
+                limits=httpx.Limits(max_connections=100, max_keepalive_connections=20,
+                                    keepalive_expiry=30),
+            )
+        return self._http_client
+
+    async def aclose(self):
+        client = self._http_client
+        self._http_client = None
+        if client is not None:
+            await client.aclose()
 
     async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
         url = f"{self.base_url}{path}"
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(url, params=params)
-                response.raise_for_status()
-                return response
+            response = await self._client().get(url, params=params)
+            response.raise_for_status()
+            return response
         except httpx.TimeoutException as exc:
             raise ProviderUnavailable(self.name, f"request timed out: {url}") from exc
         except httpx.HTTPStatusError as exc:

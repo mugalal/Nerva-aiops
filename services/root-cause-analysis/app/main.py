@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 
 from .models import AnalyzeRequest, RCAResult
 from .service import RCAService
+from .providers.base import ProviderError
 
 
 # ---------------------------------------------------------
@@ -39,12 +40,8 @@ rca_service = RCAService(
 # ---------------------------------------------------------
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": "root-cause-analysis",
-        "version": "0.1.0",
-    }
+async def health() -> dict:
+    return await rca_service.health()
 
 
 # ---------------------------------------------------------
@@ -62,6 +59,12 @@ async def analyze_root_cause(
     try:
         return await rca_service.analyze(request)
 
+    except ProviderError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={
+            "category": exc.category, "provider": exc.provider,
+            "message": exc.message, "retryable": exc.retryable,
+        }) from exc
+
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
@@ -69,7 +72,4 @@ async def analyze_root_cause(
         ) from exc
 
     except Exception as exc:
-        raise HTTPException(
-            status_code=500,
-            detail=f"RCA analysis failed: {exc}",
-        ) from exc
+        raise HTTPException(status_code=500, detail="RCA analysis failed") from exc

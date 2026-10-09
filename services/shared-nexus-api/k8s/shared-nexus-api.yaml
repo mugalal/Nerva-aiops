@@ -1,0 +1,122 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shared-nexus-api
+  namespace: nexus-demo
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: approved-remediation
+  namespace: nexus-demo
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["payment-service"]
+    verbs: ["get", "list", "patch", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    resourceNames: ["payment-service"]
+    verbs: ["get", "patch", "update"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: approved-remediation
+  namespace: nexus-demo
+subjects:
+  - kind: ServiceAccount
+    name: shared-nexus-api
+    namespace: nexus-demo
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: approved-remediation
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shared-nexus-api
+  namespace: nexus-demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: shared-nexus-api
+  template:
+    metadata:
+      labels:
+        app: shared-nexus-api
+        service_name: shared-nexus-api
+    spec:
+      serviceAccountName: shared-nexus-api
+      containers:
+        - name: shared-nexus-api
+          image: nexus/shared-nexus-api:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8004
+          env:
+            - name: RCA_PROVIDER
+              value: real
+            - name: FINOPS_PROVIDER
+              value: real
+            - name: EVIDENCE_PROVIDER
+              value: real
+            - name: RECOVERY_PROVIDER
+              value: real
+            - name: RECOVERY_TIMEOUT_SECONDS
+              value: "360"
+            - name: REMEDIATION_BACKEND
+              value: kubernetes
+            - name: M3_RCA_URL
+              value: http://root-cause-analysis:8003/internal/rca/analyze
+            - name: M6_FINOPS_URL
+              value: http://finops-engine:8006/internal/finops/context
+            - name: M1_EVIDENCE_URL
+              value: http://telemetry-intelligence:8001/internal/evidence/capture
+            - name: M1_RECOVERY_URL
+              value: http://telemetry-intelligence:8001/internal/recovery/validate
+            - name: ENVIRONMENT
+              value: development
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shared-nexus-api
+  namespace: nexus-demo
+spec:
+  selector:
+    app: shared-nexus-api
+  ports:
+    - name: http
+      port: 8004
+      targetPort: http

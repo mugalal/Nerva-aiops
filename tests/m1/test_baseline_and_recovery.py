@@ -325,9 +325,19 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
             )
             with_scale = await service.validate_recovery(request)
 
+            # Healthy metrics after an unrelated release do not prove scaling fixed v1.
+            telemetry.current = telemetry.current.model_copy(update={"version": "v3"})
+            with_different_release = await service.validate_recovery(request)
+            telemetry.current = telemetry.current.model_copy(update={"version": "v1"})
+            telemetry.history = telemetry.history.model_copy(update={"version": "mixed"})
+            with_mixed_window = await service.validate_recovery(request)
+
         self.assertFalse(without_scale.recovered)
         self.assertTrue(without_scale.slo_restored)
         self.assertTrue(with_scale.recovered)
+        self.assertFalse(with_different_release.recovered)
+        self.assertTrue(with_different_release.slo_restored)
+        self.assertFalse(with_mixed_window.recovered)
 
 
 if __name__ == "__main__":

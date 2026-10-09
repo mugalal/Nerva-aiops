@@ -8,6 +8,7 @@ import httpx
 from ..errors import ProviderInvalidResponse, ProviderUnavailable
 from ..models import DeploymentEvent, KubernetesContext
 from .kubernetes import _build_deployment_event, _context_version, _deployment_version, _rollout_ready
+from .resources import application_resources
 
 
 class InClusterKubernetesClient:
@@ -139,6 +140,14 @@ class InClusterKubernetesClient:
             {"labelSelector": f"app={service}"},
         )
         return _build_deployment_event(deployment, replica_sets, service)
+
+    async def resource_config(self, service: str, namespace: str):
+        deployment = await self._get_json(
+            f"/apis/apps/v1/namespaces/{quote(namespace, safe='')}/deployments/{quote(service, safe='')}"
+        )
+        if not _rollout_ready(deployment):
+            raise ProviderUnavailable(self.name, "Application rollout is not complete")
+        return application_resources(deployment, service)
 
     @staticmethod
     def _deployment_version(deployment: dict[str, Any]) -> str | None:

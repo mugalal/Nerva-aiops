@@ -104,6 +104,35 @@ class KubernetesContext(StrictModel):
     events: list[str]
 
 
+class ResourceConfiguration(StrictModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+    cpu_request_m: float = Field(gt=0)
+    cpu_limit_m: float = Field(gt=0)
+    memory_request_mb: float = Field(gt=0)
+    memory_limit_mb: float = Field(gt=0)
+    memory_unit: Literal["MiB"] = "MiB"
+
+    @model_validator(mode="after")
+    def requests_fit_limits(self):
+        if self.cpu_request_m > self.cpu_limit_m or self.memory_request_mb > self.memory_limit_mb:
+            raise ValueError("Resource requests cannot exceed limits")
+        return self
+
+
+class EvidencePreview(StrictModel):
+    service: str
+    provider_mode: Literal["real", "mock"]
+    collected_at: AwareDatetime
+    telemetry: TelemetrySnapshot
+    deployment_event: DeploymentEvent | None
+    selected_logs: list[str]
+    provider_errors: list[str]
+    baseline: HealthyBaseline | None = None
+    kubernetes: KubernetesContext | None = None
+    resource_config: ResourceConfiguration | None = None
+
+
 class CaptureEvidenceRequest(StrictModel):
     incident_id: str = Field(min_length=1)
     service: str = Field(min_length=1)

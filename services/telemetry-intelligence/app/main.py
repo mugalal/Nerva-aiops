@@ -1,4 +1,5 @@
 from datetime import datetime
+from contextlib import asynccontextmanager
 import logging
 import os
 from pathlib import Path
@@ -24,6 +25,7 @@ from .errors import M1Error
 from .models import (
     CaptureEvidenceRequest,
     DeploymentEvent,
+    EvidencePreview,
     HealthResponse,
     HealthyBaseline,
     IncidentEvidence,
@@ -144,9 +146,22 @@ def create_app(
         float(os.getenv("MEMORY_LIMIT_BYTES", "536870912"))
     )
 
+    @asynccontextmanager
+    async def lifespan(_api):
+        try:
+            yield
+        finally:
+            # The real telemetry provider owns its Prometheus HTTP pool.
+            # Injected mock providers need no lifecycle interface.
+            client = getattr(service.telemetry, "client", None)
+            close = getattr(client, "aclose", None)
+            if close is not None:
+                await close()
+
     api = FastAPI(
         title="NEXUS Telemetry Intelligence",
         version=settings.runtime.service_version,
+        lifespan=lifespan,
     )
     api.state.m1_service = service
 
@@ -248,6 +263,12 @@ def create_app(
     @api.post("/internal/evidence/capture", response_model=IncidentEvidence)
     async def capture_evidence(request: CaptureEvidenceRequest) -> IncidentEvidence:
         return await service.capture_evidence(request)
+
+    @api.get("/internal/evidence/preview", response_model=EvidencePreview)
+    async def evidence_preview(
+        requested_service: str = Query(alias="service", min_length=1),
+    ) -> EvidencePreview:
+        return await service.preview_evidence(requested_service)
 
     @api.get("/internal/evidence/{incident_id}", response_model=IncidentEvidence)
     async def get_evidence(incident_id: str) -> IncidentEvidence:

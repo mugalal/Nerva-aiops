@@ -5,12 +5,13 @@ import logging
 
 from .baseline import build_healthy_baseline
 from .config import M1Settings, duration_seconds
-from .errors import BaselineNotFound, M1Error
+from .errors import BaselineNotFound, M1Error, ProviderUnavailable
 from .models import (
     CaptureEvidenceRequest,
     DependencyHealth,
     HealthResponse,
     HealthyBaseline,
+    EvidencePreview,
     IncidentEvidence,
     RecoveryMetrics,
     RecoveryEvidenceRecord,
@@ -144,6 +145,42 @@ class M1Service:
             extra={"service_name": request.service, "provider": self.telemetry.mode},
         )
         return baseline
+
+    async def preview_evidence(self, service: str) -> EvidencePreview:
+        """Collect live diagnosis inputs without requiring a classified incident."""
+        now = datetime.now(timezone.utc)
+
+        async def optional(fetch):
+            try:
+                return await fetch(), None
+            except M1Error as exc:
+                return None, exc.message
+
+        async def resources():
+            if not hasattr(self.kubernetes, "resource_config"):
+                raise ProviderUnavailable("kubernetes", "Resource configuration is not available")
+            return await self.kubernetes.resource_config(service, self.settings.namespace)
+
+        telemetry, logs, context, deployment, configuration = await asyncio.gather(
+            self.snapshot(service),
+            optional(lambda: self.loki.query_logs(service, start=now - timedelta(minutes=5),
+                                                  end=now, limit=self.settings.log_limit)),
+            optional(lambda: self.kubernetes.context(service, self.settings.namespace)),
+            optional(lambda: self.kubernetes.deployment_event(service, self.settings.namespace)),
+            optional(resources),
+        )
+        try:
+            baseline = self.store.get_baseline(service)
+        except BaselineNotFound:
+            baseline = None
+        return EvidencePreview(
+            service=service, provider_mode=self.telemetry.mode,
+            collected_at=datetime.now(timezone.utc), telemetry=telemetry,
+            selected_logs=_select_incident_logs(logs[0]) if logs[0] is not None else [],
+            kubernetes=context[0], deployment_event=deployment[0], resource_config=configuration[0],
+            provider_errors=[error for _, error in (logs, context, deployment, configuration) if error],
+            baseline=baseline,
+        )
 
     async def capture_evidence(
         self, request: CaptureEvidenceRequest
@@ -283,11 +320,15 @@ class M1Service:
                 evidence.before.metrics.request_rate
                 * self.settings.traffic_continuity_ratio
             )
-            scenario_checks_passed = all(
+            scenario_checks_passed = (
+                after.version == evidence.before.version
+                and window.version == evidence.before.version
+                and all(
                 metrics.replica_count > evidence.before.metrics.replica_count
                 and metrics.request_rate >= max(minimum_live_traffic, self.settings.baseline_min_request_rate)
                 and metrics.latency_p95_ms < evidence.before.metrics.latency_p95_ms
                 for metrics in measurements
+                )
             )
         else:
             scenario_checks_passed = (

@@ -1,0 +1,50 @@
+[
+  {
+    "timestamp": "2026-10-09T13:37:14.014499+03:00",
+    "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+    "event_type": "DECISION_PROPOSED",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+      "recommended_action": "SCALE",
+      "target": "payment-service",
+      "parameters": {
+        "replicas": 10
+      },
+      "confidence": 1.0,
+      "risk": "LOW",
+      "reason": "Traffic spike detected and a safe scale option is available",
+      "approval_required": true
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:37:30.822881+03:00",
+    "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+    "event_type": "ACTION_APPROVED",
+    "details": {
+      "action": "SCALE",
+      "replicas": 10,
+      "target": "payment-service"
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:37:41.487977+03:00",
+    "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+    "event_type": "ACTION_EXECUTED",
+    "details": {
+      "action_id": "ACT-297d24adc2054125b7340975bf400634",
+      "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+      "action": "SCALE",
+      "status": "SUCCESS",
+      "started_at": "2026-10-09T10:37:30.822545Z",
+      "completed_at": "2026-10-09T10:37:41.487744Z"
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:42:19.556327+03:00",
+    "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+    "event_type": "RECOVERY_VALIDATION",
+    "details": {
+      "success": true
+    }
+  }
+]

@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 import app.main as main_module
@@ -8,7 +9,18 @@ from app.models import FinOpsContext
 
 
 def snapshot(cpu=0.144, replicas=3):
-    return {"metrics": {"cpu": cpu, "memory": 0.2, "replica_count": replicas}}
+    return {
+        "service": "payment-service", "provider_mode": "real",
+        "telemetry": {
+            "service": "payment-service", "version": "v1",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "metrics": {"cpu": cpu, "memory": 0.2, "replica_count": replicas,
+                        "request_rate": 20, "latency_p95_ms": 10, "http_5xx_rate": 0},
+        },
+        "kubernetes": {"service": "payment-service", "version": "v1", "service_health": "ok"},
+        "resource_config": {"cpu_request_m": 100, "cpu_limit_m": 500,
+                            "memory_request_mb": 128, "memory_limit_mb": 512, "memory_unit": "MiB"},
+    }
 
 
 def fake(data):

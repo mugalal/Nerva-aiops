@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from .resource_config import finite_number
 
 class HealthResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -12,8 +13,8 @@ class HealthResponse(BaseModel):
 class ScaleOption(BaseModel):
     model_config = ConfigDict(extra="forbid")
     replicas: int = Field(ge=1)
-    estimated_cost_delta: float
-    risk: str
+    estimated_cost_delta: float = Field(ge=0, allow_inf_nan=False)
+    risk: Literal["LOW", "MEDIUM", "HIGH"]
 
 
 class FinOpsContext(BaseModel):
@@ -110,15 +111,24 @@ class LiveRecommendRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     service: str = Field(min_length=1)
     current: ResourceSpec
-    cpu_limit_m: int = Field(default=500, gt=0)
-    memory_limit_mb: int = Field(default=512, gt=0)
+    cpu_limit_m: float = Field(gt=0, allow_inf_nan=False)
+    memory_limit_mb: float = Field(gt=0, allow_inf_nan=False)
     window_start: datetime
     window_end: datetime
     step_seconds: int = Field(default=15, ge=5, le=300)
     traffic_pattern: str | None = None
 
+    @field_validator("cpu_limit_m", "memory_limit_mb", mode="before")
+    @classmethod
+    def valid_limits(cls, value):
+        return finite_number(value, "resource limit", positive=True)
+
     @model_validator(mode="after")
     def end_after_start(self):
         if self.window_end <= self.window_start:
             raise ValueError("window_end must be after window_start")
+        if self.window_start.tzinfo is None or self.window_end.tzinfo is None:
+            raise ValueError("Window timestamps must include a timezone")
+        if self.current.cpu_request_m > self.cpu_limit_m or self.current.memory_request_mb > self.memory_limit_mb:
+            raise ValueError("Resource requests must not exceed limits")
         return self

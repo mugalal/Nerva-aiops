@@ -1,196 +1,60 @@
-import os
-from typing import Any
+"""Read real, incident-linked evidence without creating scenario-bound records."""
+
+from urllib.parse import quote, urlsplit
 
 import httpx
-from pydantic import BaseModel
 
-from shared_nexus_providers import (
-    BaseProvider,
-    ProviderError,
-    ProviderErrorCategory,
-    ProviderResponse,
-)
-
-from ..models import (
-    AnomalyEvent,
-    DeploymentEvent,
-    Incident,
-    TelemetrySnapshot,
-)
+from .base import ProviderError, ProviderErrorCategory
+from ..models import AnomalyEvent, EvidencePreview, Incident
 
 
-class HttpJsonProvider(BaseProvider):
-    """
-    Base HTTP provider for M3.
-
-    The provider follows the shared NEXUS provider contract:
-    - same fetch() interface
-    - explicit provider errors
-    - timeout handling
-    - response validation
-    """
-
-    def __init__(
-        self,
-        base_url: str,
-        endpoint: str,
-        model: type[BaseModel],
-        provider_name: str,
-        timeout: float = 5.0,
-    ):
-        self.base_url = base_url.rstrip("/")
-        self.endpoint = endpoint
-        self.model = model
-        self.name = provider_name
-        self.mode = "integration"
+class HttpEvidenceProviders:
+    def __init__(self, m1_url: str, shared_url: str, timeout=10.0,
+                 transport: httpx.AsyncBaseTransport | None = None):
+        for url in (m1_url, shared_url):
+            parsed = urlsplit(url)
+            if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+                raise ValueError("Provider URLs must be HTTP(S) URLs without credentials")
+        self.m1_url = m1_url.rstrip("/")
+        self.shared_url = shared_url.rstrip("/")
         self.timeout = timeout
+        self.transport = transport
 
-    async def fetch(
-        self,
-        incident_id: str,
-    ) -> ProviderResponse:
-        url = f"{self.base_url}{self.endpoint}"
-
+    async def _get(self, url, model, provider, params=None):
         try:
-            async with httpx.AsyncClient(
-                timeout=self.timeout
-            ) as client:
-
-                response = await client.get(
-                    url,
-                    params={"incident_id": incident_id},
-                )
-
+            async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport) as client:
+                response = await client.get(url, params=params)
                 response.raise_for_status()
-
-                raw_data: dict[str, Any] = response.json()
-
-                data = self.model.model_validate(raw_data)
-
-                return ProviderResponse(
-                    data=data,
-                    provider=self.name,
-                    mode=self.mode,
-                    source=url,
-                    metadata={
-                        "incident_id": incident_id,
-                        "status_code": response.status_code,
-                    },
-                )
-
+                raw = response.json()
+                return model.model_validate(raw) if model is not None else raw
         except httpx.TimeoutException as exc:
-            raise ProviderError(
-                category=ProviderErrorCategory.TIMEOUT,
-                message=f"Provider timed out: {url}",
-                provider=self.name,
-                retryable=True,
-            ) from exc
-
+            raise ProviderError(ProviderErrorCategory.TIMEOUT, "Provider request timed out", provider, True) from exc
         except httpx.HTTPStatusError as exc:
-            raise ProviderError(
-                category=ProviderErrorCategory.UNAVAILABLE,
-                message=(
-                    f"HTTP {exc.response.status_code} "
-                    f"from provider"
-                ),
-                provider=self.name,
-                retryable=exc.response.status_code >= 500,
-            ) from exc
-
+            status = exc.response.status_code
+            category = (ProviderErrorCategory.NOT_FOUND if status == 404 else
+                        ProviderErrorCategory.UNAVAILABLE if status >= 500 else
+                        ProviderErrorCategory.INVALID_RESPONSE)
+            raise ProviderError(category, f"Provider returned HTTP {status}", provider, status >= 500) from exc
         except httpx.RequestError as exc:
-            raise ProviderError(
-                category=ProviderErrorCategory.UNAVAILABLE,
-                message=f"Provider unavailable: {exc}",
-                provider=self.name,
-                retryable=True,
-            ) from exc
-
+            raise ProviderError(ProviderErrorCategory.UNAVAILABLE, "Provider could not be reached", provider, True) from exc
         except ValueError as exc:
-            raise ProviderError(
-                category=ProviderErrorCategory.INVALID_RESPONSE,
-                message=f"Invalid provider response: {exc}",
-                provider=self.name,
-            ) from exc
+            raise ProviderError(ProviderErrorCategory.INVALID_RESPONSE, "Provider returned malformed evidence", provider) from exc
 
-        except Exception as exc:
-            raise ProviderError(
-                category=ProviderErrorCategory.INVALID_RESPONSE,
-                message=str(exc),
-                provider=self.name,
-            ) from exc
+    async def incident(self, incident_id):
+        return await self._get(
+            f"{self.shared_url}/api/incidents/{quote(incident_id, safe='')}", Incident, "incident")
 
+    async def anomaly(self, incident_id):
+        return await self._get(f"{self.shared_url}/internal/anomalies", AnomalyEvent,
+                               "anomaly", {"incident_id": incident_id})
 
-class HttpIncidentProvider(HttpJsonProvider):
-    def __init__(self, base_url: str):
-        super().__init__(
-            base_url=base_url,
-            endpoint="/internal/incidents",
-            model=Incident,
-            provider_name="http_incident",
-        )
+    async def preview(self, service):
+        return await self._get(f"{self.m1_url}/internal/evidence/preview", EvidencePreview,
+                               "telemetry", {"service": service})
 
-
-class HttpTelemetryProvider(HttpJsonProvider):
-    def __init__(self, base_url: str):
-        super().__init__(
-            base_url=base_url,
-            endpoint="/internal/telemetry",
-            model=TelemetrySnapshot,
-            provider_name="http_telemetry",
-        )
-
-
-class HttpAnomalyProvider(HttpJsonProvider):
-    def __init__(self, base_url: str):
-        super().__init__(
-            base_url=base_url,
-            endpoint="/internal/anomalies",
-            model=AnomalyEvent,
-            provider_name="http_anomaly",
-        )
-
-
-class HttpDeploymentProvider(HttpJsonProvider):
-    def __init__(self, base_url: str):
-        super().__init__(
-            base_url=base_url,
-            endpoint="/internal/deployments",
-            model=DeploymentEvent,
-            provider_name="http_deployment",
-        )
-
-
-def create_http_providers() -> dict[str, HttpJsonProvider]:
-    """
-    Create integration providers using environment variables.
-
-    These defaults are placeholders for the M1/M2 integration
-    layer and can be changed without modifying provider code.
-    """
-
-    telemetry_url = os.getenv(
-        "NEXUS_TELEMETRY_URL",
-        "http://localhost:8001",
-    )
-
-    anomaly_url = os.getenv(
-        "NEXUS_ANOMALY_URL",
-        "http://localhost:8002",
-    )
-
-    deployment_url = os.getenv(
-        "NEXUS_DEPLOYMENT_URL",
-        "http://localhost:8001",
-    )
-
-    incident_url = os.getenv(
-        "NEXUS_INCIDENT_URL",
-        "http://localhost:8001",
-    )
-
-    return {
-        "incident": HttpIncidentProvider(incident_url),
-        "telemetry": HttpTelemetryProvider(telemetry_url),
-        "anomaly": HttpAnomalyProvider(anomaly_url),
-        "deployment": HttpDeploymentProvider(deployment_url),
-    }
+    async def incident_list(self):
+        result = await self._get(f"{self.shared_url}/api/incidents/", None, "incident")
+        if not isinstance(result, list):
+            raise ProviderError(ProviderErrorCategory.INVALID_RESPONSE,
+                                "Incident list must be a list", "incident")
+        return result

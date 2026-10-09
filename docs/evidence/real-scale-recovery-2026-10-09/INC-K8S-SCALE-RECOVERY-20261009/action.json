@@ -1,0 +1,8 @@
+{
+  "action_id": "ACT-297d24adc2054125b7340975bf400634",
+  "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+  "action": "SCALE",
+  "status": "SUCCESS",
+  "started_at": "2026-10-09T10:37:30.822545Z",
+  "completed_at": "2026-10-09T10:37:41.487744Z"
+}

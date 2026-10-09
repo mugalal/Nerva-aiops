@@ -11,7 +11,7 @@ from ..models import (
     TelemetrySnapshot,
 )
 
-from shared_nexus_providers import (
+from .base import (
     BaseProvider,
     ProviderError,
     ProviderErrorCategory,
@@ -55,6 +55,13 @@ class MockJsonProvider(BaseProvider):
                 raw_data: dict[str, Any] = json.load(file)
 
             data = self.model.model_validate(raw_data)
+
+            if isinstance(data, Incident) and data.incident_id != incident_id:
+                raise ProviderError(
+                    category=ProviderErrorCategory.NOT_FOUND,
+                    message=f"Incident {incident_id} is not present in the mock fixture",
+                    provider=self.name,
+                )
 
             return ProviderResponse(
                 data=data,

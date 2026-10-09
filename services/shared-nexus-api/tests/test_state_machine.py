@@ -10,14 +10,14 @@ def test_valid_transition():
     )
 
     assert result == IncidentStatus.CORRELATING
-    
+
 def test_invalid_transition():
     with pytest.raises(ValueError):
         transition(
             IncidentStatus.DETECTED,
             IncidentStatus.RESOLVED
         )
-        
+
 def test_execution_requires_approval():
     with pytest.raises(ValueError):
         transition(

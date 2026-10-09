@@ -25,6 +25,8 @@ class FakePrometheusClient:
         self.unknown_version_point = False
         self.version_evaluation_times = []
         self.version_queries = []
+        self.scalar_evaluation_times = []
+        self.latency_changes_with_time = False
 
     async def ready(self):
         return True, "ready"
@@ -50,6 +52,8 @@ class FakePrometheusClient:
             return evaluation_time - self.source_age
         if query.startswith("min(up{"):
             return self.scrape_up
+        if self.latency_changes_with_time and "histogram_quantile" in query:
+            return 10 + evaluation_time % 60
         if self.missing_metric and self.missing_metric in query:
             # Reproduce PromQL's zero fallback concealing an absent series.
             if "or vector(0)" in query:
@@ -58,6 +62,7 @@ class FakePrometheusClient:
         return self._value(query)
 
     async def query_scalar(self, query, *, evaluation_time=None):
+        self.scalar_evaluation_times.append(evaluation_time)
         return PrometheusSample(
             labels={}, timestamp=evaluation_time,
             value=self._sample_value(query, evaluation_time),
@@ -110,14 +115,26 @@ class PrometheusTelemetryTests(unittest.IsolatedAsyncioTestCase):
     async def window(self):
         return await self.provider.window("payment-service", self.start, self.end, 15)
 
-    async def test_snapshot_normalizes_real_values_and_reports_source_scrape_time(self):
+    async def test_snapshot_reports_the_shared_metric_evaluation_time(self):
         snapshot = await self.provider.snapshot("payment-service")
         self.assertEqual(snapshot.version, "v2")
         self.assertEqual(snapshot.metrics.request_rate, 35)
         self.assertEqual(snapshot.metrics.latency_p95_ms, 820)
         self.assertEqual(snapshot.metrics.http_5xx_rate, 0.14)
         self.assertEqual(snapshot.metrics.replica_count, 2)
-        self.assertAlmostEqual(snapshot.timestamp.timestamp(), self.client.version_evaluation_times[-1] - 5, places=3)
+        self.assertEqual(snapshot.timestamp.timestamp(), self.client.version_evaluation_times[-1])
+        self.assertEqual(set(self.client.scalar_evaluation_times), {snapshot.timestamp.timestamp()})
+
+    async def test_snapshot_and_history_agree_at_same_timestamp_with_delayed_scrapes(self):
+        self.client.source_age = 15
+        self.client.latency_changes_with_time = True
+        self.client.historical_versions = [self.client.current_version]
+        snapshot = await self.provider.snapshot("payment-service")
+        window = await self.provider.window("payment-service", snapshot.timestamp - timedelta(seconds=30),
+                                            snapshot.timestamp, 15)
+        self.assertEqual(snapshot.timestamp, window.points[-1].timestamp)
+        self.assertEqual(snapshot.metrics, window.points[-1].metrics)
+        self.assertEqual(snapshot.version, window.version)
 
     async def test_snapshot_rejects_stale_raw_scrapes_despite_fresh_query_results(self):
         self.client.source_age = 90

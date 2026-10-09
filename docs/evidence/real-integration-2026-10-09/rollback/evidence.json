@@ -1,0 +1,117 @@
+{
+  "incident_id": "INC-K8S-ROLLBACK-20261009",
+  "service": "payment-service",
+  "scenario": "bad_deployment",
+  "captured_at": "2026-10-09T09:40:33.956563Z",
+  "before": {
+    "timestamp": "2026-10-09T09:40:21.52Z",
+    "service": "payment-service",
+    "version": "v2",
+    "metrics": {
+      "cpu": 0.1444540747160922,
+      "memory": 0.090545654296875,
+      "request_rate": 10.000666711114075,
+      "latency_p95_ms": 737.5,
+      "http_5xx_rate": 0.13777777777777778,
+      "replica_count": 1
+    }
+  },
+  "selected_logs": [
+    "2026-10-09T09:40:29.734293+00:00 {\"timestamp\":\"2026-10-09T09:40:29.733957+00:00\",\"level\":\"ERROR\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"simulated payment failure\"}",
+    "2026-10-09T09:40:29.735708+00:00 {\"timestamp\":\"2026-10-09T09:40:29.735439+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":500,\"duration_ms\":607.51,\"pod\":\"payment-service-67bf6c7775-h7gdm\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T09:40:29.735817+00:00 INFO:     10.244.2.12:49192 - \"POST /pay HTTP/1.1\" 500 Internal Server Error",
+    "2026-10-09T09:40:31.432961+00:00 {\"timestamp\":\"2026-10-09T09:40:31.432572+00:00\",\"level\":\"ERROR\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"simulated payment failure\"}",
+    "2026-10-09T09:40:31.433711+00:00 {\"timestamp\":\"2026-10-09T09:40:31.433501+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":500,\"duration_ms\":605.96,\"pod\":\"payment-service-67bf6c7775-h7gdm\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T09:40:31.433766+00:00 INFO:     10.244.2.12:49336 - \"POST /pay HTTP/1.1\" 500 Internal Server Error",
+    "2026-10-09T09:40:31.832088+00:00 {\"timestamp\":\"2026-10-09T09:40:31.831787+00:00\",\"level\":\"ERROR\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"simulated payment failure\"}",
+    "2026-10-09T09:40:31.832955+00:00 INFO:     10.244.2.12:49368 - \"POST /pay HTTP/1.1\" 500 Internal Server Error",
+    "2026-10-09T09:40:31.832961+00:00 {\"timestamp\":\"2026-10-09T09:40:31.832673+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":500,\"duration_ms\":605.11,\"pod\":\"payment-service-67bf6c7775-h7gdm\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T09:40:31.932976+00:00 {\"timestamp\":\"2026-10-09T09:40:31.932688+00:00\",\"level\":\"ERROR\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"simulated payment failure\"}",
+    "2026-10-09T09:40:31.933997+00:00 {\"timestamp\":\"2026-10-09T09:40:31.933723+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":500,\"duration_ms\":606.79,\"pod\":\"payment-service-67bf6c7775-h7gdm\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T09:40:31.934039+00:00 INFO:     10.244.2.12:49382 - \"POST /pay HTTP/1.1\" 500 Internal Server Error",
+    "2026-10-09T09:40:32.840645+00:00 {\"timestamp\":\"2026-10-09T09:40:32.840364+00:00\",\"level\":\"ERROR\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"simulated payment failure\"}",
+    "2026-10-09T09:40:32.841192+00:00 {\"timestamp\":\"2026-10-09T09:40:32.841053+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v2\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":500,\"duration_ms\":608.22,\"pod\":\"payment-service-67bf6c7775-h7gdm\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T09:40:32.841252+00:00 INFO:     10.244.2.12:49478 - \"POST /pay HTTP/1.1\" 500 Internal Server Error"
+  ],
+  "kubernetes": {
+    "service": "payment-service",
+    "namespace": "nexus-demo",
+    "desired_replicas": 1,
+    "ready_replicas": 1,
+    "pod_restarts": 0,
+    "version": "v2",
+    "service_health": "ok",
+    "events": [
+      "Pulled: Container image \"nexus/payment-service:v1\" already present on machine and can be accessed by the pod",
+      "Pulled: Container image \"nexus/payment-service:v1\" already present on machine and can be accessed by the pod",
+      "Killing: Stopping container payment-service",
+      "SuccessfulDelete: Deleted pod: payment-service-5b7787c65d-h6xmm",
+      "Scheduled: Successfully assigned nexus-demo/payment-service-67bf6c7775-h7gdm to nexus-worker2",
+      "Pulled: Container image \"nexus/payment-service:v2\" already present on machine and can be accessed by the pod",
+      "Created: Container created",
+      "Started: Container started",
+      "SuccessfulCreate: Created pod: payment-service-67bf6c7775-h7gdm",
+      "ScalingReplicaSet: Scaled up replica set payment-service-67bf6c7775 from 0 to 1",
+      "ScalingReplicaSet: Scaled down replica set payment-service-5b7787c65d from 1 to 0"
+    ]
+  },
+  "deployment_event": {
+    "event_id": "DEP-3",
+    "service": "payment-service",
+    "old_version": "v1",
+    "new_version": "v2",
+    "commit_sha": "faulty-v2",
+    "pipeline_id": "scenario-a",
+    "timestamp": "2026-10-09T09:39:10Z",
+    "status": "SUCCESS"
+  },
+  "provider_errors": [],
+  "baseline": {
+    "service": "payment-service",
+    "version": "v1",
+    "measured_at": "2026-10-09T09:39:09.878406Z",
+    "window_start": "2026-10-09T09:37:34.382139Z",
+    "window_end": "2026-10-09T09:38:49.382139Z",
+    "sample_count": 6,
+    "request_rate": {
+      "minimum": 9.999999999999998,
+      "maximum": 10.000888967908258,
+      "average": 10.000555595887901,
+      "p95": 10.000888967908258
+    },
+    "latency_p95_ms": {
+      "minimum": 9.563758389261745,
+      "maximum": 23.263888888888882,
+      "average": 13.23535409692631,
+      "p95": 21.878063725490186
+    },
+    "http_5xx_rate": {
+      "minimum": 0.0,
+      "maximum": 0.0,
+      "average": 0.0,
+      "p95": 0.0
+    },
+    "cpu": {
+      "minimum": 0.15556246944308635,
+      "maximum": 0.2186666666666661,
+      "average": 0.17200910683769213,
+      "p95": 0.2081150324473282
+    },
+    "memory": {
+      "minimum": 0.094146728515625,
+      "maximum": 0.094146728515625,
+      "average": 0.094146728515625,
+      "p95": 0.094146728515625
+    },
+    "replica_count": {
+      "minimum": 1.0,
+      "maximum": 1.0,
+      "average": 1.0,
+      "p95": 1.0
+    },
+    "thresholds": {
+      "latency_p95_ms_max": 27.347579656862735,
+      "http_5xx_rate_max": 0.01
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-10-09T10:52:39.797Z",
+  "service": "payment-service",
+  "version": "v1",
+  "metrics": {
+    "cpu": 0.9893773056580301,
+    "memory": 0.11434173583984375,
+    "request_rate": 61.04715765145117,
+    "latency_p95_ms": 4888.039897510981,
+    "http_5xx_rate": 0.0,
+    "replica_count": 1
+  }
+}

@@ -15,6 +15,7 @@ ALLOWED_TRANSITIONS = {
     },
     IncidentStatus.ACTION_PROPOSED: {
         IncidentStatus.AWAITING_APPROVAL,
+        IncidentStatus.ESCALATED,
     },
     IncidentStatus.AWAITING_APPROVAL: {
         IncidentStatus.EXECUTING,

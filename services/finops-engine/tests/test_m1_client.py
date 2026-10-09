@@ -20,6 +20,8 @@ def live_request():
     return LiveRecommendRequest(
         service="payment-service",
         current={"replicas": 3, "cpu_request_m": 100, "memory_request_mb": 128},
+        cpu_limit_m=500,
+        memory_limit_mb=512,
         window_start=datetime(2026, 10, 7, 8, tzinfo=timezone.utc),
         window_end=datetime(2026, 10, 7, 10, tzinfo=timezone.utc),
     )

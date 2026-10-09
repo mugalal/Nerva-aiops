@@ -11,7 +11,7 @@ def test_faulty_deployment_returns_rollback():
     action = decide_action("faulty_deployment")
 
     assert action == DecisionAction.ROLLBACK
-    
+
 def test_unknown_root_cause_returns_escalate():
     action = decide_action("unknown")
 
@@ -54,7 +54,7 @@ def test_decide_from_rca():
     assert result.action == DecisionAction.ROLLBACK
     assert result.approval_required is True
     assert result.confidence == 0.92
-    
+
 def test_decide_from_rca_accepts_finops_context():
     rca = {
         "root_cause": "traffic_spike",
@@ -62,10 +62,10 @@ def test_decide_from_rca_accepts_finops_context():
     }
 
     finops = {
-        "temporary_scale_options": [
+        "current_replicas": 1, "temporary_scale_options": [
             {
                 "replicas": 3,
-                "estimated_cost_delta": 5.0
+                "estimated_cost_delta": 5.0, "risk": "LOW"
             }
         ]
     }
@@ -73,12 +73,12 @@ def test_decide_from_rca_accepts_finops_context():
     result = decide_from_rca(rca, finops)
 
     assert result.action == DecisionAction.SCALE
-    
+
 def test_choose_scale_option_returns_cheapest():
     finops = {
-        "temporary_scale_options": [
-            {"replicas": 3, "estimated_cost_delta": 5.0},
-            {"replicas": 4, "estimated_cost_delta": 8.0},
+        "current_replicas": 1, "temporary_scale_options": [
+            {"replicas": 3, "estimated_cost_delta": 5.0, "risk": "LOW"},
+            {"replicas": 4, "estimated_cost_delta": 8.0, "risk": "LOW"},
         ]
     }
 
@@ -86,16 +86,16 @@ def test_choose_scale_option_returns_cheapest():
 
     assert option["replicas"] == 3
     assert option["estimated_cost_delta"] == 5.0
-    
+
 def test_choose_scale_option_returns_none_when_no_options():
     finops = {
-        "temporary_scale_options": []
+        "current_replicas": 1, "temporary_scale_options": []
     }
 
     option = choose_scale_option(finops)
 
     assert option is None
-    
+
 def test_scale_without_finops_options_escalates():
     rca = {
         "root_cause": "traffic_spike",
@@ -103,13 +103,13 @@ def test_scale_without_finops_options_escalates():
     }
 
     finops = {
-        "temporary_scale_options": []
+        "current_replicas": 1, "temporary_scale_options": []
     }
 
     result = decide_from_rca(rca, finops)
 
     assert result.action == DecisionAction.ESCALATE
-    
+
 def test_scale_with_finops_option_stays_scale():
     rca = {
         "root_cause": "traffic_spike",
@@ -117,10 +117,10 @@ def test_scale_with_finops_option_stays_scale():
     }
 
     finops = {
-        "temporary_scale_options": [
+        "current_replicas": 1, "temporary_scale_options": [
             {
                 "replicas": 3,
-                "estimated_cost_delta": 5.0
+                "estimated_cost_delta": 5.0, "risk": "LOW"
             }
         ]
     }
@@ -128,7 +128,7 @@ def test_scale_with_finops_option_stays_scale():
     result = decide_from_rca(rca, finops)
 
     assert result.action == DecisionAction.SCALE
-    
+
 def test_scale_decision_returns_selected_option():
     rca = {
         "root_cause": "traffic_spike",
@@ -136,9 +136,9 @@ def test_scale_decision_returns_selected_option():
     }
 
     finops = {
-        "temporary_scale_options": [
-            {"replicas": 3, "estimated_cost_delta": 5.0},
-            {"replicas": 4, "estimated_cost_delta": 8.0}
+        "current_replicas": 1, "temporary_scale_options": [
+            {"replicas": 3, "estimated_cost_delta": 5.0, "risk": "LOW"},
+            {"replicas": 4, "estimated_cost_delta": 8.0, "risk": "LOW"}
         ]
     }
 
@@ -147,7 +147,7 @@ def test_scale_decision_returns_selected_option():
     assert result.action == DecisionAction.SCALE
     assert result.scale_option["replicas"] == 3
     assert result.scale_option["estimated_cost_delta"] == 5.0
-    
+
 def test_rollback_decision_has_reason():
     rca = {
         "root_cause": "faulty_deployment",
@@ -157,7 +157,7 @@ def test_rollback_decision_has_reason():
     result = decide_from_rca(rca)
 
     assert result.reason == "Faulty deployment detected"
-    
+
 def test_escalate_does_not_require_approval():
     rca = {
         "root_cause": "unknown",

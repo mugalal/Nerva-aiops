@@ -1,0 +1,1 @@
+{"scope": "client construction and cleanup only; no requests", "fresh": {"clients": 35, "wall_seconds": 1.0577035569986037, "cpu_seconds": 0.354101752}, "pooled": {"clients": 1, "wall_seconds": 0.04319187100190902, "cpu_seconds": 0.005340063999999978}}

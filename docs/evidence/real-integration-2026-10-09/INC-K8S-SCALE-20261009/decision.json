@@ -1,0 +1,11 @@
+{
+  "action": "SCALE",
+  "reason": "Traffic spike detected and a safe scale option is available",
+  "approval_required": true,
+  "confidence": 1.0,
+  "scale_option": {
+    "replicas": 10,
+    "estimated_cost_delta": 0.5906,
+    "risk": "LOW"
+  }
+}

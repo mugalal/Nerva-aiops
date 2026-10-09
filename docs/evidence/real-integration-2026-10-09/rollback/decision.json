@@ -1,0 +1,7 @@
+{
+  "action": "ROLLBACK",
+  "reason": "Faulty deployment detected",
+  "approval_required": true,
+  "confidence": 0.9,
+  "scale_option": null
+}

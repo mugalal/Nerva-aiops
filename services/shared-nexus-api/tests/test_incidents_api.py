@@ -17,6 +17,7 @@ def test_create_incident():
         json={
             "incident_id": "INC-TEST-001",
             "severity": "high",
+        "affected_services": ["payment-service"],
         },
     )
 
@@ -45,6 +46,7 @@ def test_get_incident_by_id():
         json={
             "incident_id": "INC-TEST-002",
             "severity": "medium",
+        "affected_services": ["payment-service"],
         },
     )
 
@@ -69,6 +71,7 @@ def test_approve_incident(monkeypatch):
         json={
             "incident_id": "INC-APPROVE-001",
             "severity": "high",
+        "affected_services": ["payment-service"],
         },
     )
 
@@ -100,7 +103,7 @@ def test_approve_incident(monkeypatch):
     from app.remediation.models import RemediationResult
 
     def mock_execute_remediation(
-        action, approved, replicas=None
+        action, approved, replicas=None, service=None, expected_state=None, rollback_target=None
     ):
         return RemediationResult(
             action=action,
@@ -122,7 +125,7 @@ def test_approve_incident(monkeypatch):
     data = response.json()
 
     assert data["action"] == "ROLLBACK"
-    assert data["success"] is True
+    assert data["status"] == "SUCCESS"
 
     incident_response = client.get(
         "/api/incidents/INC-APPROVE-001"
@@ -138,6 +141,7 @@ def test_approve_incident_too_early():
         json={
             "incident_id": "INC-EARLY-001",
             "severity": "high",
+        "affected_services": ["payment-service"],
         },
     )
 
@@ -154,6 +158,7 @@ def test_reject_incident():
         json={
             "incident_id": "INC-REJECT-001",
             "severity": "medium",
+        "affected_services": ["payment-service"],
         },
     )
 

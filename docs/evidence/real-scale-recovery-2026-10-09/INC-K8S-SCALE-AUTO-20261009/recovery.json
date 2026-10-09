@@ -1,0 +1,89 @@
+{
+  "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+  "service": "payment-service",
+  "scenario": "traffic_spike",
+  "action_completed_at": "2026-10-09T10:52:55.73415Z",
+  "validated_at": "2026-10-09T10:58:52.348283Z",
+  "before": {
+    "timestamp": "2026-10-09T10:52:43.842Z",
+    "service": "payment-service",
+    "version": "v1",
+    "metrics": {
+      "cpu": 0.9893773056580301,
+      "memory": 0.11434173583984375,
+      "request_rate": 61.04715765145117,
+      "latency_p95_ms": 4888.039897510981,
+      "http_5xx_rate": 0.0,
+      "replica_count": 1
+    }
+  },
+  "after": {
+    "timestamp": "2026-10-09T10:58:51.605Z",
+    "service": "payment-service",
+    "version": "v1",
+    "metrics": {
+      "cpu": 0.1657414080368661,
+      "memory": 0.091845703125,
+      "request_rate": 88.80434947654261,
+      "latency_p95_ms": 18.949505505071595,
+      "http_5xx_rate": 0.0,
+      "replica_count": 10
+    }
+  },
+  "result": {
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "recovered": false,
+    "before": {
+      "latency_p95_ms": 4888.039897510981,
+      "http_5xx_rate": 0.0
+    },
+    "after": {
+      "latency_p95_ms": 18.949505505071595,
+      "http_5xx_rate": 0.0
+    },
+    "recovery_time_seconds": 356.614133,
+    "slo_restored": false
+  },
+  "measurement_window": {
+    "service": "payment-service",
+    "version": "v1",
+    "start": "2026-10-09T10:58:21.605Z",
+    "end": "2026-10-09T10:58:51.605Z",
+    "step_seconds": 15,
+    "points": [
+      {
+        "timestamp": "2026-10-09T10:58:21.605Z",
+        "metrics": {
+          "cpu": 0.21601618298803177,
+          "memory": 0.091845703125,
+          "request_rate": 88.2513056686182,
+          "latency_p95_ms": 24.237417791433188,
+          "http_5xx_rate": 0.0,
+          "replica_count": 10
+        }
+      },
+      {
+        "timestamp": "2026-10-09T10:58:36.605Z",
+        "metrics": {
+          "cpu": 0.17405264146880364,
+          "memory": 0.091845703125,
+          "request_rate": 89.2930017209915,
+          "latency_p95_ms": 20.278042812722095,
+          "http_5xx_rate": 0.0,
+          "replica_count": 10
+        }
+      },
+      {
+        "timestamp": "2026-10-09T10:58:51.605Z",
+        "metrics": {
+          "cpu": 0.1657414080368661,
+          "memory": 0.091845703125,
+          "request_rate": 88.80434947654261,
+          "latency_p95_ms": 18.949505505071595,
+          "http_5xx_rate": 0.0,
+          "replica_count": 10
+        }
+      }
+    ]
+  }
+}

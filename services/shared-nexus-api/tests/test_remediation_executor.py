@@ -10,7 +10,7 @@ def test_execute_rollback_with_approval():
 
     assert result.action == DecisionAction.ROLLBACK
     assert result.success is True
-    
+
 import pytest
 
 
@@ -20,7 +20,7 @@ def test_execute_rollback_without_approval_fails():
             DecisionAction.ROLLBACK,
             approved=False
         )
-        
+
 def test_execute_scale_with_approval():
     result = execute_remediation(
         DecisionAction.SCALE,
@@ -30,7 +30,7 @@ def test_execute_scale_with_approval():
 
     assert result.action == DecisionAction.SCALE
     assert result.success is True
-    
+
 def test_execute_escalate_is_blocked():
     with pytest.raises(ValueError):
         execute_remediation(

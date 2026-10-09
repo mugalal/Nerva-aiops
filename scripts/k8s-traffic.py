@@ -16,6 +16,58 @@ import time
 from urllib.parse import urlsplit
 
 
+class CompletionMetrics:
+    """Completion-time counters and millisecond latency buckets.
+
+    An optional bucket limit bounds the interval histogram. Latencies above
+    that limit retain their count, so an overflow P95 is reported honestly as
+    a lower bound instead of being silently clamped to a healthy value.
+    """
+
+    def __init__(self, latency_bucket_limit=None):
+        self.latency_bucket_limit = latency_bucket_limit
+        self.reset()
+
+    def reset(self):
+        self.completed = self.successful = self.latency_overflow_count = 0
+        self.statuses = Counter()
+        self.errors = Counter()
+        self.latency_buckets = Counter()
+
+    def record(self, status, latency_ms, error):
+        self.completed += 1
+        self.successful += int(200 <= status < 300)
+        self.statuses[str(status)] += 1
+        if error:
+            self.errors[error] += 1
+        bucket = math.ceil(latency_ms)
+        if self.latency_bucket_limit is not None and bucket > self.latency_bucket_limit:
+            self.latency_overflow_count += 1
+        else:
+            self.latency_buckets[bucket] += 1
+
+    def fields(self):
+        rank = math.ceil(self.completed * 0.95)
+        seen = 0
+        p95 = None
+        for milliseconds, count in sorted(self.latency_buckets.items()):
+            seen += count
+            if seen >= rank:
+                p95 = milliseconds
+                break
+        overflow = self.completed > 0 and p95 is None
+        return {
+            "completed": self.completed, "successful": self.successful,
+            "failed": self.completed - self.successful,
+            "statuses": dict(self.statuses), "errors": dict(self.errors),
+            "error_count": sum(self.errors.values()),
+            "latency_p95_ms": p95,
+            "latency_p95_overflow": overflow,
+            "latency_p95_lower_bound_ms": self.latency_bucket_limit + 1 if overflow else None,
+            "latency_overflow_count": self.latency_overflow_count,
+        }
+
+
 def arguments():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", default=os.getenv("TARGET_URL", "http://payment-service/pay"))
@@ -46,11 +98,12 @@ def main():
         signal.signal(signal_name, lambda _signum, _frame: stopped.set())
 
     completions = queue.SimpleQueue()
-    statuses = Counter()
-    errors = Counter()
     # Integer millisecond buckets bound memory while reporting P95 to 1 ms.
-    latency_buckets = Counter()
-    scheduled = submitted = completed = successful = in_flight = 0
+    cumulative_metrics = CompletionMetrics()
+    # At most 120,001 buckets, independent of RPS or test duration. Preserve
+    # slower completions in an overflow count, never as exact 120-second P95.
+    interval_metrics = CompletionMetrics(latency_bucket_limit=120_000)
+    scheduled = submitted = in_flight = 0
     capacity_dropped = scheduler_skipped = peak_in_flight = 0
     path = target.path or "/"
     if target.query:
@@ -88,19 +141,15 @@ def main():
     }
 
     def collect():
-        nonlocal completed, successful, in_flight
+        nonlocal in_flight
         while True:
             try:
                 status, latency_ms, error = completions.get_nowait()
             except queue.Empty:
                 return
-            completed += 1
             in_flight -= 1
-            statuses[str(status)] += 1
-            successful += int(200 <= status < 300)
-            latency_buckets[math.ceil(latency_ms)] += 1
-            if error:
-                errors[error] += 1
+            cumulative_metrics.record(status, latency_ms, error)
+            interval_metrics.record(status, latency_ms, error)
 
     def report(kind):
         now = time.monotonic()
@@ -108,24 +157,14 @@ def main():
         load_elapsed = max(0.001, load_ended_at - started)
         interval_elapsed = max(0.001, load_ended_at - previous_report["at"])
         interval_submitted = submitted - previous_report["submitted"]
-        rank = math.ceil(completed * 0.95)
-        seen = 0
-        p95 = None
-        for milliseconds, count in sorted(latency_buckets.items()):
-            seen += count
-            if seen >= rank:
-                p95 = milliseconds
-                break
         print(json.dumps({
             "kind": kind, "timestamp": datetime.now(timezone.utc).isoformat(),
             "target": args.target, "configured_rps": args.rps,
             "configured_duration_seconds": args.duration,
             "load_elapsed_seconds": round(load_elapsed, 3),
-            "scheduled": scheduled, "submitted": submitted, "completed": completed,
+            "scheduled": scheduled, "submitted": submitted,
             "actual_offered_rps": round(submitted / load_elapsed, 3),
-            "successful": successful, "failed": completed - successful,
-            "statuses": dict(statuses), "errors": dict(errors),
-            "latency_p95_ms": p95, "latency_precision_ms": 1,
+            **cumulative_metrics.fields(), "latency_precision_ms": 1,
             "in_flight": in_flight, "peak_in_flight": peak_in_flight,
             "capacity_dropped": capacity_dropped, "scheduler_skipped": scheduler_skipped,
             "interval_load_seconds": round(interval_elapsed, 3),
@@ -133,10 +172,12 @@ def main():
             "interval_actual_offered_rps": round(interval_submitted / interval_elapsed, 3),
             "interval_capacity_dropped": capacity_dropped - previous_report["capacity_dropped"],
             "interval_scheduler_skipped": scheduler_skipped - previous_report["scheduler_skipped"],
+            **{f"interval_{key}": value for key, value in interval_metrics.fields().items()},
             "stopped_by_signal": stopped.is_set(),
         }, separators=(",", ":")), flush=True)
         previous_report.update(at=load_ended_at, submitted=submitted,
                                capacity_dropped=capacity_dropped, scheduler_skipped=scheduler_skipped)
+        interval_metrics.reset()
 
     report("started")
     with ThreadPoolExecutor(max_workers=args.max_in_flight) as executor:

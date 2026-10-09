@@ -1,5 +1,7 @@
 from . import cost_model
+import math
 from .models import FinOpsContext, ScaleOption, ScaleOptionsRequest
+from .resource_config import finite_number
 
 
 def risk_for(projected_cpu_pct: float) -> str:
@@ -10,15 +12,23 @@ def risk_for(projected_cpu_pct: float) -> str:
     return "HIGH"
 
 
-def build_scale_options(req: ScaleOptionsRequest) -> FinOpsContext:
+def build_scale_options(req: ScaleOptionsRequest, *, observed_cpu_pct: float | None = None) -> FinOpsContext:
     current = req.current_replicas
+    observed = finite_number(req.observed_cpu_pct if observed_cpu_pct is None else observed_cpu_pct,
+                             "observed CPU percent")
     candidates = req.candidate_replicas or [current + 1, current * 2]
+    if req.candidate_replicas is None and not any(observed * (current / n) <= 50 for n in candidates):
+        # Add enough capacity to offer real headroom when a fixed doubling is
+        # insufficient. M4 still enforces its replica cap and risk policy.
+        candidates += [math.ceil((observed / target) * current) for target in (70, 50)]
     candidates = sorted({c for c in candidates if c > current})
     base = cost_model.cost_per_hour(current, req.cpu_request_m, req.memory_request_mb)
 
     options = []
     for n in candidates:
-        projected = req.observed_cpu_pct * current / n  # assumes load spreads evenly
+        # The public contract caps observed_cpu_pct at 100. Keep actual overload
+        # for risk calculation so a heavily overloaded service cannot look safe.
+        projected = observed * (current / n)  # assumes load spreads evenly
         new_cost = cost_model.cost_per_hour(n, req.cpu_request_m, req.memory_request_mb)
         options.append(ScaleOption(
             replicas=n,

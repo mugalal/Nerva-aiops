@@ -13,8 +13,9 @@ def test_execute_rollback_with_approval():
     "/api/incidents/",
     json={
         "incident_id": "INC-REMEDIATION-001",
-        "severity": "high"
-    }
+        "severity": "high",
+
+        "affected_services": ["payment-service"],}
 )
 
     update_incident_status(
@@ -59,14 +60,15 @@ def test_execute_rollback_with_approval():
     incident_data = incident_response.json()
 
     assert incident_data["status"] == "VALIDATING"
-    
+
 def test_execute_scale_with_approval():
     client.post(
     "/api/incidents/",
     json={
         "incident_id": "INC-REMEDIATION-002",
-        "severity": "high"
-    }
+        "severity": "high",
+
+        "affected_services": ["payment-service"],}
 )
 
     update_incident_status(
@@ -105,14 +107,15 @@ def test_execute_scale_with_approval():
 
     assert data["action"] == "SCALE"
     assert data["success"] is True
-    
+
 def test_execute_without_approval_fails():
     client.post(
     "/api/incidents/",
     json={
         "incident_id": "INC-REMEDIATION-003",
-        "severity": "high"
-    }
+        "severity": "high",
+
+        "affected_services": ["payment-service"],}
 )
 
     update_incident_status(
@@ -145,14 +148,15 @@ def test_execute_without_approval_fails():
     )
 
     assert response.status_code == 400
-    
+
 def test_execute_scale_with_unsafe_replica_count_fails():
     client.post(
         "/api/incidents/",
         json={
             "incident_id": "INC-REMEDIATION-004",
-            "severity": "high"
-        }
+            "severity": "high",
+
+        "affected_services": ["payment-service"],}
     )
 
     update_incident_status(
@@ -187,14 +191,15 @@ def test_execute_scale_with_unsafe_replica_count_fails():
     )
 
     assert response.status_code == 400
-    
+
 def test_execute_scale_with_zero_replicas_fails():
     client.post(
         "/api/incidents/",
         json={
             "incident_id": "INC-REMEDIATION-005",
-            "severity": "high"
-        }
+            "severity": "high",
+
+        "affected_services": ["payment-service"],}
     )
 
     update_incident_status(
