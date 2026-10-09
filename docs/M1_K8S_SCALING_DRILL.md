@@ -49,6 +49,14 @@ defaults to zero. The configured 20000 iterations run the same CPU computation
 for every payment. Keep the image, work setting, fault settings, version, and
 CPU/memory limits unchanged from baseline through recovery.
 
+Build and load the current payment image before collecting a new baseline.
+Its structured logs use a bounded asynchronous output queue
+(`LOG_QUEUE_MAX_RECORDS`, default 1024), and its Dockerfile runs Uvicorn with
+`--no-access-log`. Request metrics are still recorded; a full logging queue
+increments `nexus_log_records_dropped_total` instead of blocking requests on
+stream output. Export that counter when checking logging under load, and keep
+the logging configuration unchanged through the drill.
+
 ```powershell
 Set-Location 'E:\AIOPS\final project'
 $env:KUBECONFIG = Join-Path (Get-Location) '.review-branches/kubeconfig'
@@ -246,13 +254,21 @@ if (-not $recoveryResult.recovered -or -not $recoveryResult.slo_restored) { thro
 Recovery requires all three hold samples and the latest snapshot to stay within
 baseline latency/5xx thresholds, have more replicas than the captured incident,
 have at least half its observed request rate, and have lower P95 than incident
-capture. M1 also checks payment health. Traffic-spike validation does not compare
-incident and recovery versions explicitly, so preserve and independently verify
-the unchanged payment Pod template and version.
+capture. M1 also checks payment health. Traffic-spike validation requires the
+latest snapshot and the complete historical window to match the captured
+incident version. The provider rejects mixed versions across the window and
+its metric lookbacks. Preserve and independently verify the unchanged payment
+Pod template and version as well.
 The saved Pod statuses include image IDs. Every added replica must use the
 captured replica's actual image ID, because an unchanged mutable image tag alone
 does not prove the running code stayed unchanged. Direct per-Pod health requests
 verify all three replicas still run v1 with the same processing work.
+
+The snapshot timestamp is the shared Prometheus evaluation time for all metric
+and version queries, rounded down to millisecond precision. Recovery windows
+are aligned to that time. Raw scrape timestamps remain independently checked
+for freshness, source availability and successful scrapes at the snapshot and
+every historical point; an aligned window does not allow stale telemetry.
 
 ## Export balance and load evidence
 
@@ -284,10 +300,42 @@ $podRates.data.result | Select-Object @{Name='pod';Expression={$_.metric.pod}}, 
 Get-Content (Join-Path $demoOutput 'spike-traffic.jsonl') -Tail 1 | ConvertFrom-Json
 ```
 
-Each load log is JSON; the final `summary` includes submitted/completed requests,
-successes, status codes, client P95 rounded up to 1ms, actual offered RPS,
-scheduler skips, and requests dropped at the in-flight bound. Interval statistics
-show whether post-scale offered load stays near the configured 90 RPS. Nonzero
-`capacity_dropped` or `scheduler_skipped` means achieved offered load was lower;
-report this explicitly. Generator P95 measures client HTTP latency; M1 measures
-server P95 independently from payment histogram buckets.
+Each load log is JSON. Progress and the final `summary` include cumulative
+submitted/completed requests, successes, failures, status codes, transport
+errors, client P95 rounded up to 1ms, actual offered RPS, scheduler skips, and
+requests dropped at the in-flight bound.
+
+Each report also includes `interval_completed`, `interval_successful`,
+`interval_failed`, `interval_statuses`, `interval_errors`,
+`interval_error_count` and `interval_latency_p95_ms`, together with the existing
+interval offered-rate and scheduler counters. Failed completions include
+non-2xx HTTP responses and transport errors; `interval_error_count` counts
+transport exceptions. Interval completion statistics reset after each report
+and count requests as their completions are collected. Cumulative values retain
+the earlier outage. Use several full post-action progress intervals to assess
+current latency and failures while checking that offered load stays near the
+configured 90 RPS; the final summary interval also includes the request drain.
+
+The interval histogram has at most 120001 millisecond buckets plus an overflow
+count. If its P95 is above 120000ms, `interval_latency_p95_ms` is null,
+`interval_latency_p95_overflow` is true, and
+`interval_latency_p95_lower_bound_ms` is 120001. This reports a lower bound,
+without claiming an exact latency or discarding slow completions.
+
+Nonzero `capacity_dropped` or `scheduler_skipped` means achieved offered load
+was lower; report this explicitly. Generator P95 measures client HTTP latency;
+M1 measures server P95 independently from payment histogram buckets. A healthy
+client interval does not substitute for M1's measured recovery result.
+
+The earlier real integration scale run is still recorded as a failed SLO
+recovery in [its evidence](evidence/real-integration-2026-10-09/README.md).
+A [separate actual scale/recovery run](evidence/real-scale-recovery-2026-10-09/README.md)
+passed after the timing, logging and reporting fixes: M4 scaled from one to ten
+replicas under the same configured 90-RPS spike and M1's strict hold passed.
+Its first official validation was manually initiated about 278 seconds after
+action completion. A fresh launcher-driven run with M4's bounded stabilization
+policy is pending; the saved manual proof does not establish automatic handling
+of an initial negative measurement. See [the integration guide](REAL_SERVICE_INTEGRATION.md)
+for the server's default 360-second deadline and the launcher's separate
+600-second polling limit. This three-replica drill still requires its own
+measured result at the host's calibrated rates.

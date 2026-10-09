@@ -1,10 +1,17 @@
 """Observable demo payment service used by both NEXUS P0 scenarios."""
 
 from datetime import datetime, timezone
+import asyncio
+from contextlib import asynccontextmanager
+import copy
+from collections import Counter as RecordCounts
 import hashlib
 import json
 import logging
+from logging.handlers import QueueHandler, QueueListener
 import os
+import math
+import queue
 import random
 import socket
 import time
@@ -26,12 +33,18 @@ MEMORY_LIMIT_BYTES = float(os.getenv("MEMORY_LIMIT_BYTES", "536870912"))
 PAYMENT_WORK_ITERATIONS = int(os.getenv("PAYMENT_WORK_ITERATIONS", "0"))
 if not 0 <= PAYMENT_WORK_ITERATIONS <= 1_000_000:
     raise ValueError("PAYMENT_WORK_ITERATIONS must be between 0 and 1000000")
+LOG_QUEUE_MAX_RECORDS = int(os.getenv("LOG_QUEUE_MAX_RECORDS", "1024"))
+if not 1 <= LOG_QUEUE_MAX_RECORDS <= 100_000:
+    raise ValueError("LOG_QUEUE_MAX_RECORDS must be between 1 and 100000")
+LOG_SHUTDOWN_TIMEOUT_SECONDS = float(os.getenv("LOG_SHUTDOWN_TIMEOUT_SECONDS", "5"))
+if not math.isfinite(LOG_SHUTDOWN_TIMEOUT_SECONDS) or not 0 < LOG_SHUTDOWN_TIMEOUT_SECONDS <= 30:
+    raise ValueError("LOG_SHUTDOWN_TIMEOUT_SECONDS must be positive and at most 30")
 
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.fromtimestamp(record.created, timezone.utc).isoformat(),
             "level": record.levelname,
             "service": SERVICE_NAME,
             "version": VERSION,
@@ -44,8 +57,77 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, separators=(",", ":"))
 
 
-handler = logging.StreamHandler()
-handler.setFormatter(JsonFormatter())
+class NonblockingLogHandler(QueueHandler):
+    accepting = True
+
+    def prepare(self, record):
+        # Keep formatting and stream I/O on the listener, away from requests.
+        return copy.copy(record)
+
+    def enqueue(self, record):
+        if not self.accepting:
+            LOG_RECORDS_DROPPED.labels(*COMMON_LABEL_VALUES, record.levelname).inc()
+            return
+        try:
+            self.queue.put_nowait(record)
+        except queue.Full:
+            LOG_RECORDS_DROPPED.labels(*COMMON_LABEL_VALUES, record.levelname).inc()
+
+
+class DrainingLogListener(QueueListener):
+    _stop_requested = False
+
+    def start(self):
+        if self._thread is not None and self._thread.is_alive():
+            raise RuntimeError("Previous log listener is still draining; cannot start another listener")
+        if self._stop_requested:
+            self._discard_pending()
+        self._stop_requested = False
+        handler.accepting = True
+        super().start()
+
+    def _discard_pending(self):
+        discarded = RecordCounts()
+        for _ in range(self.queue.qsize()):
+            try:
+                record = self.queue.get_nowait()
+            except queue.Empty:
+                break
+            if record is not self._sentinel:
+                discarded[record.levelname] += 1
+            self.queue.task_done()
+        for level, count in discarded.items():
+            LOG_RECORDS_DROPPED.labels(*COMMON_LABEL_VALUES, level).inc(count)
+
+    def stop(self):
+        listener_thread = self._thread
+        if listener_thread is None:
+            return
+        deadline = time.monotonic() + LOG_SHUTDOWN_TIMEOUT_SECONDS
+        with handler.lock:
+            handler.accepting = False
+        if not self._stop_requested:
+            self._stop_requested = True
+            try:
+                self.queue.put(self._sentinel, timeout=max(0, deadline - time.monotonic()))
+            except queue.Full:
+                self._discard_pending()
+                self.queue.put_nowait(self._sentinel)
+        listener_thread.join(timeout=max(0, deadline - time.monotonic()))
+        if listener_thread.is_alive():
+            # A blocked sink cannot hold application shutdown indefinitely.
+            # Account pending records; the daemon exits if the sink returns.
+            self._discard_pending()
+            self.queue.put_nowait(self._sentinel)
+        else:
+            self._thread = None
+
+
+log_queue = queue.Queue(maxsize=LOG_QUEUE_MAX_RECORDS)
+log_sink = logging.StreamHandler()
+log_sink.setFormatter(JsonFormatter())
+log_listener = DrainingLogListener(log_queue, log_sink)
+handler = NonblockingLogHandler(log_queue)
 logger = logging.getLogger(SERVICE_NAME)
 logger.handlers.clear()
 logger.addHandler(handler)
@@ -79,13 +161,28 @@ MEMORY_LIMIT = Gauge(
     "Configured memory limit in bytes.",
     METRIC_LABELS,
 )
+LOG_RECORDS_DROPPED = Counter(
+    "nexus_log_records_dropped_total",
+    "Log records dropped because the bounded output queue was full or shutdown timed out.",
+    METRIC_LABELS + ("level",),
+)
 
 COMMON_LABEL_VALUES = (SERVICE_NAME, NAMESPACE, POD, VERSION, ENVIRONMENT)
 SERVICE_INFO.labels(*COMMON_LABEL_VALUES).set(1)
 CPU_LIMIT.labels(*COMMON_LABEL_VALUES).set(CPU_LIMIT_CORES)
 MEMORY_LIMIT.labels(*COMMON_LABEL_VALUES).set(MEMORY_LIMIT_BYTES)
 
-app = FastAPI(title=SERVICE_NAME, version=VERSION)
+
+@asynccontextmanager
+async def lifespan(_app):
+    log_listener.start()
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(log_listener.stop)
+
+
+app = FastAPI(title=SERVICE_NAME, version=VERSION, lifespan=lifespan)
 
 
 @app.middleware("http")

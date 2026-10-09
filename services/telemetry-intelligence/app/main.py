@@ -1,4 +1,5 @@
 from datetime import datetime
+from contextlib import asynccontextmanager
 import logging
 import os
 from pathlib import Path
@@ -145,9 +146,22 @@ def create_app(
         float(os.getenv("MEMORY_LIMIT_BYTES", "536870912"))
     )
 
+    @asynccontextmanager
+    async def lifespan(_api):
+        try:
+            yield
+        finally:
+            # The real telemetry provider owns its Prometheus HTTP pool.
+            # Injected mock providers need no lifecycle interface.
+            client = getattr(service.telemetry, "client", None)
+            close = getattr(client, "aclose", None)
+            if close is not None:
+                await close()
+
     api = FastAPI(
         title="NEXUS Telemetry Intelligence",
         version=settings.runtime.service_version,
+        lifespan=lifespan,
     )
     api.state.m1_service = service
 

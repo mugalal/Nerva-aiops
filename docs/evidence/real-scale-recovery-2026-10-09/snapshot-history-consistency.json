@@ -1,0 +1,27 @@
+{
+  "snapshot": {
+    "timestamp": "2026-10-09T10:45:46.182Z",
+    "service": "payment-service",
+    "version": "v1",
+    "metrics": {
+      "cpu": 0.1455651909708571,
+      "memory": 0.08995590209960938,
+      "request_rate": 90.22821139304094,
+      "latency_p95_ms": 9.976719695824166,
+      "http_5xx_rate": 0.0,
+      "replica_count": 10
+    }
+  },
+  "history_point": {
+    "timestamp": "2026-10-09T10:45:46.182Z",
+    "metrics": {
+      "cpu": 0.1455651909708571,
+      "memory": 0.08995590209960938,
+      "request_rate": 90.22821139304094,
+      "latency_p95_ms": 9.976719695824166,
+      "http_5xx_rate": 0.0,
+      "replica_count": 10
+    }
+  },
+  "identical_metrics": true
+}

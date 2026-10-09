@@ -23,6 +23,14 @@ measurements produce HTTP 202 plus `Retry-After: 15`, preserving VALIDATING.
 Only matching incident evidence with both `recovered` and `slo_restored` true
 can resolve the incident. Caller-supplied success booleans are disabled in real
 recovery mode. Dependency failures retain a retryable workflow state.
+Measured negative recovery remains VALIDATING with HTTP 202 while stabilization
+is still within `RECOVERY_TIMEOUT_SECONDS` (default 360, finite and positive,
+maximum 3600). This budget begins at action completion; M1 thresholds and its
+complete recovery hold still govern success. At the deadline, missing or
+negative measurements escalate and repeated polls return the cached terminal
+state. Initial and subsequent negative measurements remain in the audit trail.
+The PowerShell incident launcher waits up to 600 seconds by default; its client
+timeout should exceed the configured server recovery budget.
 
 Scaling requires RCA confidence at least 0.7 and a LOW-risk option with an
 integer replica count greater than the current count and at most 10. Missing

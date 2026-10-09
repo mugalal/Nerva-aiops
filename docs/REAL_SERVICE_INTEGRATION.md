@@ -122,7 +122,61 @@ Real mode rejects caller-supplied recovery booleans. Recovery must report both
 `recovered=true` and `slo_restored=true` from M1. M1 measures a complete
 post-action hold after metric lookbacks have flushed. Scale recovery also
 requires increased replicas, continued traffic and the unchanged captured
-version. Rollback recovery requires the captured previous version.
+version in both the latest snapshot and the entire recovery window. Rollback
+recovery requires the captured previous version.
+
+M4 permits bounded stabilization after a completed action. Set
+`RECOVERY_TIMEOUT_SECONDS` before starting M4; its default is 360 seconds and
+startup requires a finite value greater than zero and at most 3600. Each
+incident's deadline is pinned to the stored action completion time, so polling
+does not restart or extend it. A measured negative SLO result within this window
+returns HTTP 202 with `Retry-After: 15`, retains VALIDATING state, preserves the
+first negative and latest measurements, and adds a `RECOVERY_STABILIZING` audit
+record. M1's thresholds and complete hold remain unchanged. Only an M1 result
+with both recovery flags true before the deadline resolves the incident.
+
+At the deadline M4 records `RECOVERY_TIMEOUT` and returns terminal ESCALATED.
+The deadline is checked before and after the M1 request, including requests
+that return pending or a dependency error after the deadline. Terminal recovery
+results are cached; later calls do not overwrite the escalation with a later
+positive measurement. Retryable HTTP 503 dependency failures before the
+deadline remain eligible for polling.
+
+The launcher's `-RecoveryTimeoutSeconds` defaults to 600 seconds, with accepted
+integer values from 15 to 3600. It polls HTTP 202 and retryable HTTP 503 responses,
+respecting `Retry-After`. This is the client's polling limit; it does not extend
+M4's separate deadline or repeat the remediation.
+
+M1 evaluates all snapshot metrics and version queries at one shared Prometheus
+evaluation time, rounded down to millisecond precision. `TelemetrySnapshot.timestamp`
+is that evaluation time, which also anchors the recovery window. Actual raw
+scrape timestamps remain a separate freshness check: every required source must
+be present, all service scrape targets must be up, and source samples must be
+within the configured age limit. Historical recovery points retain the same
+raw-source checks. The timestamp change does not permit stale scrape data.
+
+The payment service writes structured logs through a bounded queue, with
+formatting and stream output on a listener thread. `LOG_QUEUE_MAX_RECORDS`
+defaults to 1024. A full queue drops the new record and increments
+`nexus_log_records_dropped_total`, labelled by service, namespace, Pod, version,
+environment and log level. Accepted records drain during application lifespan
+shutdown, within the
+validated `LOG_SHUTDOWN_TIMEOUT_SECONDS` deadline (default 5 seconds). If output
+remains blocked, queued records discarded at the deadline increment the same
+counter, and a second listener cannot start while the old one is still alive.
+A permanently blocked output sink can still delay Python's process exit cleanup;
+Kubernetes termination grace and SIGKILL remain the outer process deadline.
+Queued timestamps preserve the original event time. The payment
+Dockerfile starts Uvicorn with `--no-access-log`; application request logs remain
+structured, without a second synchronous access-log write on each request.
+
+The traffic generator now reports completion counters and client P95 separately
+for each reporting interval as well as for the whole run. Use
+`interval_completed`, `interval_successful`, `interval_failed`,
+`interval_error_count` and `interval_latency_p95_ms` alongside
+`interval_actual_offered_rps` to assess post-action traffic. The cumulative P95
+still includes overload. These client measurements support load continuity;
+M1's server histogram and pinned baseline determine SLO recovery.
 
 ## Safety and current limits
 
@@ -150,15 +204,29 @@ version. Rollback recovery requires the captured previous version.
 
 ## Verification
 
-The final suites passed: M1/payment 64, M3 45, M4 93, M6 83 (one database-only
-check skipped), and two controlled four-process HTTP flows. PowerShell launcher
-syntax/UTC timestamp conversion and Compose configuration passed. The existing
-M1 smoke check passed against actual Kubernetes, Prometheus and Loki.
+The latest affected local checks passed 176 tests: 68 M1/payment, 103 M4,
+three traffic-reporting and both controlled four-process HTTP flows. The two
+HTTP flows passed again after the stabilization changes in 37.14 seconds.
+The unchanged M3/M6 suites previously passed 128 checks (45/83), with one
+database-only check skipped.
+PowerShell launcher syntax/UTC timestamp conversion and Compose configuration
+passed. The existing M1 smoke check passed against actual Kubernetes,
+Prometheus and Loki.
 
 The payment concurrency regression saturates the only worker with a 500 ms
 payment and requires health/readiness/metrics/version to respond within 200 ms.
 Those probes now run asynchronously so payment thread-pool overload cannot
 prevent the telemetry needed for a safe scaling decision.
 
-Live evidence and limitations are recorded in
-[the Kubernetes integration proof](evidence/real-integration-2026-10-09/README.md).
+The [original Kubernetes integration proof](evidence/real-integration-2026-10-09/README.md)
+retains its passed rollback and failed scale result. A
+[new actual scale and recovery run](evidence/real-scale-recovery-2026-10-09/README.md)
+passed: M4 scaled payment from one to ten replicas, and M1 measured P95
+4875 → 9.892 ms against the unchanged 12.065 ms ceiling under continued
+roughly 89-RPS traffic. Both recovery flags were true and M4 returned RESOLVED.
+
+The first official validation in that passing run was manually initiated about
+278 seconds after rollout completion. It establishes actual scale and measured
+recovery with that timing. A fresh `-Approve` run with bounded automatic
+stabilization is pending; the saved manual run does not establish its handling
+of an initial negative measurement.

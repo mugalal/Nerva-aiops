@@ -11,4 +11,4 @@ ENV VERSION=${VERSION} \
     CPU_LIMIT_CORES=1 \
     MEMORY_LIMIT_BYTES=536870912
 EXPOSE 8000
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

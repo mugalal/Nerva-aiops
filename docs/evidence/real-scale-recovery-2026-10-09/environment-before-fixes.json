@@ -1,0 +1,411 @@
+{
+    "apiVersion": "v1",
+    "items": [
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "annotations": {
+                    "deployment.kubernetes.io/revision": "5",
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{\"nexus.io/commit-sha\":\"faulty-v2\",\"nexus.io/pipeline-id\":\"scenario-a\",\"nexus.io/previous-version\":\"v1\",\"nexus.io/version\":\"v2\"},\"labels\":{\"app\":\"payment-service\",\"service_name\":\"payment-service\"},\"name\":\"payment-service\",\"namespace\":\"nexus-demo\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"payment-service\"}},\"template\":{\"metadata\":{\"annotations\":{\"prometheus.io/path\":\"/metrics\",\"prometheus.io/port\":\"8000\",\"prometheus.io/scrape\":\"true\"},\"labels\":{\"app\":\"payment-service\",\"environment\":\"development\",\"service_name\":\"payment-service\",\"version\":\"v2\"}},\"spec\":{\"containers\":[{\"env\":[{\"name\":\"SERVICE_NAME\",\"value\":\"payment-service\"},{\"name\":\"VERSION\",\"value\":\"v2\"},{\"name\":\"ENVIRONMENT\",\"value\":\"development\"},{\"name\":\"NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}},{\"name\":\"CPU_LIMIT_CORES\",\"value\":\"0.5\"},{\"name\":\"MEMORY_LIMIT_BYTES\",\"value\":\"536870912\"},{\"name\":\"FAULT_LATENCY_MS\",\"value\":\"600\"},{\"name\":\"FAULT_5XX_RATE\",\"value\":\"0.14\"},{\"name\":\"PAYMENT_WORK_ITERATIONS\",\"value\":\"20000\"}],\"image\":\"nexus/payment-service:v2\",\"livenessProbe\":{\"httpGet\":{\"path\":\"/health\",\"port\":8000},\"initialDelaySeconds\":5,\"periodSeconds\":10},\"name\":\"payment-service\",\"ports\":[{\"containerPort\":8000}],\"readinessProbe\":{\"httpGet\":{\"path\":\"/health\",\"port\":8000},\"initialDelaySeconds\":3,\"periodSeconds\":5},\"resources\":{\"limits\":{\"cpu\":\"500m\",\"memory\":\"512Mi\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"128Mi\"}}}]}}}}\n",
+                    "nexus.io/commit-sha": "faulty-v2",
+                    "nexus.io/pipeline-id": "scenario-a",
+                    "nexus.io/previous-version": "v1",
+                    "nexus.io/version": "v2"
+                },
+                "creationTimestamp": "2026-10-08T15:07:02Z",
+                "generation": 10,
+                "labels": {
+                    "app": "payment-service",
+                    "service_name": "payment-service"
+                },
+                "name": "payment-service",
+                "namespace": "nexus-demo",
+                "resourceVersion": "33409",
+                "uid": "4716ed3c-bb5b-4a0b-8b51-f4656aa4dd11"
+            },
+            "spec": {
+                "progressDeadlineSeconds": 600,
+                "replicas": 1,
+                "revisionHistoryLimit": 10,
+                "selector": {
+                    "matchLabels": {
+                        "app": "payment-service"
+                    }
+                },
+                "strategy": {
+                    "rollingUpdate": {
+                        "maxSurge": "25%",
+                        "maxUnavailable": "25%"
+                    },
+                    "type": "RollingUpdate"
+                },
+                "template": {
+                    "metadata": {
+                        "annotations": {
+                            "prometheus.io/path": "/metrics",
+                            "prometheus.io/port": "8000",
+                            "prometheus.io/scrape": "true"
+                        },
+                        "labels": {
+                            "app": "payment-service",
+                            "environment": "development",
+                            "service_name": "payment-service",
+                            "version": "v1"
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {
+                                        "name": "SERVICE_NAME",
+                                        "value": "payment-service"
+                                    },
+                                    {
+                                        "name": "VERSION",
+                                        "value": "v1"
+                                    },
+                                    {
+                                        "name": "ENVIRONMENT",
+                                        "value": "development"
+                                    },
+                                    {
+                                        "name": "NAMESPACE",
+                                        "valueFrom": {
+                                            "fieldRef": {
+                                                "apiVersion": "v1",
+                                                "fieldPath": "metadata.namespace"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "POD_NAME",
+                                        "valueFrom": {
+                                            "fieldRef": {
+                                                "apiVersion": "v1",
+                                                "fieldPath": "metadata.name"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "CPU_LIMIT_CORES",
+                                        "value": "0.5"
+                                    },
+                                    {
+                                        "name": "MEMORY_LIMIT_BYTES",
+                                        "value": "536870912"
+                                    },
+                                    {
+                                        "name": "PAYMENT_WORK_ITERATIONS",
+                                        "value": "20000"
+                                    }
+                                ],
+                                "image": "nexus/payment-service:v1-probe-safe",
+                                "imagePullPolicy": "IfNotPresent",
+                                "livenessProbe": {
+                                    "failureThreshold": 3,
+                                    "httpGet": {
+                                        "path": "/health",
+                                        "port": 8000,
+                                        "scheme": "HTTP"
+                                    },
+                                    "initialDelaySeconds": 5,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "timeoutSeconds": 1
+                                },
+                                "name": "payment-service",
+                                "ports": [
+                                    {
+                                        "containerPort": 8000,
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "readinessProbe": {
+                                    "failureThreshold": 3,
+                                    "httpGet": {
+                                        "path": "/health",
+                                        "port": 8000,
+                                        "scheme": "HTTP"
+                                    },
+                                    "initialDelaySeconds": 3,
+                                    "periodSeconds": 5,
+                                    "successThreshold": 1,
+                                    "timeoutSeconds": 1
+                                },
+                                "resources": {
+                                    "limits": {
+                                        "cpu": "500m",
+                                        "memory": "512Mi"
+                                    },
+                                    "requests": {
+                                        "cpu": "100m",
+                                        "memory": "128Mi"
+                                    }
+                                },
+                                "terminationMessagePath": "/dev/termination-log",
+                                "terminationMessagePolicy": "File"
+                            }
+                        ],
+                        "dnsPolicy": "ClusterFirst",
+                        "restartPolicy": "Always",
+                        "schedulerName": "default-scheduler",
+                        "securityContext": {},
+                        "terminationGracePeriodSeconds": 30
+                    }
+                }
+            },
+            "status": {
+                "availableReplicas": 1,
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-09T01:22:08Z",
+                        "lastUpdateTime": "2026-10-09T09:48:37Z",
+                        "message": "ReplicaSet \"payment-service-5dd84d4cf5\" has successfully progressed.",
+                        "reason": "NewReplicaSetAvailable",
+                        "status": "True",
+                        "type": "Progressing"
+                    },
+                    {
+                        "lastTransitionTime": "2026-10-09T09:56:34Z",
+                        "lastUpdateTime": "2026-10-09T09:56:34Z",
+                        "message": "Deployment has minimum availability.",
+                        "reason": "MinimumReplicasAvailable",
+                        "status": "True",
+                        "type": "Available"
+                    }
+                ],
+                "observedGeneration": 10,
+                "readyReplicas": 1,
+                "replicas": 1,
+                "terminatingReplicas": 0,
+                "updatedReplicas": 1
+            }
+        },
+        {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+                "annotations": {
+                    "deployment.kubernetes.io/revision": "4",
+                    "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"telemetry-intelligence\",\"service_name\":\"telemetry-intelligence\"},\"name\":\"telemetry-intelligence\",\"namespace\":\"nexus-demo\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"telemetry-intelligence\"}},\"strategy\":{\"type\":\"Recreate\"},\"template\":{\"metadata\":{\"annotations\":{\"prometheus.io/path\":\"/metrics\",\"prometheus.io/port\":\"8001\",\"prometheus.io/scrape\":\"true\"},\"labels\":{\"app\":\"telemetry-intelligence\",\"environment\":\"development\",\"service_name\":\"telemetry-intelligence\",\"version\":\"0.1.0\"}},\"spec\":{\"containers\":[{\"env\":[{\"name\":\"SERVICE_NAME\",\"value\":\"telemetry-intelligence\"},{\"name\":\"SERVICE_VERSION\",\"value\":\"0.1.0\"},{\"name\":\"ENVIRONMENT\",\"value\":\"development\"},{\"name\":\"M1_PROVIDER_MODE\",\"value\":\"real\"},{\"name\":\"M1_KUBERNETES_NAMESPACE\",\"value\":\"nexus-demo\"},{\"name\":\"PROMETHEUS_BASE_URL\",\"value\":\"http://prometheus:9090\"},{\"name\":\"LOKI_BASE_URL\",\"value\":\"http://loki:3100\"},{\"name\":\"PAYMENT_SERVICE_BASE_URL\",\"value\":\"http://payment-service\"},{\"name\":\"M1_DATA_DIR\",\"value\":\"/data\"},{\"name\":\"M1_REQUEST_RATE_WINDOW\",\"value\":\"1m\"},{\"name\":\"M1_LATENCY_WINDOW\",\"value\":\"1m\"},{\"name\":\"CPU_LIMIT_CORES\",\"value\":\"0.5\"},{\"name\":\"MEMORY_LIMIT_BYTES\",\"value\":\"536870912\"},{\"name\":\"NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}}],\"image\":\"nexus/telemetry-intelligence:dev\",\"imagePullPolicy\":\"IfNotPresent\",\"livenessProbe\":{\"httpGet\":{\"path\":\"/live\",\"port\":\"http\"},\"initialDelaySeconds\":5,\"periodSeconds\":10},\"name\":\"telemetry-intelligence\",\"ports\":[{\"containerPort\":8001,\"name\":\"http\"}],\"readinessProbe\":{\"httpGet\":{\"path\":\"/health\",\"port\":\"http\"},\"initialDelaySeconds\":5,\"periodSeconds\":10,\"timeoutSeconds\":10},\"resources\":{\"limits\":{\"cpu\":\"500m\",\"memory\":\"512Mi\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"128Mi\"}},\"volumeMounts\":[{\"mountPath\":\"/data\",\"name\":\"evidence\"}]}],\"serviceAccountName\":\"telemetry-intelligence\",\"volumes\":[{\"name\":\"evidence\",\"persistentVolumeClaim\":{\"claimName\":\"m1-evidence-data\"}}]}}}}\n"
+                },
+                "creationTimestamp": "2026-10-08T15:07:02Z",
+                "generation": 4,
+                "labels": {
+                    "app": "telemetry-intelligence",
+                    "service_name": "telemetry-intelligence"
+                },
+                "name": "telemetry-intelligence",
+                "namespace": "nexus-demo",
+                "resourceVersion": "35449",
+                "uid": "04b9e3bd-4bbd-4434-981e-08f7abc13a60"
+            },
+            "spec": {
+                "progressDeadlineSeconds": 600,
+                "replicas": 1,
+                "revisionHistoryLimit": 10,
+                "selector": {
+                    "matchLabels": {
+                        "app": "telemetry-intelligence"
+                    }
+                },
+                "strategy": {
+                    "type": "Recreate"
+                },
+                "template": {
+                    "metadata": {
+                        "annotations": {
+                            "kubectl.kubernetes.io/restartedAt": "2026-10-09T12:35:07+03:00",
+                            "prometheus.io/path": "/metrics",
+                            "prometheus.io/port": "8001",
+                            "prometheus.io/scrape": "true"
+                        },
+                        "labels": {
+                            "app": "telemetry-intelligence",
+                            "environment": "development",
+                            "service_name": "telemetry-intelligence",
+                            "version": "0.1.0"
+                        }
+                    },
+                    "spec": {
+                        "containers": [
+                            {
+                                "env": [
+                                    {
+                                        "name": "SERVICE_NAME",
+                                        "value": "telemetry-intelligence"
+                                    },
+                                    {
+                                        "name": "SERVICE_VERSION",
+                                        "value": "0.1.0"
+                                    },
+                                    {
+                                        "name": "ENVIRONMENT",
+                                        "value": "development"
+                                    },
+                                    {
+                                        "name": "M1_PROVIDER_MODE",
+                                        "value": "real"
+                                    },
+                                    {
+                                        "name": "M1_KUBERNETES_NAMESPACE",
+                                        "value": "nexus-demo"
+                                    },
+                                    {
+                                        "name": "PROMETHEUS_BASE_URL",
+                                        "value": "http://prometheus:9090"
+                                    },
+                                    {
+                                        "name": "LOKI_BASE_URL",
+                                        "value": "http://loki:3100"
+                                    },
+                                    {
+                                        "name": "PAYMENT_SERVICE_BASE_URL",
+                                        "value": "http://payment-service"
+                                    },
+                                    {
+                                        "name": "M1_DATA_DIR",
+                                        "value": "/data"
+                                    },
+                                    {
+                                        "name": "M1_REQUEST_RATE_WINDOW",
+                                        "value": "1m"
+                                    },
+                                    {
+                                        "name": "M1_LATENCY_WINDOW",
+                                        "value": "1m"
+                                    },
+                                    {
+                                        "name": "CPU_LIMIT_CORES",
+                                        "value": "0.5"
+                                    },
+                                    {
+                                        "name": "MEMORY_LIMIT_BYTES",
+                                        "value": "536870912"
+                                    },
+                                    {
+                                        "name": "NAMESPACE",
+                                        "valueFrom": {
+                                            "fieldRef": {
+                                                "apiVersion": "v1",
+                                                "fieldPath": "metadata.namespace"
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "name": "POD_NAME",
+                                        "valueFrom": {
+                                            "fieldRef": {
+                                                "apiVersion": "v1",
+                                                "fieldPath": "metadata.name"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "image": "nexus/telemetry-intelligence:recovery-timing",
+                                "imagePullPolicy": "IfNotPresent",
+                                "livenessProbe": {
+                                    "failureThreshold": 3,
+                                    "httpGet": {
+                                        "path": "/live",
+                                        "port": "http",
+                                        "scheme": "HTTP"
+                                    },
+                                    "initialDelaySeconds": 5,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "timeoutSeconds": 1
+                                },
+                                "name": "telemetry-intelligence",
+                                "ports": [
+                                    {
+                                        "containerPort": 8001,
+                                        "name": "http",
+                                        "protocol": "TCP"
+                                    }
+                                ],
+                                "readinessProbe": {
+                                    "failureThreshold": 3,
+                                    "httpGet": {
+                                        "path": "/health",
+                                        "port": "http",
+                                        "scheme": "HTTP"
+                                    },
+                                    "initialDelaySeconds": 5,
+                                    "periodSeconds": 10,
+                                    "successThreshold": 1,
+                                    "timeoutSeconds": 10
+                                },
+                                "resources": {
+                                    "limits": {
+                                        "cpu": "500m",
+                                        "memory": "512Mi"
+                                    },
+                                    "requests": {
+                                        "cpu": "100m",
+                                        "memory": "128Mi"
+                                    }
+                                },
+                                "terminationMessagePath": "/dev/termination-log",
+                                "terminationMessagePolicy": "File",
+                                "volumeMounts": [
+                                    {
+                                        "mountPath": "/data",
+                                        "name": "evidence"
+                                    }
+                                ]
+                            }
+                        ],
+                        "dnsPolicy": "ClusterFirst",
+                        "restartPolicy": "Always",
+                        "schedulerName": "default-scheduler",
+                        "securityContext": {},
+                        "serviceAccount": "telemetry-intelligence",
+                        "serviceAccountName": "telemetry-intelligence",
+                        "terminationGracePeriodSeconds": 30,
+                        "volumes": [
+                            {
+                                "name": "evidence",
+                                "persistentVolumeClaim": {
+                                    "claimName": "m1-evidence-data"
+                                }
+                            }
+                        ]
+                    }
+                }
+            },
+            "status": {
+                "availableReplicas": 1,
+                "conditions": [
+                    {
+                        "lastTransitionTime": "2026-10-09T10:23:33Z",
+                        "lastUpdateTime": "2026-10-09T10:23:33Z",
+                        "message": "Deployment has minimum availability.",
+                        "reason": "MinimumReplicasAvailable",
+                        "status": "True",
+                        "type": "Available"
+                    },
+                    {
+                        "lastTransitionTime": "2026-10-09T01:22:18Z",
+                        "lastUpdateTime": "2026-10-09T10:23:33Z",
+                        "message": "ReplicaSet \"telemetry-intelligence-6c4d44794b\" has successfully progressed.",
+                        "reason": "NewReplicaSetAvailable",
+                        "status": "True",
+                        "type": "Progressing"
+                    }
+                ],
+                "observedGeneration": 4,
+                "readyReplicas": 1,
+                "replicas": 1,
+                "terminatingReplicas": 0,
+                "updatedReplicas": 1
+            }
+        }
+    ],
+    "kind": "List",
+    "metadata": {
+        "resourceVersion": ""
+    }
+}

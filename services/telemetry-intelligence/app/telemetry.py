@@ -129,16 +129,18 @@ class PrometheusTelemetryProvider:
     async def snapshot(self, service: str) -> TelemetrySnapshot:
         queries = self.queries(service)
         scalar_queries = {**{name: queries[name] for name in self.metric_names}, **self.source_queries(service)}
-        evaluation_time = datetime.now(timezone.utc).timestamp()
+        # Prometheus evaluates these expressions at one millisecond-resolution
+        # instant; raw scrape timestamps are only the independent freshness gate.
+        evaluation_time = math.floor(datetime.now(timezone.utc).timestamp() * 1000) / 1000
         results = await asyncio.gather(
             *(self.client.query_scalar(query, evaluation_time=evaluation_time) for query in scalar_queries.values()),
             self.client.query_vector(queries["version"], evaluation_time=evaluation_time),
         )
         values = {name: sample.value for name, sample in zip(scalar_queries, results[:-1])}
-        timestamp = self._ensure_sources(values, evaluation_time)
+        self._ensure_sources(values, evaluation_time)
         version = self._version(results[-1], service)
         return TelemetrySnapshot(
-            timestamp=datetime.fromtimestamp(timestamp, tz=timezone.utc),
+            timestamp=datetime.fromtimestamp(evaluation_time, tz=timezone.utc),
             service=service,
             version=version,
             metrics=self._metrics(values),

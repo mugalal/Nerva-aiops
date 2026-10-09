@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from app.api.incidents import find_incident, lock_for, update_incident_status
 from app.contracts import ActionResult, DecisionProposal
+from app.config import RECOVERY_TIMEOUT_SECONDS
 from app.decision_engine.engine import decide_from_rca
 from app.decision_engine.models import DecisionAction, DecisionResult
 from app.providers.rca_provider import get_rca_result
@@ -9,7 +10,7 @@ from app.providers.finops_provider import get_finops_context
 from app.providers.evidence_provider import capture_incident_evidence
 from app.providers import evidence_provider as evidence_backend
 from app.providers.recovery_provider import validate_recovery
-from app.providers.errors import IntegrationError
+from app.providers.errors import IntegrationError, RecoveryPending
 from app.remediation import executor as remediation_backend
 from app.remediation.executor import execute_remediation
 from app.remediation.models import RemediationResult
@@ -174,9 +175,23 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
         incident["_action_result"] = ActionResult(action_id=action_id, incident_id=incident_id,
             action=action.value, status="SUCCESS", started_at=started_at, completed_at=completed_at).model_dump(mode="json")
         incident["action_completed_at"] = incident["_action_result"]["completed_at"]
+        incident["recovery_deadline_at"] = (completed_at + timedelta(seconds=RECOVERY_TIMEOUT_SECONDS)).isoformat()
         add_audit_record(incident_id, "ACTION_EXECUTED", incident["_action_result"])
         update_incident_status(incident_id, IncidentStatus.VALIDATING)
         return result
+
+
+def recovery_now():
+    return datetime.now(timezone.utc)
+
+
+def finish_recovery_timeout(incident, deadline):
+    recovery = dict(incident.get("_last_recovery_measurement", {
+        "incident_id": incident["incident_id"], "success": False, "source": "timeout",
+    }), success=False, timed_out=True, deadline_at=deadline.isoformat())
+    incident["_recovery"] = recovery
+    add_audit_record(incident["incident_id"], "RECOVERY_TIMEOUT", recovery)
+    return apply_recovery_result(incident["incident_id"], False)
 
 
 def validate_and_apply_recovery(incident_id: str):
@@ -197,12 +212,35 @@ def validate_and_apply_recovery(incident_id: str):
         completion = incident.get("action_completed_at")
         if not completion:
             raise ValueError("Missing remediation completion timestamp")
-        recovery = validate_recovery(incident_id, scenario=scenario, action_completed_at=completion,
-                                     service=incident_service(incident))
+        completed_at = datetime.fromisoformat(completion.replace("Z", "+00:00"))
+        if completed_at.tzinfo is None:
+            raise ValueError("Remediation completion timestamp must include its timezone")
+        deadline = datetime.fromisoformat(incident.get("recovery_deadline_at", (
+            completed_at + timedelta(seconds=RECOVERY_TIMEOUT_SECONDS)).isoformat()).replace("Z", "+00:00"))
+        if deadline.tzinfo is None:
+            raise ValueError("Recovery deadline must include its timezone")
+        incident["recovery_deadline_at"] = deadline.isoformat()
+        if recovery_now() >= deadline:
+            return finish_recovery_timeout(incident, deadline)
+        try:
+            recovery = validate_recovery(incident_id, scenario=scenario, action_completed_at=completion,
+                                         service=incident_service(incident))
+        except IntegrationError:
+            if recovery_now() >= deadline:
+                return finish_recovery_timeout(incident, deadline)
+            raise
         if recovery.get("incident_id") != incident_id:
             raise IntegrationError("Recovery result belongs to another incident", status_code=502, retryable=False)
+        if recovery["success"] is not True:
+            incident.setdefault("_first_negative_recovery", recovery)
+            incident["_last_recovery_measurement"] = recovery
+            add_audit_record(incident_id, "RECOVERY_STABILIZING", recovery)
+        if recovery_now() >= deadline:
+            return finish_recovery_timeout(incident, deadline)
+        if recovery["success"] is not True:
+            raise RecoveryPending(f"Measured recovery has not restored the SLO; keep polling until {deadline.isoformat()}")
         incident["_recovery"] = recovery
-        return apply_recovery_result(incident_id, recovery["success"] is True)
+        return apply_recovery_result(incident_id, True)
 
 
 def apply_recovery_result(incident_id: str, success: bool):

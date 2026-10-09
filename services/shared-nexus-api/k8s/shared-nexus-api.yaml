@@ -74,6 +74,8 @@ spec:
               value: real
             - name: RECOVERY_PROVIDER
               value: real
+            - name: RECOVERY_TIMEOUT_SECONDS
+              value: "360"
             - name: REMEDIATION_BACKEND
               value: kubernetes
             - name: M3_RCA_URL

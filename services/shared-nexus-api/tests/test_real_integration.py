@@ -13,6 +13,8 @@ from app.api.incidents import find_incident, lock_for
 from app.providers import rca_provider, evidence_provider, finops_provider, recovery_provider
 from app.remediation import executor
 from app.decision_engine.engine import choose_scale_option
+from app.orchestration import orchestrator
+from app.config import load_recovery_timeout_seconds
 
 
 class DependencyFixtures:
@@ -188,12 +190,85 @@ def test_wrong_recovery_identity_cannot_resolve_and_can_be_retried(real_data_cli
     assert client.post(f"/internal/recovery/validate/{identifier}").json()["status"] == "RESOLVED"
 
 
-def test_recovered_true_but_slo_false_escalates(real_data_clients):
+def test_negative_recovery_stabilizes_until_a_strict_pass(real_data_clients, monkeypatch):
+    client, fixture = real_data_clients
+    identifier = create(client)
+    action = propose_and_approve(client, identifier)
+    completed = datetime.fromisoformat(action["completed_at"].replace("Z", "+00:00"))
+    now = completed + timedelta(seconds=120)
+    monkeypatch.setattr(orchestrator, "recovery_now", lambda: now)
+    fixture.slo_restored = False
+    for _ in range(2):
+        response = client.post(f"/internal/recovery/validate/{identifier}")
+        assert response.status_code == 202 and response.headers["Retry-After"] == "15"
+        assert find_incident(identifier)["status"] == "VALIDATING"
+        assert "_recovery" not in find_incident(identifier)
+    assert find_incident(identifier)["_first_negative_recovery"]["details"]["slo_restored"] is False
+    fixture.slo_restored = True
+    now = completed + timedelta(seconds=278)
+    assert client.post(f"/internal/recovery/validate/{identifier}").json()["status"] == "RESOLVED"
+
+
+def test_negative_recovery_deadline_escalates_once_and_caches_terminal_result(real_data_clients, monkeypatch):
+    client, fixture = real_data_clients
+    identifier = create(client)
+    action = propose_and_approve(client, identifier)
+    incident = find_incident(identifier)
+    deadline = datetime.fromisoformat(incident["recovery_deadline_at"])
+    now = deadline - timedelta(seconds=1)
+    monkeypatch.setattr(orchestrator, "recovery_now", lambda: now)
+    fixture.slo_restored = False
+    assert client.post(f"/internal/recovery/validate/{identifier}").status_code == 202
+    count = len(fixture.calls)
+    now = deadline
+    assert client.post(f"/internal/recovery/validate/{identifier}").json()["status"] == "ESCALATED"
+    assert incident["_recovery"]["timed_out"] is True and incident["_recovery"]["details"]["slo_restored"] is False
+    fixture.slo_restored = True
+    assert client.post(f"/internal/recovery/validate/{identifier}").json()["status"] == "ESCALATED"
+    assert len(fixture.calls) == count
+    records = client.get("/internal/remediation/audit").json()
+    assert sum(record["event_type"] == "RECOVERY_TIMEOUT" for record in records) == 1
+    assert sum(record["event_type"] == "RECOVERY_STABILIZING" for record in records) == 1
+
+
+@pytest.mark.parametrize("dependency", ["pending", "unavailable"])
+def test_dependency_wait_crossing_recovery_deadline_cannot_extend_budget(real_data_clients, monkeypatch, dependency):
     client, fixture = real_data_clients
     identifier = create(client)
     propose_and_approve(client, identifier)
-    fixture.slo_restored = False
+    incident = find_incident(identifier)
+    deadline = datetime.fromisoformat(incident["recovery_deadline_at"])
+    now = deadline - timedelta(seconds=1)
+    monkeypatch.setattr(orchestrator, "recovery_now", lambda: now)
+    original_post = fixture.post
+    fixture.pending = 1
+
+    def delayed_post(url, json, timeout):
+        nonlocal now
+        if url.endswith("/internal/recovery/validate"):
+            now = deadline
+            if dependency == "unavailable":
+                raise requests.ConnectionError("fixture dependency still unavailable")
+        return original_post(url, json, timeout)
+
+    monkeypatch.setattr(requests, "post", delayed_post)
     assert client.post(f"/internal/recovery/validate/{identifier}").json()["status"] == "ESCALATED"
+    assert incident["_recovery"]["timed_out"] is True
+    monkeypatch.setattr(requests, "post", lambda *args, **kwargs: pytest.fail("Terminal recovery must not requery M1"))
+    assert client.post(f"/internal/recovery/validate/{identifier}").json()["status"] == "ESCALATED"
+
+
+@pytest.mark.parametrize("value", ["0", "-1", "nan", "inf", "3601", "not-a-number"])
+def test_recovery_timeout_configuration_rejects_invalid_values(value):
+    with pytest.raises(ValueError, match="RECOVERY_TIMEOUT_SECONDS"):
+        load_recovery_timeout_seconds(value)
+
+
+def test_recovery_timeout_configuration_is_configurable_and_defaults_to_360(monkeypatch):
+    monkeypatch.delenv("RECOVERY_TIMEOUT_SECONDS", raising=False)
+    assert load_recovery_timeout_seconds() == 360
+    monkeypatch.setenv("RECOVERY_TIMEOUT_SECONDS", "300")
+    assert load_recovery_timeout_seconds() == 300
 
 
 def test_capture_failure_retries_without_restart_or_duplicate_rca(real_data_clients):

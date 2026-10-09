@@ -1,0 +1,32 @@
+
+incident_id        : INC-K8S-SCALE-AUTO-20261009
+recommended_action : SCALE
+target             : payment-service
+parameters         : @{replicas=10}
+confidence         : 1
+risk               : LOW
+reason             : Traffic spike detected and a safe scale option is available
+approval_required  : True
+
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.
+Measured recovery is still pending or stabilizing.

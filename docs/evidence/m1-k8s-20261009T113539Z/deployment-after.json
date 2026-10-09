@@ -1,0 +1,182 @@
+﻿{
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+        "annotations": {
+            "deployment.kubernetes.io/revision": "6",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"annotations\":{\"nexus.io/commit-sha\":\"faulty-v2\",\"nexus.io/pipeline-id\":\"scenario-a\",\"nexus.io/previous-version\":\"v1\",\"nexus.io/version\":\"v2\"},\"labels\":{\"app\":\"payment-service\",\"service_name\":\"payment-service\"},\"name\":\"payment-service\",\"namespace\":\"nexus-demo\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"payment-service\"}},\"template\":{\"metadata\":{\"annotations\":{\"prometheus.io/path\":\"/metrics\",\"prometheus.io/port\":\"8000\",\"prometheus.io/scrape\":\"true\"},\"labels\":{\"app\":\"payment-service\",\"environment\":\"development\",\"service_name\":\"payment-service\",\"version\":\"v2\"}},\"spec\":{\"containers\":[{\"env\":[{\"name\":\"SERVICE_NAME\",\"value\":\"payment-service\"},{\"name\":\"VERSION\",\"value\":\"v2\"},{\"name\":\"ENVIRONMENT\",\"value\":\"development\"},{\"name\":\"NAMESPACE\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.namespace\"}}},{\"name\":\"POD_NAME\",\"valueFrom\":{\"fieldRef\":{\"fieldPath\":\"metadata.name\"}}},{\"name\":\"CPU_LIMIT_CORES\",\"value\":\"0.5\"},{\"name\":\"MEMORY_LIMIT_BYTES\",\"value\":\"536870912\"},{\"name\":\"FAULT_LATENCY_MS\",\"value\":\"600\"},{\"name\":\"FAULT_5XX_RATE\",\"value\":\"0.14\"},{\"name\":\"PAYMENT_WORK_ITERATIONS\",\"value\":\"20000\"}],\"image\":\"nexus/payment-service:v2\",\"livenessProbe\":{\"httpGet\":{\"path\":\"/health\",\"port\":8000},\"initialDelaySeconds\":5,\"periodSeconds\":10},\"name\":\"payment-service\",\"ports\":[{\"containerPort\":8000}],\"readinessProbe\":{\"httpGet\":{\"path\":\"/health\",\"port\":8000},\"initialDelaySeconds\":3,\"periodSeconds\":5},\"resources\":{\"limits\":{\"cpu\":\"500m\",\"memory\":\"512Mi\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"128Mi\"}}}]}}}}\n",
+            "nexus.io/commit-sha": "faulty-v2",
+            "nexus.io/pipeline-id": "scenario-a",
+            "nexus.io/previous-version": "v1",
+            "nexus.io/version": "v2"
+        },
+        "creationTimestamp": "2026-10-08T15:07:02Z",
+        "generation": 16,
+        "labels": {
+            "app": "payment-service",
+            "service_name": "payment-service"
+        },
+        "name": "payment-service",
+        "namespace": "nexus-demo",
+        "resourceVersion": "43358",
+        "uid": "4716ed3c-bb5b-4a0b-8b51-f4656aa4dd11"
+    },
+    "spec": {
+        "progressDeadlineSeconds": 600,
+        "replicas": 3,
+        "revisionHistoryLimit": 10,
+        "selector": {
+            "matchLabels": {
+                "app": "payment-service"
+            }
+        },
+        "strategy": {
+            "rollingUpdate": {
+                "maxSurge": "25%",
+                "maxUnavailable": "25%"
+            },
+            "type": "RollingUpdate"
+        },
+        "template": {
+            "metadata": {
+                "annotations": {
+                    "prometheus.io/path": "/metrics",
+                    "prometheus.io/port": "8000",
+                    "prometheus.io/scrape": "true"
+                },
+                "labels": {
+                    "app": "payment-service",
+                    "environment": "development",
+                    "service_name": "payment-service",
+                    "version": "v1"
+                }
+            },
+            "spec": {
+                "containers": [
+                    {
+                        "env": [
+                            {
+                                "name": "SERVICE_NAME",
+                                "value": "payment-service"
+                            },
+                            {
+                                "name": "VERSION",
+                                "value": "v1"
+                            },
+                            {
+                                "name": "ENVIRONMENT",
+                                "value": "development"
+                            },
+                            {
+                                "name": "NAMESPACE",
+                                "valueFrom": {
+                                    "fieldRef": {
+                                        "apiVersion": "v1",
+                                        "fieldPath": "metadata.namespace"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "POD_NAME",
+                                "valueFrom": {
+                                    "fieldRef": {
+                                        "apiVersion": "v1",
+                                        "fieldPath": "metadata.name"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "CPU_LIMIT_CORES",
+                                "value": "0.5"
+                            },
+                            {
+                                "name": "MEMORY_LIMIT_BYTES",
+                                "value": "536870912"
+                            },
+                            {
+                                "name": "PAYMENT_WORK_ITERATIONS",
+                                "value": "20000"
+                            }
+                        ],
+                        "image": "nexus/payment-service:v1-recovery-safe",
+                        "imagePullPolicy": "IfNotPresent",
+                        "livenessProbe": {
+                            "failureThreshold": 3,
+                            "httpGet": {
+                                "path": "/health",
+                                "port": 8000,
+                                "scheme": "HTTP"
+                            },
+                            "initialDelaySeconds": 5,
+                            "periodSeconds": 10,
+                            "successThreshold": 1,
+                            "timeoutSeconds": 1
+                        },
+                        "name": "payment-service",
+                        "ports": [
+                            {
+                                "containerPort": 8000,
+                                "protocol": "TCP"
+                            }
+                        ],
+                        "readinessProbe": {
+                            "failureThreshold": 3,
+                            "httpGet": {
+                                "path": "/health",
+                                "port": 8000,
+                                "scheme": "HTTP"
+                            },
+                            "initialDelaySeconds": 3,
+                            "periodSeconds": 5,
+                            "successThreshold": 1,
+                            "timeoutSeconds": 1
+                        },
+                        "resources": {
+                            "limits": {
+                                "cpu": "500m",
+                                "memory": "512Mi"
+                            },
+                            "requests": {
+                                "cpu": "100m",
+                                "memory": "128Mi"
+                            }
+                        },
+                        "terminationMessagePath": "/dev/termination-log",
+                        "terminationMessagePolicy": "File"
+                    }
+                ],
+                "dnsPolicy": "ClusterFirst",
+                "restartPolicy": "Always",
+                "schedulerName": "default-scheduler",
+                "securityContext": {},
+                "terminationGracePeriodSeconds": 30
+            }
+        }
+    },
+    "status": {
+        "availableReplicas": 3,
+        "conditions": [
+            {
+                "lastTransitionTime": "2026-10-09T01:22:08Z",
+                "lastUpdateTime": "2026-10-09T10:32:11Z",
+                "message": "ReplicaSet \"payment-service-5d9466d7dd\" has successfully progressed.",
+                "reason": "NewReplicaSetAvailable",
+                "status": "True",
+                "type": "Progressing"
+            },
+            {
+                "lastTransitionTime": "2026-10-09T11:37:36Z",
+                "lastUpdateTime": "2026-10-09T11:37:36Z",
+                "message": "Deployment has minimum availability.",
+                "reason": "MinimumReplicasAvailable",
+                "status": "True",
+                "type": "Available"
+            }
+        ],
+        "observedGeneration": 16,
+        "readyReplicas": 3,
+        "replicas": 3,
+        "terminatingReplicas": 0,
+        "updatedReplicas": 3
+    }
+}

@@ -1,0 +1,229 @@
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "annotations": {
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"annotations\":{},\"labels\":{\"app\":\"payment-traffic\",\"service_name\":\"payment-traffic\"},\"name\":\"integration-recovery-spike-traffic\",\"namespace\":\"nexus-demo\"},\"spec\":{\"automountServiceAccountToken\":false,\"containers\":[{\"command\":[\"python\",\"/traffic/k8s-traffic.py\"],\"env\":[{\"name\":\"TARGET_URL\",\"value\":\"http://payment-service/pay\"},{\"name\":\"RPS\",\"value\":\"90\"},{\"name\":\"DURATION_SECONDS\",\"value\":\"1200\"},{\"name\":\"MAX_IN_FLIGHT\",\"value\":\"300\"},{\"name\":\"REQUEST_TIMEOUT_SECONDS\",\"value\":\"10\"},{\"name\":\"REPORT_INTERVAL_SECONDS\",\"value\":\"10\"}],\"image\":\"nexus/payment-service:v1\",\"imagePullPolicy\":\"IfNotPresent\",\"name\":\"traffic\",\"resources\":{\"limits\":{\"cpu\":\"1\",\"memory\":\"384Mi\"},\"requests\":{\"cpu\":\"100m\",\"memory\":\"64Mi\"}},\"volumeMounts\":[{\"mountPath\":\"/traffic\",\"name\":\"script\",\"readOnly\":true}]}],\"restartPolicy\":\"Never\",\"terminationGracePeriodSeconds\":45,\"volumes\":[{\"configMap\":{\"name\":\"payment-traffic-script\"},\"name\":\"script\"}]}}\n"
+        },
+        "creationTimestamp": "2026-10-09T10:35:17Z",
+        "generation": 1,
+        "labels": {
+            "app": "payment-traffic",
+            "service_name": "payment-traffic"
+        },
+        "name": "integration-recovery-spike-traffic",
+        "namespace": "nexus-demo",
+        "resourceVersion": "36648",
+        "uid": "ef72a1f4-cd95-4059-b822-0fae7c32582c"
+    },
+    "spec": {
+        "automountServiceAccountToken": false,
+        "containers": [
+            {
+                "command": [
+                    "python",
+                    "/traffic/k8s-traffic.py"
+                ],
+                "env": [
+                    {
+                        "name": "TARGET_URL",
+                        "value": "http://payment-service/pay"
+                    },
+                    {
+                        "name": "RPS",
+                        "value": "90"
+                    },
+                    {
+                        "name": "DURATION_SECONDS",
+                        "value": "1200"
+                    },
+                    {
+                        "name": "MAX_IN_FLIGHT",
+                        "value": "300"
+                    },
+                    {
+                        "name": "REQUEST_TIMEOUT_SECONDS",
+                        "value": "10"
+                    },
+                    {
+                        "name": "REPORT_INTERVAL_SECONDS",
+                        "value": "10"
+                    }
+                ],
+                "image": "nexus/payment-service:v1",
+                "imagePullPolicy": "IfNotPresent",
+                "name": "traffic",
+                "resources": {
+                    "limits": {
+                        "cpu": "1",
+                        "memory": "384Mi"
+                    },
+                    "requests": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                    }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File",
+                "volumeMounts": [
+                    {
+                        "mountPath": "/traffic",
+                        "name": "script",
+                        "readOnly": true
+                    }
+                ]
+            }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "nodeName": "nexus-worker",
+        "preemptionPolicy": "PreemptLowerPriority",
+        "priority": 0,
+        "restartPolicy": "Never",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 45,
+        "tolerations": [
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/not-ready",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            },
+            {
+                "effect": "NoExecute",
+                "key": "node.kubernetes.io/unreachable",
+                "operator": "Exists",
+                "tolerationSeconds": 300
+            }
+        ],
+        "volumes": [
+            {
+                "configMap": {
+                    "defaultMode": 420,
+                    "name": "payment-traffic-script"
+                },
+                "name": "script"
+            }
+        ]
+    },
+    "status": {
+        "allocatedResources": {
+            "cpu": "100m",
+            "memory": "64Mi"
+        },
+        "conditions": [
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-10-09T10:35:18Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "PodReadyToStartContainers"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-10-09T10:35:17Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "Initialized"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-10-09T10:35:18Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "Ready"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-10-09T10:35:18Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "ContainersReady"
+            },
+            {
+                "lastProbeTime": null,
+                "lastTransitionTime": "2026-10-09T10:35:17Z",
+                "observedGeneration": 1,
+                "status": "True",
+                "type": "PodScheduled"
+            }
+        ],
+        "containerStatuses": [
+            {
+                "allocatedResources": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                },
+                "containerID": "containerd://43881826916d37cb657edc1021aa2aaea2617bb78111705a199b880f55e5134d",
+                "image": "docker.io/nexus/payment-service:v1",
+                "imageID": "sha256:60f99b345892e01a543dd9447766603b73d3cbf2a8154f6761de57ae8b9d5428",
+                "lastState": {},
+                "name": "traffic",
+                "ready": true,
+                "resources": {
+                    "limits": {
+                        "cpu": "1",
+                        "memory": "384Mi"
+                    },
+                    "requests": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                    }
+                },
+                "restartCount": 0,
+                "started": true,
+                "state": {
+                    "running": {
+                        "startedAt": "2026-10-09T10:35:18Z"
+                    }
+                },
+                "user": {
+                    "linux": {
+                        "gid": 0,
+                        "supplementalGroups": [
+                            0
+                        ],
+                        "uid": 0
+                    }
+                },
+                "volumeMounts": [
+                    {
+                        "mountPath": "/traffic",
+                        "name": "script",
+                        "readOnly": true,
+                        "recursiveReadOnly": "Disabled"
+                    }
+                ]
+            }
+        ],
+        "hostIP": "172.23.0.2",
+        "hostIPs": [
+            {
+                "ip": "172.23.0.2"
+            }
+        ],
+        "observedGeneration": 1,
+        "phase": "Running",
+        "podIP": "10.244.2.24",
+        "podIPs": [
+            {
+                "ip": "10.244.2.24"
+            }
+        ],
+        "qosClass": "Burstable",
+        "resources": {
+            "limits": {
+                "cpu": "1",
+                "memory": "384Mi"
+            },
+            "requests": {
+                "cpu": "100m",
+                "memory": "64Mi"
+            }
+        },
+        "startTime": "2026-10-09T10:35:17Z"
+    }
+}

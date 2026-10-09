@@ -4,7 +4,7 @@ param(
     [string]$M4Url = 'http://127.0.0.1:18004',
     [string]$OutputDirectory = '.review-branches/integration-results',
     [switch]$Approve,
-    [ValidateRange(15, 3600)][int]$RecoveryTimeoutSeconds = 240
+    [ValidateRange(15, 3600)][int]$RecoveryTimeoutSeconds = 600
 )
 
 $ErrorActionPreference = 'Stop'
@@ -82,7 +82,7 @@ do {
         $retryHeader = [string]$response.Headers['Retry-After']
         $parsedRetry = 0
         if ([int]::TryParse($retryHeader, [ref]$parsedRetry) -and $parsedRetry -gt 0) { $retrySeconds = [Math]::Min(60, $parsedRetry) }
-        Write-Output 'M1 is still collecting the post-action recovery window.'
+        Write-Output 'Measured recovery is still pending or stabilizing.'
         Start-Sleep -Seconds $retrySeconds
         continue
     }

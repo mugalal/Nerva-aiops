@@ -1,0 +1,128 @@
+{
+  "service": "payment-service",
+  "provider_mode": "real",
+  "collected_at": "2026-10-09T10:37:09.165385Z",
+  "telemetry": {
+    "timestamp": "2026-10-09T10:37:08.717Z",
+    "service": "payment-service",
+    "version": "v1",
+    "metrics": {
+      "cpu": 0.9951774562748622,
+      "memory": 0.11898040771484375,
+      "request_rate": 61.55965953285775,
+      "latency_p95_ms": 4875.0,
+      "http_5xx_rate": 0.0,
+      "replica_count": 1
+    }
+  },
+  "deployment_event": null,
+  "selected_logs": [
+    "2026-10-09T10:37:07.910617+00:00 {\"timestamp\":\"2026-10-09T10:37:07.910185+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4700.52,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.911014+00:00 {\"timestamp\":\"2026-10-09T10:37:07.910613+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4602.82,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.911353+00:00 {\"timestamp\":\"2026-10-09T10:37:07.910952+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4603.07,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.911678+00:00 {\"timestamp\":\"2026-10-09T10:37:07.911266+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4602.5,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.912106+00:00 {\"timestamp\":\"2026-10-09T10:37:07.911731+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4603.07,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.912379+00:00 {\"timestamp\":\"2026-10-09T10:37:07.912028+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4604.07,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.912778+00:00 {\"timestamp\":\"2026-10-09T10:37:07.912323+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4301.95,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.920552+00:00 {\"timestamp\":\"2026-10-09T10:37:07.919413+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4308.82,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.921265+00:00 {\"timestamp\":\"2026-10-09T10:37:07.919934+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4611.35,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.921946+00:00 {\"timestamp\":\"2026-10-09T10:37:07.920760+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4310.98,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:07.921956+00:00 {\"timestamp\":\"2026-10-09T10:37:07.921426+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4310.96,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.004886+00:00 {\"timestamp\":\"2026-10-09T10:37:08.004200+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4393.98,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.007414+00:00 {\"timestamp\":\"2026-10-09T10:37:08.004920+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4394.25,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.007437+00:00 {\"timestamp\":\"2026-10-09T10:37:08.005329+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4395.05,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.011639+00:00 {\"timestamp\":\"2026-10-09T10:37:08.011230+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4309.32,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.011931+00:00 {\"timestamp\":\"2026-10-09T10:37:08.011601+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4310.28,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.012214+00:00 {\"timestamp\":\"2026-10-09T10:37:08.011941+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4310.34,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.013343+00:00 {\"timestamp\":\"2026-10-09T10:37:08.012372+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4310.66,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.016962+00:00 {\"timestamp\":\"2026-10-09T10:37:08.016432+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4314.43,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}",
+    "2026-10-09T10:37:08.017339+00:00 {\"timestamp\":\"2026-10-09T10:37:08.016960+00:00\",\"level\":\"INFO\",\"service\":\"payment-service\",\"version\":\"v1\",\"environment\":\"development\",\"message\":\"request completed\",\"method\":\"POST\",\"route\":\"/pay\",\"status_code\":200,\"duration_ms\":4314.8,\"pod\":\"payment-service-5d9466d7dd-6p6f7\",\"namespace\":\"nexus-demo\"}"
+  ],
+  "provider_errors": [],
+  "baseline": {
+    "service": "payment-service",
+    "version": "v1",
+    "measured_at": "2026-10-09T10:35:10.222585Z",
+    "window_start": "2026-10-09T10:33:34.036604Z",
+    "window_end": "2026-10-09T10:34:49.036604Z",
+    "sample_count": 6,
+    "request_rate": {
+      "minimum": 29.99600053326223,
+      "maximum": 30.008002133902377,
+      "average": 30.001222926025658,
+      "p95": 30.007335170839298
+    },
+    "latency_p95_ms": {
+      "minimum": 9.542410714285714,
+      "maximum": 9.65737951807229,
+      "average": 9.604507905748784,
+      "p95": 9.6519377189449
+    },
+    "http_5xx_rate": {
+      "minimum": 0.0,
+      "maximum": 0.0,
+      "average": 0.0,
+      "p95": 0.0
+    },
+    "cpu": {
+      "minimum": 0.4330043567173469,
+      "maximum": 0.46089913109180214,
+      "average": 0.4482390803053668,
+      "p95": 0.4605479207314188
+    },
+    "memory": {
+      "minimum": 0.08968353271484375,
+      "maximum": 0.08992767333984375,
+      "average": 0.08972422281901042,
+      "p95": 0.08986663818359375
+    },
+    "replica_count": {
+      "minimum": 1.0,
+      "maximum": 1.0,
+      "average": 1.0,
+      "p95": 1.0
+    },
+    "thresholds": {
+      "latency_p95_ms_max": 12.064922148681125,
+      "http_5xx_rate_max": 0.01
+    }
+  },
+  "kubernetes": {
+    "service": "payment-service",
+    "namespace": "nexus-demo",
+    "desired_replicas": 1,
+    "ready_replicas": 1,
+    "pod_restarts": 0,
+    "version": "v1",
+    "service_health": "ok",
+    "events": [
+      "SuccessfulDelete: Deleted pod: payment-service-5dd84d4cf5-n9zbn",
+      "SuccessfulDelete: Deleted pod: payment-service-5dd84d4cf5-zghfl",
+      "SuccessfulDelete: Deleted pod: payment-service-5dd84d4cf5-zhmrt",
+      "Scheduled: Successfully assigned nexus-demo/payment-service-67bf6c7775-h7gdm to nexus-worker2",
+      "Pulled: Container image \"nexus/payment-service:v2\" already present on machine and can be accessed by the pod",
+      "Created: Container created",
+      "Started: Container started",
+      "Killing: Stopping container payment-service",
+      "Unhealthy: Readiness probe failed: Get \"http://10.244.1.15:8000/health\": dial tcp 10.244.1.15:8000: connect: connection refused",
+      "SuccessfulCreate: Created pod: payment-service-67bf6c7775-h7gdm",
+      "SuccessfulDelete: Deleted pod: payment-service-67bf6c7775-h7gdm",
+      "ScalingReplicaSet: Scaled up replica set payment-service-67bf6c7775 from 0 to 1",
+      "ScalingReplicaSet: Scaled down replica set payment-service-5b7787c65d from 1 to 0",
+      "ScalingReplicaSet: Scaled up replica set payment-service-5b7787c65d from 0 to 1",
+      "ScalingReplicaSet: Scaled down replica set payment-service-67bf6c7775 from 1 to 0",
+      "ScalingReplicaSet: Scaled up replica set payment-service-5dd84d4cf5 from 0 to 1",
+      "ScalingReplicaSet: Scaled up replica set payment-service-5dd84d4cf5 from 1 to 10",
+      "ScalingReplicaSet: Scaled down replica set payment-service-5dd84d4cf5 from 10 to 1",
+      "ScalingReplicaSet: Scaled up replica set payment-service-5d9466d7dd from 0 to 1",
+      "ScalingReplicaSet: Scaled down replica set payment-service-5dd84d4cf5 from 1 to 0"
+    ]
+  },
+  "resource_config": {
+    "cpu_request_m": 100.0,
+    "cpu_limit_m": 500.0,
+    "memory_request_mb": 128.0,
+    "memory_limit_mb": 512.0,
+    "memory_unit": "MiB"
+  }
+}
