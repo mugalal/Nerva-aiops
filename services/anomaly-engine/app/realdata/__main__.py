@@ -4,12 +4,16 @@ Day 3 from the command line. Run from services/anomaly-engine:
     python -m app.realdata drill  --stack-dir ~/Nerva-m1      # ~30 min, makes real faults
     python -m app.realdata fetch  capture.json                # re-fetch M1's history only
     python -m app.realdata report capture.json [more.json ...]
+    python -m app.realdata train  capture1.json capture2.json   # build the frozen reference + alert line
+    python -m app.realdata evaluate capture3.json               # the results table, frozen reference
+    python -m app.realdata live-check capture3.json             # compare the RUNNING M2 with the drill
 """
 
 from __future__ import annotations
 
 import argparse
 import dataclasses
+import json
 import sys
 from pathlib import Path
 
@@ -25,8 +29,23 @@ from .drill import (
     http_version,
     shell_command,
 )
+from ..evaluation.run import write_day11_table
+from ..reference import load_reference
+from .final import LiveCheckError, format_live_check, live_check, run_evaluate
 from .m1_client import DEFAULT_M1_URL, M1Client, M1Error
 from .report import build_report
+from .train import TrainError, train_reference
+
+
+def _read_capture(name: str):
+    """Load a capture, or explain plainly why not. Returns None on failure."""
+    try:
+        return load_capture(name)
+    except FileNotFoundError:
+        print(f"Cannot find the capture file {name!r}. Check the name, and that you are in services/anomaly-engine.")
+    except (ValueError, KeyError, json.JSONDecodeError) as exc:
+        print(f"{name!r} is not a usable capture file: {exc}")
+    return None
 
 
 def _fetch_and_save(capture, path: Path, client: M1Client) -> bool:
@@ -104,7 +123,9 @@ def cmd_drill(args: argparse.Namespace) -> int:
 
 def cmd_fetch(args: argparse.Namespace) -> int:
     path = Path(args.capture)
-    capture = load_capture(path)
+    capture = _read_capture(args.capture)
+    if capture is None:
+        return 2
     return 0 if _fetch_and_save(capture, path, M1Client(args.m1_url or capture.m1_url)) else 1
 
 
@@ -112,7 +133,9 @@ def cmd_report(args: argparse.Namespace) -> int:
     runs = []
     for name in args.captures:
         path = Path(name)
-        capture = load_capture(path)
+        capture = _read_capture(name)
+        if capture is None:
+            return 2
         if capture.points is None:
             print(f"{path} has no readings yet. Run:  python -m app.realdata fetch {path}")
             return 2
@@ -129,6 +152,50 @@ def cmd_report(args: argparse.Namespace) -> int:
         return 2
     print(build_report(runs))
     return 0
+
+
+def cmd_train(args: argparse.Namespace) -> int:
+    try:
+        reference, text = train_reference(args.captures, args.out, args.min_samples)
+    except FileNotFoundError as exc:
+        print(f"Could not train: cannot find {exc.filename!r}. Check the name, and that you are in services/anomaly-engine.")
+        return 2
+    except (TrainError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        print(f"Could not train: {exc}")
+        return 2
+    print(text)
+    return 0 if reference is not None else 2
+
+
+def cmd_evaluate(args: argparse.Namespace) -> int:
+    try:
+        reference = load_reference(args.reference)
+        results, text = run_evaluate(args.captures, reference)
+    except FileNotFoundError as exc:
+        print(f"Could not evaluate: cannot find {exc.filename!r}. Check the name, and that you are in services/anomaly-engine.")
+        return 2
+    except (OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+        print(f"Could not evaluate: {exc}")
+        return 2
+    print(text)
+    if args.csv:
+        write_day11_table(args.csv, results)
+        print(f"\nWrote the results table to {args.csv}")
+    return 0
+
+
+def cmd_live_check(args: argparse.Namespace) -> int:
+    capture = _read_capture(args.capture)
+    if capture is None:
+        return 2
+    try:
+        result = live_check(capture, args.m2_url)
+    except LiveCheckError as exc:
+        print(f"Could not check: {exc}")
+        return 2
+    print(format_live_check(result))
+    caught_all = all(f.incident_id is not None for f in result.faults)
+    return 0 if caught_all and not result.false_alarms else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -156,6 +223,23 @@ def main(argv: list[str] | None = None) -> int:
     report = sub.add_parser("report", help="how the detectors do on a capture")
     report.add_argument("captures", nargs="+")
     report.set_defaults(func=cmd_report)
+
+    train = sub.add_parser("train", help="build the frozen reference and choose the alert line from captures")
+    train.add_argument("captures", nargs="+")
+    train.add_argument("--out", default="reference/reference.json")
+    train.add_argument("--min-samples", type=int, default=20)
+    train.set_defaults(func=cmd_train)
+
+    evaluate = sub.add_parser("evaluate", help="the results table, scored with the frozen reference")
+    evaluate.add_argument("captures", nargs="+")
+    evaluate.add_argument("--reference", default="reference/reference.json")
+    evaluate.add_argument("--csv", help="also write the table as a CSV file")
+    evaluate.set_defaults(func=cmd_evaluate)
+
+    live = sub.add_parser("live-check", help="compare the running M2 service with the drill's answer key")
+    live.add_argument("capture")
+    live.add_argument("--m2-url", default="http://localhost:8002")
+    live.set_defaults(func=cmd_live_check)
 
     args = parser.parse_args(argv)
     return args.func(args)

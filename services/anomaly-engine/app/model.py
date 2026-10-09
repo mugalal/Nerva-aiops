@@ -158,11 +158,13 @@ class ZScoreDetector:
     def __init__(self, min_samples: int = MIN_TRAINING_SAMPLES) -> None:
         self.min_samples = min_samples
         self._stats: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+        self._counts: dict[str, int] = {}
 
     def fit(self, healthy: Mapping[str, Sequence[Sequence[float]]]) -> "ZScoreDetector":
         if not healthy:
             raise ValueError("no training data given")
         stats = {}
+        counts = {}
         for service, rows in healthy.items():
             matrix = np.asarray(rows, dtype=float)
             if len(matrix) < self.min_samples:
@@ -176,30 +178,67 @@ class ZScoreDetector:
                 np.maximum(self.MIN_RELATIVE_SPREAD * np.abs(mean), self.MIN_ABSOLUTE_SPREAD),
             )
             stats[service] = (mean, spread)
+            counts[service] = len(matrix)
         self._stats = stats
+        self._counts = counts
         return self
 
     @property
     def services(self) -> list[str]:
         return sorted(self._stats)
 
-    def distance_many(self, service: str, rows: Sequence[Sequence[float]]) -> np.ndarray:
-        """Distance from normal, in usual wobbles (0 or more). Rows with a
-        missing or non-finite value get 0.0, never a confident anomaly."""
+    # -- saving and loading the reference ---------------------------------
+
+    def to_dict(self) -> dict:
+        """The whole reference as plain JSON-able data: per service, the
+        average and the usual wobble of each feature, and how many readings it
+        came from. Small enough to commit."""
+        return {
+            "services": {
+                service: {
+                    "n": self._counts.get(service, 0),
+                    "mean": [float(x) for x in mean],
+                    "spread": [float(x) for x in spread],
+                }
+                for service, (mean, spread) in self._stats.items()
+            }
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ZScoreDetector":
+        detector = cls()
+        for service, entry in data["services"].items():
+            detector._stats[service] = (
+                np.asarray(entry["mean"], dtype=float),
+                np.asarray(entry["spread"], dtype=float),
+            )
+            detector._counts[service] = int(entry.get("n", 0))
+        return detector
+
+    def explain(self, service: str, vector: Sequence[float]) -> list[float]:
+        """How many usual wobbles each feature is from normal, in feature
+        order. Missing or non-finite readings give zeros."""
+        return [float(x) for x in self._per_feature(service, [vector])[0]]
+
+    def _per_feature(self, service: str, rows: Sequence[Sequence[float]]) -> np.ndarray:
         try:
             mean, spread = self._stats[service]
         except KeyError:
             raise UnknownServiceError(
                 f"no reference for service {service!r}; it needs healthy history first"
             ) from None
-
         matrix = np.asarray(rows, dtype=float).reshape(len(rows), -1)
         usable = np.isfinite(matrix).all(axis=1)
-
-        distance = np.zeros(len(matrix))
+        out = np.zeros(matrix.shape)
         if usable.any():
-            distance[usable] = (np.abs(matrix[usable] - mean) / spread).max(axis=1)
-        return distance
+            out[usable] = np.abs(matrix[usable] - mean) / spread
+        return out
+
+    def distance_many(self, service: str, rows: Sequence[Sequence[float]]) -> np.ndarray:
+        """Distance from normal, in usual wobbles (0 or more): the worst
+        feature. Rows with a missing or non-finite value get 0.0, never a
+        confident anomaly."""
+        return self._per_feature(service, rows).max(axis=1)
 
     def score_many(self, service: str, rows: Sequence[Sequence[float]]) -> np.ndarray:
         distance = self.distance_many(service, rows)

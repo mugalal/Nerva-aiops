@@ -136,6 +136,16 @@ def severity_for(score: float) -> str:
     return "low"
 
 
+def breached_rules(features: FeatureVector, config: BaselineConfig = DEFAULT_CONFIG) -> list[str]:
+    """Which rules this reading breaks: the signals behind a threshold alert."""
+    thresholds, _ = config.compiled()
+    return [
+        name
+        for name, value, threshold in zip(RULE_NAMES, values_of(features), thresholds)
+        if value > threshold
+    ]
+
+
 def alert_cutoff(config: BaselineConfig = DEFAULT_CONFIG) -> float:
     """The score at or above which a snapshot counts as an alert."""
     return config.alert_score - _EPS

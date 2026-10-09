@@ -5,8 +5,13 @@ in `/contracts/anomaly_event.json`).
 
 ```
 GET  /health
-POST /internal/anomalies/evaluate      TelemetrySnapshot -> AnomalyEvent
+POST /internal/anomalies/evaluate               TelemetrySnapshot -> AnomalyEvent
+GET  /internal/anomalies/recent                 recent alerts, newest first
+GET  /internal/correlation/incidents            incident candidates (the frozen Incident contract)
+GET  /internal/correlation/incidents/{id}       one candidate plus the evidence behind it
 ```
+(`/internal/anomalies/*` and `/internal/correlation/*` are M2's per the architecture
+document. The shared core's `/api/incidents/*` is not.)
 
 ## Run
 
@@ -28,6 +33,11 @@ python -m pytest tests -v
 |---|---|
 | `app/features.py` | Raw telemetry to M2's 8-feature vector; `to_contract()` narrows it to the 4 features the contract carries |
 | `app/baseline.py` | The threshold baseline (**not ML**) and its settings object, `BaselineConfig` |
+| `app/pipeline.py` | One reading in, one `AnomalyEvent` out; alerts are correlated and their evidence saved |
+| `app/correlation.py` | Consecutive alerts for a service become **one** incident candidate, with the signals involved |
+| `app/evidence.py` | Append-only log of every alert with all 8 features and per-feature distances |
+| `app/poller.py` | Pulls live snapshots from M1; skips stale, repeated, missing and malformed data |
+| `app/reference.py` | The frozen reference file: each service's normal plus the alert line |
 | `app/model.py` | The two detectors that learn each service's normal: Isolation Forest, and a plain z-score ruler (**not ML**) |
 | `app/main.py` | The two endpoints |
 | `app/evaluation/scenarios.py` | Generates synthetic healthy / bad-deployment / traffic-spike runs |
@@ -39,6 +49,8 @@ python -m pytest tests -v
 | `app/realdata/drill.py` | Day 3: makes real faults on M1's demo service and records exactly when each begins |
 | `app/realdata/capture.py` | Day 3: the capture file (M1's readings plus the answer key) and its conversion to `Run`s |
 | `app/realdata/report.py` | Day 3: how the detectors do on real readings |
+| `app/realdata/train.py` | Builds the reference from captures and chooses the alert line from the data |
+| `app/realdata/final.py` | `evaluate` (results table) and `live-check` (running M2 against the drill) |
 
 The shared models live in `shared/contracts/` (`from shared.contracts import ...`).
 
@@ -255,6 +267,43 @@ more than once and pass every capture to `report`: each detector is then
 trained on more normal readings, and the runbook's Day 7 asks for three
 bad-deployment runs anyway.
 
+### Results on real readings (two drills)
+
+Two 27-minute drills against M1's demo `payment-service` (`capture1`, `capture2`).
+Each detector is trained on the normal readings of every *other* run (116
+readings) and scored on the run being judged. "Caught" is the share of fault
+readings scoring above the highest normal reading of the same run, i.e. what
+an alert line with zero false alarms would catch.
+
+| run | threshold alarm | ruler | forest |
+|---|---|---|---|
+| capture1, bad deployment | 95% | **100%** | 100% |
+| capture1, traffic spike | 6% | **100%** | 100% |
+| capture2, bad deployment | 90% | **95%** | 10% |
+| capture2, traffic spike | 12% | **100%** | 25% |
+
+* **The ruler repeated.** AUC 0.992 to 1.000 on all four faults. The noisiest
+  normal reading was 6.3 wobbles from normal; the faults reached 380 to 1,660.
+* **The forest was inconsistent.** Perfect on capture1, near-failing on
+  capture2. Trained on capture1 alone (52 readings) it missed the spike
+  entirely: unseen normal readings fell outside its tiny, calm training range
+  and scored as high as the spike, because the forest cannot tell "slightly
+  outside" from "far outside". More varied training data fixed capture1 but not
+  capture2. It *can* work; it is not reliable.
+* **"Normal" differs between drills.** Before the faults, capture2's request
+  rate wobbled 2.0 (capture1: 0.27), latency 0.92 (0.19), CPU 0.035 (0.007).
+  The ruler's highest normal score doubled as a result, but stayed far below
+  the faults.
+* **The threshold alarm is steady but weak on spikes** (6% and 12%): it fires
+  once at the jump and then goes quiet.
+
+**Limits.** The drill's healthy traffic is perfectly flat, so "normal" is
+unrealistically calm: a normal swing in a real service could be tens of
+wobbles. These results show the ruler separates these faults from this normal;
+they do not show it stays quiet through a real busy day. That needs a long
+healthy interval with natural variation (runbook Day 10). One demo service,
+two runs of each fault.
+
 ### Reading the report
 
 1. **What the real readings look like.** Normal versus during the fault, for
@@ -274,6 +323,124 @@ bad-deployment runs anyway.
 M1's latency and rates use a one-minute window, so after a fault starts the
 readings take about a minute to show its full size. Expect a ramp, and a
 detection delay that includes it.
+
+## The running service (Days 5, 6, 9, 12)
+
+### What it does with a reading
+
+```
+TelemetrySnapshot -> score -> AnomalyEvent
+                                  | crosses the alert line?
+                                  v
+              joins (or opens) ONE incident candidate for that service
+              evidence saved: score, all 8 features, distance of each from normal
+```
+
+* **Which detector scores.** If a frozen reference exists for the service, the
+  per-service ruler (`model: z_score_per_service`). Otherwise the threshold
+  alarm (`model: threshold_baseline`), which needs no history, so a service
+  nobody has trained on is still watched.
+* **One fault, one incident.** Alerts for a service closer together than
+  `M2_CORRELATION_GAP_S` (default 120 s) join the same candidate. The candidate
+  lists the *signals* (metrics) that were abnormal at any point, which is the
+  runbook's "which abnormal signals belong to the same incident?". Candidates
+  are handed on as the frozen `Incident` contract, status `DETECTED`.
+* **Deployment context.** If the service's `version` changed shortly before an
+  alert, that is attached to the incident (`context.version_change`).
+* **Evidence.** One line per alert in `data/evidence.jsonl` (on by default when
+  polling is on; `M2_EVIDENCE_PATH` to move it, `none` to turn it off).
+  `data/` is git-ignored.
+
+### Bad data (runbook Day 12)
+
+Nothing below ever produces a made-up reading or a confident anomaly:
+
+| Situation | What M2 does |
+|---|---|
+| NaN or missing value in a reading | the ruler scores it 0 and it cannot alert |
+| M1 unreachable or timed out | no reading is scored; health says `degraded: ... unreachable` |
+| M1 answers with an error | M1's own error category is kept; health says so |
+| M1 returns a malformed reading | rejected (`bad_response`); health says so |
+| newest reading older than `M2_STALE_AFTER_S` | ignored (`stale`) |
+| M1 repeats the same reading | scored once |
+| a reading older than the newest already seen | scored with no "change" features; does not replace the newest |
+| last reading more than 5 min old | the new reading is scored with no "change" features, so the first reading after an outage can't look like a jump |
+| the reference file is broken or made for another feature order | the threshold alarm runs; health says `degraded: invalid reference` |
+
+`/health` is `ok` or `degraded` and also reports `detector` and `dependencies`
+(`m1`, `reference`).
+
+### Settings (environment variables)
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `M2_REFERENCE_PATH` | `reference/reference.json` if it exists | the frozen reference; `none` = threshold alarm only |
+| `M2_POLL_ENABLED` | false | pull live snapshots from M1 |
+| `M1_TELEMETRY_BASE_URL` | `http://localhost:8001` | where M1 is |
+| `M2_POLL_SERVICES` | `payment-service` | comma-separated services to watch |
+| `M2_POLL_INTERVAL_S` | 15 | seconds between polls |
+| `M2_STALE_AFTER_S` | 120 | a reading older than this is ignored |
+| `M2_CORRELATION_GAP_S` | 120 | alerts closer than this are one incident |
+| `M2_EVIDENCE_PATH` | `data/evidence.jsonl` when polling | where evidence is appended |
+| `SERVICE_NAME`, `SERVICE_VERSION`, `ENVIRONMENT` | `anomaly-engine`, `0.1.0`, `development` | the shared runtime variables |
+
+### From captures to a running detector
+
+```bash
+cd services/anomaly-engine
+
+# 1. Build the frozen reference and choose the alert line FROM THE DATA.
+#    Refuses (and writes nothing) if normal and fault readings overlap.
+python -m app.realdata train capture1.json capture2.json
+
+# 2. Run M2 against live M1 (M1's stack must be up).
+M2_POLL_ENABLED=true python -m uvicorn app.main:app --port 8002
+
+# 3. In another terminal, make real faults. M2 should open one incident per fault.
+python -m app.realdata drill --stack-dir ~/Nerva-m1 --out capture3.json
+
+# 4. When it finishes:
+python -m app.realdata live-check capture3.json     # M2's incidents vs the drill's answer key
+python -m app.realdata evaluate   capture3.json --csv results.csv
+python -m app.realdata report capture1.json capture2.json capture3.json
+```
+
+How the alert line is chosen: every reading is scored by a ruler that never saw
+its run; the line goes in the middle (on a log scale) of the gap between the
+noisiest normal reading and the quietest *settled* fault reading (the first four
+readings of a fault are skipped, because M1's one-minute windows show a fault
+only gradually). The margin between the two is saved with the reference.
+Because the line sits in the gap by construction, `train`'s own table is clean
+by design. **The independent test is `evaluate` and `live-check` on a capture
+the reference was not built from.** `evaluate` says so if you give it one that
+was.
+
+`live-check` prints, for every injected fault: when it started, when M2 opened
+an incident, the delay, the number of alerts and the signals involved; and
+counts every incident that matched no fault as a false alarm. It exits 0 only
+if every fault was caught and nothing false-alarmed.
+
+### What is not finished, honestly
+
+* **False alarms on a normal busy day are unmeasured.** The drill's healthy
+  traffic is perfectly flat. A real service's normal swings are far larger, and
+  a ruler trained on a flat history may call them anomalies. The runbook's
+  Day 10 asks for a defined healthy interval with natural variation; that needs
+  a longer, wavier healthy period than the drill produces.
+* **One demo service.** Per-service references have only been exercised on
+  `payment-service`. Other services use the threshold alarm until trained.
+* **M3 does not consume this yet.** M2 exposes incident candidates for M3 and
+  the shared core to read. Whether M3 pulls them or expects a push is for the
+  team to agree; nothing here assumes it.
+* **Cross-service grouping is not done.** Correlation is per service. Grouping
+  incidents across services (for example by a shared deployment) needs a second
+  service to try it on.
+* **Severity is a label.** `high` starts at 4 times the alert line. It has not
+  been evaluated; don't build on it.
+* **Not wired to the shared logging helpers.** M2 uses the standard `logging`
+  module; `shared/logging` and `shared/config` are not used yet.
+* **Incident candidates live in memory.** A restart forgets them (the evidence
+  file keeps the alerts). Persisting candidates is not done.
 
 ## Things to know
 
