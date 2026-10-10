@@ -1,10 +1,11 @@
 import os
 from datetime import datetime, timezone
 from threading import RLock
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Header
 from app.api.incidents import find_incident, lock_for, persist_anomaly
 from app.db import workflow_store
 from app.contracts import AnomalyEvent
+from app.api.auth import verify_ingest_auth
 
 router = APIRouter(prefix="/internal/anomalies", tags=["anomalies"])
 anomalies = {}
@@ -12,7 +13,14 @@ anomaly_owners = {}
 _anomaly_lock = RLock()
 
 @router.post("", response_model=AnomalyEvent)
-def ingest_anomaly(event: AnomalyEvent, incident_id: str = Query(min_length=1)):
+def ingest_anomaly(
+    event: AnomalyEvent,
+    incident_id: str = Query(min_length=1),
+    authorization: str | None = Header(default=None),
+    x_nexus_ingest_token: str | None = Header(default=None),
+    x_nexus_sender: str | None = Header(default=None),
+):
+    verify_ingest_auth(authorization, x_nexus_ingest_token, x_nexus_sender)
     with lock_for(incident_id):
         incident = find_incident(incident_id)
         if incident is None:

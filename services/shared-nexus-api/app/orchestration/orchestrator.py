@@ -68,7 +68,7 @@ def incident_service(incident):
 
 
 def invalidate_diagnosis(incident):
-    for key in ("_rca", "_evidence", "_expected_state"):
+    for key in ("_rca", "_evidence", "_expected_state", "_proposal", "_decision", "_proposal_created_at"):
         incident.pop(key, None)
 
 
@@ -78,7 +78,23 @@ def build_decision(incident_id: str):
         if incident is None:
             raise ValueError("Incident not found")
         if incident.get("_decision") is not None:
-            return DecisionResult.model_validate(incident["_decision"])
+            created_at_raw = incident.get("_proposal_created_at")
+            if created_at_raw:
+                try:
+                    from app.config import PROPOSAL_TTL_SECONDS
+                    created_at = datetime.fromisoformat(created_at_raw)
+                    if (datetime.now(timezone.utc) - created_at).total_seconds() > PROPOSAL_TTL_SECONDS:
+                        invalidate_diagnosis(incident)
+                        incident.pop("proposed_action", None)
+                        incident.pop("scale_option", None)
+                        if incident["status"] == IncidentStatus.AWAITING_APPROVAL.value:
+                            incident["status"] = transition(IncidentStatus.AWAITING_APPROVAL, IncidentStatus.DIAGNOSED).value
+                    else:
+                        return DecisionResult.model_validate(incident["_decision"])
+                except (ValueError, TypeError):
+                    return DecisionResult.model_validate(incident["_decision"])
+            else:
+                return DecisionResult.model_validate(incident["_decision"])
         incident.setdefault("_provenance", provenance())
         state = IncidentStatus(incident["status"])
         if state == IncidentStatus.DETECTED:
@@ -163,9 +179,10 @@ def build_decision(incident_id: str):
                                     target=service, parameters=parameters, confidence=result.confidence,
                                     risk="MEDIUM" if result.action == DecisionAction.ROLLBACK else "LOW" if result.action == DecisionAction.SCALE else "HIGH",
                                     reason=result.reason, approval_required=result.approval_required)
+        now_utc = datetime.now(timezone.utc).isoformat()
         incident.update(root_cause=rca["root_cause"], proposed_action=result.action.value,
                         scale_option=result.scale_option, _proposal=proposal.model_dump(mode="json"),
-                        _decision=result.model_dump(mode="json"))
+                        _decision=result.model_dump(mode="json"), _proposal_created_at=now_utc)
         incident["_diagnosis_pending"] = False
         incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.ACTION_PROPOSED).value
         incident["status"] = transition(IncidentStatus(incident["status"]),
@@ -198,6 +215,17 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
                 raise ValueError("Replica count does not match the approved proposal")
         if remediation_backend.REMEDIATION_BACKEND != "mock" and not incident.get("_proposal"):
             raise ValueError("Real remediation requires a stored decision proposal")
+        created_at_raw = incident.get("_proposal_created_at")
+        if created_at_raw:
+            try:
+                from app.config import PROPOSAL_TTL_SECONDS
+                created_at = datetime.fromisoformat(created_at_raw)
+                if (datetime.now(timezone.utc) - created_at).total_seconds() > PROPOSAL_TTL_SECONDS:
+                    raise IntegrationError("Proposal has expired; please re-diagnose to capture fresh state",
+                                           status_code=409, retryable=False)
+            except (ValueError, TypeError) as exc:
+                if isinstance(exc, IntegrationError):
+                    raise
         if incident_id in _pending_executions:
             pending = _finish_pending_execution(incident_id)
             if pending.get("failure"):

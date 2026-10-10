@@ -2,6 +2,10 @@
 import os
 from datetime import datetime, timedelta, timezone
 import requests
+from app.providers.resilient import Breaker, make_session, resilient_call, CircuitOpen, _orig_post
+
+_archive_breaker = Breaker(threshold=5, cooldown=30.0)
+_archive_session = make_session(retry_post=True, total_retries=2)
 
 
 def archive_payload(incident):
@@ -88,7 +92,10 @@ def deliver_archive(incident_id, now=None):
 
     try:
         url = os.getenv("M5_MEMORY_BASE_URL", "http://localhost:8005").rstrip("/") + "/internal/memory/store"
-        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        if requests.post != _orig_post:
+            response = requests.post(url, json=payload, headers=headers, timeout=5)
+        else:
+            response = resilient_call(_archive_breaker, _archive_session, "POST", url, json=payload, headers=headers, timeout=5)
         if response.status_code not in {200, 201}:
             last_error = "M5 returned HTTP " + str(response.status_code)
             if 400 <= response.status_code < 500 and response.status_code not in {408, 429}:
@@ -101,7 +108,7 @@ def deliver_archive(incident_id, now=None):
                     or record.get("resolved") is not payload["resolved"]):
                 raise ValueError("M5 acknowledgement did not match the delivered outcome and provenance")
             is_delivered = True
-    except (requests.RequestException, ValueError) as exc:
+    except (requests.RequestException, ValueError, CircuitOpen) as exc:
         last_error = type(exc).__name__
 
     # 3. Record outcome under lock

@@ -2,12 +2,13 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from copy import deepcopy
 from threading import RLock
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from app.contracts import IncidentView
 from app.state_machine.states import IncidentStatus
 from app.state_machine.machine import transition
 from app.db import workflow_store
+from app.api.auth import verify_ingest_auth
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 incidents = []
@@ -134,7 +135,13 @@ def update_incident_status(
 
 
 @router.post("/", response_model=IncidentView)
-def create_incident(incident: IncidentCreate):
+def create_incident(
+    incident: IncidentCreate,
+    authorization: str | None = Header(default=None),
+    x_nexus_ingest_token: str | None = Header(default=None),
+    x_nexus_sender: str | None = Header(default=None),
+):
+    verify_ingest_auth(authorization, x_nexus_ingest_token, x_nexus_sender)
     with lock_for(incident.incident_id):
         if find_incident(incident.incident_id) is not None:
             raise HTTPException(status_code=409, detail="Incident already exists")

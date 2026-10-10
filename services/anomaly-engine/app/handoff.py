@@ -34,6 +34,7 @@ Failures are returned as HandoffError. The caller keeps scoring regardless.
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -80,7 +81,11 @@ class SharedApiHandoff:
             data = json.dumps(payload, allow_nan=False).encode("utf-8")
         except ValueError:
             raise HandoffError("the event contains a value that cannot be sent (NaN or infinity)") from None
-        request = urllib.request.Request(url, data=data, method="POST", headers={"Content-Type": "application/json"})
+        headers = {"Content-Type": "application/json"}
+        token = os.getenv("NEXUS_INGEST_TOKEN") or os.getenv("NEXUS_SERVICE_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        request = urllib.request.Request(url, data=data, method="POST", headers=headers)
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as response:
                 return response.status, response.read()

@@ -36,9 +36,14 @@ def capture_incident_evidence(incident_id: str, service: str, scenario: str, inc
     except CircuitOpen as exc:
         raise IntegrationError("M1 evidence capture circuit is open", status_code=503, retryable=True) from exc
     except requests.RequestException as exc:
-        raise IntegrationError("M1 evidence capture is unavailable") from exc
+        raise IntegrationError("M1 evidence capture is unavailable", status_code=503, retryable=True) from exc
     if response.status_code != 200:
-        raise IntegrationError(f"M1 evidence capture failed with status {response.status_code}")
+        is_client_error = 400 <= response.status_code < 500
+        raise IntegrationError(
+            f"M1 evidence capture failed with status {response.status_code}",
+            status_code=response.status_code if is_client_error else 503,
+            retryable=not is_client_error,
+        )
     try:
         data = response.json()
         before = TelemetrySnapshot.model_validate(data["before"])

@@ -57,6 +57,15 @@ def approve_incident(
             current_proposal = incident.get("_proposal") or {}
             if x_proposal_digest != proposal_digest(current_proposal):
                 raise HTTPException(status_code=409, detail="The proposal changed since review; reload and review again")
+        created_at_raw = incident.get("_proposal_created_at")
+        if created_at_raw:
+            try:
+                from app.config import PROPOSAL_TTL_SECONDS
+                created_at = datetime.fromisoformat(created_at_raw)
+                if (datetime.now(timezone.utc) - created_at).total_seconds() > PROPOSAL_TTL_SECONDS:
+                    raise HTTPException(status_code=409, detail="Proposal has expired; please re-diagnose to capture fresh state")
+            except (ValueError, TypeError):
+                pass
         proposed_action = incident.get("proposed_action")
         if proposed_action is None:
             raise HTTPException(status_code=400, detail="No proposed action found for this incident")
