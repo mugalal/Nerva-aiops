@@ -156,17 +156,20 @@ class MemoryTests(unittest.TestCase):
             seen.append(request)
             if request.method == "POST":
                 return httpx.Response(200, json={"status": "approved"})
-            if request.url.path == "/api/incidents":
-                return httpx.Response(200, json={"status": "ok", "incidents": [self.records[0]["context"]["incident"]]})
-            return httpx.Response(200, json={**self.records[0]["context"], "memory": self.records[0]["memory"]})
+            if request.url.path == "/api/incidents/":
+                return httpx.Response(200, json=[self.records[0]["context"]["incident"]])
+            return httpx.Response(200, json={**self.records[0]["context"], "memory": self.records[0]["memory"], "source": "real"})
         with httpx.Client(transport=httpx.MockTransport(handler)) as shared:
             provider = Provider("live", shared)
-            with patch.dict(os.environ, {"M5_APPROVAL_PATH": "/api/incidents/{incident_id}/approval"}):
+            with patch.dict(os.environ, {"M5_SHARED_API_TOKEN": "test-only-token", "M5_OPERATOR_ID": "test-operator"}):
                 with TestClient(create_app(self.repo, provider)) as client:
                     self.assertEqual(client.get("/internal/ui/overview").json()["source"], "real")
                     self.assertEqual(client.get("/internal/ui/incidents/INC-001").json()["source"], "real")
                     self.assertEqual(client.post("/internal/ui/incidents/INC-001/approval", json={"decision": "reject"}).json()["status"], "approved")
-                    self.assertEqual(json.loads(seen[-1].content), {"decision": "reject"})
+                    self.assertEqual(seen[-1].url.path, "/api/incidents/INC-001/reject")
+                    self.assertEqual(json.loads(seen[-1].content), {})
+                    self.assertEqual(seen[-1].headers["Authorization"], "Bearer test-only-token")
+                    self.assertEqual(seen[-1].headers["X-Nexus-Approver"], "test-operator")
                     self.assertEqual(client.post("/internal/ui/incidents/INC-001/approval", json={"decision": "approve"}, headers={"Origin":"https://evil.example"}).status_code, 403)
 
     def test_live_failure_never_falls_back_to_mock(self):

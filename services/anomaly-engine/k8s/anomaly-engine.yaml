@@ -37,13 +37,28 @@ spec:
               value: http://shared-nexus-api:8004
             - name: M1_TELEMETRY_BASE_URL
               value: http://telemetry-intelligence:8001
+            - name: M2_EVIDENCE_PATH
+              value: /data/evidence.jsonl
+          volumeMounts:
+            - name: evidence
+              mountPath: /data
           resources:
             requests:
               cpu: 50m
-              memory: 64Mi
+              memory: 128Mi
             limits:
               cpu: 250m
-              memory: 256Mi
+              memory: 512Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /health
@@ -58,6 +73,12 @@ spec:
             initialDelaySeconds: 10
             periodSeconds: 20
             timeoutSeconds: 15
+      securityContext:
+        fsGroup: 10001
+      volumes:
+        - name: evidence
+          persistentVolumeClaim:
+            claimName: anomaly-engine-evidence
 ---
 apiVersion: v1
 kind: Service
@@ -71,3 +92,14 @@ spec:
     - name: http
       port: 8002
       targetPort: http
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: anomaly-engine-evidence
+  namespace: nexus-demo
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi

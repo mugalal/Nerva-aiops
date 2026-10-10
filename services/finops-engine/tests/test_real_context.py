@@ -27,13 +27,15 @@ def isolated_configuration(monkeypatch):
 def preview(cpu=0.08, service="payment-service"):
     return {
         "provider_mode": "real", "service": service,
+        "collected_at": datetime.now(timezone.utc).isoformat(),
         "telemetry": {
             "service": service, "version": "v1",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "metrics": {"cpu": cpu, "memory": 0.1, "request_rate": 20,
                         "latency_p95_ms": 10, "http_5xx_rate": 0, "replica_count": 3},
         },
-        "kubernetes": {"service": service, "service_health": "ok", "version": "v1"},
+        "kubernetes": {"service": service, "service_health": "ok", "version": "v1",
+                       "desired_replicas": 3, "ready_replicas": 3},
         "resource_config": {"cpu_request_m": 100, "cpu_limit_m": 1000,
                             "memory_request_mb": 128, "memory_limit_mb": 512, "memory_unit": "MiB"},
     }
@@ -118,6 +120,7 @@ def test_real_saturation_adds_sufficient_capacity_with_truthful_risk():
     data = preview(cpu=0.95)
     data["resource_config"]["cpu_limit_m"] = 500
     data["telemetry"]["metrics"]["replica_count"] = 1
+    data["kubernetes"].update(desired_replicas=1, ready_replicas=1)
     result = context(data)  # 475% of the request needs substantial extra capacity.
     options = {option.replicas: option for option in result.temporary_scale_options}
     assert result.observed_cpu_pct == 100
@@ -132,6 +135,7 @@ def test_computed_targets_are_deduplicated_and_preserve_normal_options():
     assert [option.replicas for option in normal.temporary_scale_options] == [4, 6]
     data = preview(cpu=0.11)
     data["telemetry"]["metrics"]["replica_count"] = 1
+    data["kubernetes"].update(desired_replicas=1, ready_replicas=1)
     result = context(data)
     assert [option.replicas for option in result.temporary_scale_options] == [2, 3]
     assert result.temporary_scale_options[-1].risk == "LOW"
@@ -180,6 +184,31 @@ def test_known_kubernetes_without_resources_is_unavailable(monkeypatch):
     data = preview()
     data["resource_config"] = None
     with pytest.raises(ContextUnavailable, match="verified Kubernetes"):
+        context(data)
+
+
+@pytest.mark.parametrize("age", [90, -90])
+def test_fresh_telemetry_does_not_authorize_stale_resource_collection(age):
+    data = preview()
+    data["collected_at"] = (datetime.now(timezone.utc) - timedelta(seconds=age)).isoformat()
+    with pytest.raises(ContextUnavailable, match="resource collection"):
+        context(data)
+
+
+@pytest.mark.parametrize("field,value", [("desired_replicas", 4), ("ready_replicas", 2),
+                                         ("ready_replicas", True), ("desired_replicas", 3.0)])
+def test_scale_context_requires_matching_actual_replica_state(field, value):
+    data = preview()
+    data["kubernetes"][field] = value
+    with pytest.raises(ContextUnavailable, match="replica state"):
+        context(data)
+
+
+def test_orphan_resource_configuration_cannot_be_used_as_verified_kubernetes_data(monkeypatch):
+    explicit_environment(monkeypatch)
+    data = preview()
+    data["kubernetes"] = None
+    with pytest.raises(ContextUnavailable, match="matching Kubernetes"):
         context(data)
 
 

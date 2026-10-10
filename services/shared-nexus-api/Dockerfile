@@ -9,7 +9,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY services/shared-nexus-api/install_kubectl.py /tmp/install_kubectl.py
 RUN python /tmp/install_kubectl.py
 COPY services/shared-nexus-api/app ./app
-COPY services/shared-nexus-api/shared_nexus_providers ./shared_nexus_providers
+COPY shared /app/shared
+ENV PYTHONPATH=/app
 COPY mocks /app/mocks
 
 RUN useradd --uid 10001 --create-home nexus && mkdir -p /data && chown -R nexus:nexus /data /app

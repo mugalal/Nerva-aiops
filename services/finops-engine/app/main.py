@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 
 # Make the repo root importable so we can use shared/ (same trick as M1).
 ROOT = Path(__file__).resolve().parents[3]
@@ -50,6 +50,13 @@ def create_app() -> FastAPI:
             version=settings.service_version,
             environment=settings.environment,
         )
+
+    @api.get("/ready", response_model=HealthResponse)
+    def ready(response: Response) -> HealthResponse:
+        result = health()
+        if result.status != "ok":
+            response.status_code = 503
+        return result
     
     @api.post("/internal/finops/recommend", response_model=RecommendResponse)
     def recommend_endpoint(request: RecommendRequest) -> RecommendResponse:

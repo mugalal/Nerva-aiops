@@ -121,3 +121,27 @@ CREATE TABLE IF NOT EXISTS experiment_runs (
     cost_slo_effect JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Idempotent projections of the authoritative incidents.payload workflow.
+ALTER TABLE rca_results ADD COLUMN IF NOT EXISTS event_key TEXT;
+ALTER TABLE decision_proposals ADD COLUMN IF NOT EXISTS event_key TEXT;
+ALTER TABLE approvals ADD COLUMN IF NOT EXISTS event_key TEXT;
+ALTER TABLE recovery_results ADD COLUMN IF NOT EXISTS event_key TEXT;
+ALTER TABLE timeline_events ADD COLUMN IF NOT EXISTS event_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rca_event_key ON rca_results(event_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_proposal_event_key ON decision_proposals(event_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_event_key ON approvals(event_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_recovery_event_key ON recovery_results(event_key);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_timeline_event_key ON timeline_events(event_key);
+
+CREATE TABLE IF NOT EXISTS memory_outbox (
+    job_id TEXT PRIMARY KEY,
+    incident_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL,
+    delivered_at TIMESTAMPTZ,
+    last_error TEXT,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

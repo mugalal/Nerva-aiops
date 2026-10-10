@@ -17,7 +17,7 @@ SHORT_WINDOW_MINUTES = 360
 RULE_ASSUMPTIONS = [
     "Utilization inputs are percent of the REQUEST (not the limit).",
     f"Sizing uses the PEAK, aiming for peak <= {TARGET_PEAK_PCT}% of the new request.",
-    f"Safety floors: CPU >= {MIN_CPU_M}m, memory >= {MIN_MEMORY_MB} MB; replicas are never changed; resources never increase.",
+    f"Safety floors: CPU >= {MIN_CPU_M}m, memory >= {MIN_MEMORY_MB} MiB; replicas are never changed; resources never increase.",
     f"Insufficient evidence if window < {MIN_WINDOW_MINUTES} min or fewer than {MIN_SAMPLES} samples.",
     f"No recommendation if any peak >= {EXTREME_PEAK_PCT}% or the saving is below {MIN_SAVING_PCT}%.",
     f"Risk is raised when the window is shorter than {SHORT_WINDOW_MINUTES} min.",

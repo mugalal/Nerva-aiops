@@ -25,7 +25,8 @@ export function fields(data, labels = {}) {
 }
 export async function api(path, payload, timeout=10000) {
   const response = await fetch(path, {method: payload ? 'POST' : 'GET', headers: payload ? {'Content-Type':'application/json'} : {}, body: payload ? JSON.stringify(payload) : undefined, signal: AbortSignal.timeout(timeout)});
-  const data = await response.json();
+  let data;
+  try {data = await response.json();} catch {throw new Error(`API returned an invalid response (${response.status})`);}
   if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
   return data;
 }

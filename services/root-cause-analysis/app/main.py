@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -5,6 +6,8 @@ from fastapi import FastAPI, HTTPException
 from .models import AnalyzeRequest, RCAResult
 from .service import RCAService
 from .providers.base import ProviderError
+
+logger = logging.getLogger("m3.rca")
 
 
 # ---------------------------------------------------------
@@ -72,4 +75,5 @@ async def analyze_root_cause(
         ) from exc
 
     except Exception as exc:
+        logger.exception("RCA analysis failed for incident %s: %s", request.incident_id, exc)
         raise HTTPException(status_code=500, detail="RCA analysis failed") from exc

@@ -1,5 +1,6 @@
 """Fetch utilization from M1 and convert units. No fabricated data, ever."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+import math
 import re
 from statistics import mean
 
@@ -72,19 +73,77 @@ def _get_object(base_url: str, path: str, *, params: dict, timeout: float) -> di
 
 def fetch_window(base_url, service, start, end, step_seconds=15, timeout=5.0) -> dict:
     validate_service(service)
-    return _get_object(base_url, "/internal/telemetry/window", params={
+    payload = _get_object(base_url, "/internal/telemetry/window", params={
         "service": service, "start": start.isoformat(), "end": end.isoformat(),
         "step_seconds": step_seconds,
     }, timeout=timeout)
+    validate_window(payload, expected_service=service, expected_start=start,
+                    expected_end=end, expected_step=step_seconds)
+    return payload
 
 
-def summarize_window(window: dict) -> dict:
-    """Average and peak of M1's cpu/memory fractions over the window's points."""
-    points = window.get("points") or []
-    if not points:
+def validate_window(window: dict, *, expected_service: str | None = None,
+                    expected_start: datetime | None = None, expected_end: datetime | None = None,
+                    expected_step: int | None = None) -> list[datetime]:
+    """Require M1's complete single-release query grid, not a claimed duration.
+
+    M1 returns an inclusive Prometheus range evaluated every step. Comparing
+    every timestamp with that grid catches missing readings, replayed readings,
+    and histories belonging to another request. M1 rounds evaluations to 1 ms.
+    """
+    if not isinstance(window, dict):
+        raise ValueError("M1 window must be a JSON object")
+    service = validate_service(window.get("service"))
+    if expected_service is not None and service != expected_service:
+        raise ValueError("M1 window service does not match the requested service")
+    version = window.get("version")
+    if not isinstance(version, str) or not version.strip():
+        raise ValueError("M1 window must identify one release version")
+    start, end = parse_timestamp(window.get("start")), parse_timestamp(window.get("end"))
+    if end <= start:
+        raise ValueError("M1 window end must be after its start")
+    if end > datetime.now(timezone.utc) + timedelta(seconds=5):
+        raise ValueError("M1 window cannot contain future measurements")
+    if ((expected_start is not None and start != parse_timestamp(expected_start))
+            or (expected_end is not None and end != parse_timestamp(expected_end))):
+        raise ValueError("M1 window boundaries do not match the requested window")
+    step = window.get("step_seconds")
+    if not isinstance(step, int) or isinstance(step, bool) or not 5 <= step <= 300:
+        raise ValueError("M1 window step_seconds must be an integer between 5 and 300")
+    if expected_step is not None and step != expected_step:
+        raise ValueError("M1 window step does not match the requested step")
+    points = window.get("points")
+    if not isinstance(points, list) or not points:
         raise ValueError("M1 returned no data points for this window")
-    if not isinstance(points, list):
-        raise ValueError("M1 window points must be an array")
+    expected_count = math.floor((end - start).total_seconds() / step) + 1
+    if len(points) != expected_count or len(points) < 2:
+        raise ValueError("M1 window has incomplete sample coverage")
+    if "sample_count" in window:
+        count = window["sample_count"]
+        if not isinstance(count, int) or isinstance(count, bool) or count != len(points):
+            raise ValueError("M1 window sample_count must equal its positive number of readings")
+    timestamps = []
+    for index, point in enumerate(points):
+        if not isinstance(point, dict):
+            raise ValueError("M1 window has a malformed reading")
+        if point.get("service", service) != service or point.get("version", version) != version:
+            raise ValueError("M1 window contains mixed service or release identities")
+        timestamp = parse_timestamp(point.get("timestamp"))
+        if timestamps and timestamp <= timestamps[-1]:
+            raise ValueError("M1 window timestamps must be unique and strictly increasing")
+        offset = (timestamp - start).total_seconds()
+        if offset < -0.001 or timestamp > end + timedelta(milliseconds=1):
+            raise ValueError("M1 window contains a reading outside its requested range")
+        if abs(offset - index * step) > 0.001:
+            raise ValueError("M1 window has sparse or misaligned sample coverage")
+        timestamps.append(timestamp)
+    return timestamps
+
+
+def summarize_window(window: dict, **expected) -> dict:
+    """Average/peak only from a validated grid; expose actual measured coverage."""
+    timestamps = validate_window(window, **expected)
+    points = window["points"]
     try:
         cpu = [finite_number(p["metrics"]["cpu"], "M1 window cpu") for p in points]
         memory = [finite_number(p["metrics"]["memory"], "M1 window memory") for p in points]
@@ -96,6 +155,9 @@ def summarize_window(window: dict) -> dict:
         "avg_memory_frac": mean(memory),
         "peak_memory_frac": max(memory),
         "sample_count": len(points),
+        "observed_start": timestamps[0],
+        "observed_end": timestamps[-1],
+        "version": window["version"],
     }
 
 

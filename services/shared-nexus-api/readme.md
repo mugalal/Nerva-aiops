@@ -2,8 +2,8 @@
 
 M4 listens on port 8004. RCA, FinOps, incident evidence and recovery providers
 default to `real`. Set their URL variables to reachable M1/M3/M6 services.
-`/health` reports configured provider and actuator modes; dependencies are
-checked by the operations that use them.
+`/health` reports provider/actuator modes and probes workflow storage. `/ready`
+returns 503 when real operation lacks durable storage or a required mode.
 
 Create an incident using `POST /api/incidents/` with `incident_id`, `severity`
 and a nonempty `affected_services` list. `started_at` defaults to current UTC;
@@ -17,6 +17,17 @@ Call `POST /internal/decisions/build/{incident_id}`, inspect the canonical
 ActionResult. Repeat approval returns the recorded result without executing
 twice. The compatibility route `/internal/remediation/execute` uses the same
 orchestrator. All real actions need the stored proposal and incident target.
+Approve, reject, direct execution, experiment registration and archive retries
+share the same operator authentication: configure `NEXUS_APPROVAL_TOKEN` (or
+explicitly `M5_SHARED_API_TOKEN`) and send `Authorization: Bearer <token>` or
+`X-Nexus-Approver-Token`. `X-Nexus-Approver` records the operator identity.
+There is no default secret; real remediation refuses startup without one.
+Rejection applies only to an awaiting approval proposal.
+
+`GET /api/incidents/{incident_id}/context` returns the original incident,
+linked anomalies, RCA, decision, action, recovery, FinOps and deployment
+evidence plus audit and workflow facts. Its `source` is `real`, `mock` or
+`mixed`, based on the providers and actuator used, not the connection URL.
 
 Recovery polls use `POST /internal/recovery/validate/{incident_id}`. M1 pending
 measurements produce HTTP 202 plus `Retry-After: 15`, preserving VALIDATING.
@@ -67,10 +78,49 @@ can enforce these captured deployment preconditions.
 Compose can use real data providers with `REMEDIATION_BACKEND=mock`: this verifies
 HTTP integration and records an explicit mock actuator result. Real Kubernetes
 actions use `REMEDIATION_BACKEND=kubernetes` with a configured cluster runtime.
-The incident/anomaly/audit store is currently process memory; restarting M4
-loses its workflow state. The single-replica manifest does not provide durable
-multi-replica orchestration.
+Set `DATABASE_URL` for PostgreSQL workflow storage. Startup initializes the
+schema and restores incidents, linked anomalies, proposals/preconditions,
+actions, recovery deadlines/measurements and audits. Normalized lifecycle
+tables are updated with the authoritative incident JSON in the same transaction.
+Storage failures return an explicit 503; real execution cannot start with a
+memory or SQLite backend. SQLite is an explicitly selected controlled-test
+backend (`M4_STATE_BACKEND=sqlite`, `M4_SQLITE_PATH=<path>`).
+
+An action intent is persisted before Kubernetes is invoked. If M4 restarts
+without a recorded result, the incident escalates with an unknown execution
+outcome and refuses replay until an operator reconciles it. Completed actions
+and validation deadlines survive restart. One M4 writer holds a PostgreSQL
+advisory lease; run one worker/replica until distributed orchestration is added.
+Loss of that database session fails subsequent storage operations closed.
+
+Ingested anomalies queue durable diagnosis work (`M4_AUTO_BUILD_DECISIONS=true`
+by default). `M4_AUTO_VALIDATE_RECOVERY=true` enables post-approval recovery
+polling; otherwise the caller polls explicitly. The lifecycle worker checks
+pending work once per second; recovery checks occur at least 15 seconds apart.
+
+Terminal outcomes queue an immutable M5 memory outbox. Retryable network/HTTP
+errors retain the same payload with exponential backoff capped at 300 seconds.
+Delivery requires M5 to acknowledge the exact outcome and provenance. Permanent
+4xx responses remain visible as `BLOCKED`; an authenticated
+`POST /api/incidents/{incident_id}/archive/retry` retries the retained payload.
+Real resolved records require successful action evidence and measured M1 SLO
+recovery. Escalated outcomes carry `resolved=false`; ambiguous executions and
+missing evidence remain blocked rather than receiving invented facts. Mixed
+executions are isolated in the mock memory namespace with a provenance tag.
+
+Register evaluation runs using authenticated
+`POST /api/incidents/{incident_id}/experiment` with `run_id`, `scenario` and,
+when known, observed `injection_time` plus `injection_evidence`. Unknown
+injection time stays null, so MTTD stays null. Detection time is M4's recorded
+incident receipt, action time is execution start, and recovery time is the UTC
+instant M4 confirms measured recovery. Failed/escalated runs have no successful
+recovery timestamp. Export stored runs with `python -m app.db.export_experiments`.
 
 Offline unit tests explicitly select all provider mocks in `tests/conftest.py`;
 the real-provider regression cases use labelled HTTP doubles, without contacting
 dependencies or executing Kubernetes/Jenkins commands.
+`tests/test_workflow_postgres.py` is an optional real PostgreSQL gate selected
+with `M4_TEST_DATABASE_URL` pointing to a disposable verification database. It
+uses an isolated schema and a separate Python process to prove restart retention,
+normalized lifecycle records, experiment timing and ambiguous-action safety;
+the actuator in this database check is explicitly mock.

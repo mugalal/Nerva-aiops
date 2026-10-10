@@ -5,10 +5,15 @@ import requests
 from pydantic import ValidationError
 from app.contracts import FinOpsContext
 from app.providers.errors import IntegrationError
+from app.providers.resilient import Breaker, make_session, resilient_call, CircuitOpen
 
 MOCK_FILE = Path(__file__).resolve().parents[4] / "mocks" / "mock_finops_context.json"
 FINOPS_PROVIDER = os.getenv("FINOPS_PROVIDER", "real").lower()
 M6_FINOPS_URL = os.getenv("M6_FINOPS_URL", os.getenv("M6_FINOPS_BASE_URL", "http://localhost:8006").rstrip("/") + "/internal/finops/context")
+
+_breaker = Breaker(threshold=5, cooldown=30.0)
+_session = make_session(retry_post=False)
+
 
 def get_finops_context(service: str = "payment-service"):
     if FINOPS_PROVIDER == "mock":
@@ -16,11 +21,18 @@ def get_finops_context(service: str = "payment-service"):
         data["service"] = service
     elif FINOPS_PROVIDER == "real":
         try:
-            response = requests.get(M6_FINOPS_URL, params={"service": service}, timeout=10)
+            response = resilient_call(_breaker, _session, "GET", M6_FINOPS_URL, params={"service": service}, timeout=10)
+        except CircuitOpen as exc:
+            raise IntegrationError("M6 FinOps circuit is open", status_code=503, retryable=True) from exc
         except requests.RequestException as exc:
-            raise IntegrationError("M6 FinOps is unavailable") from exc
+            raise IntegrationError("M6 FinOps is unavailable", status_code=503, retryable=True) from exc
         if response.status_code != 200:
-            raise IntegrationError(f"M6 FinOps request failed with status {response.status_code}")
+            is_client_error = 400 <= response.status_code < 500
+            raise IntegrationError(
+                f"M6 FinOps request failed with status {response.status_code}",
+                status_code=response.status_code if is_client_error else 503,
+                retryable=not is_client_error,
+            )
         try:
             data = response.json()
         except ValueError as exc:

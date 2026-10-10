@@ -4,6 +4,12 @@ param(
     [string]$M4Url = 'http://127.0.0.1:18004',
     [string]$OutputDirectory = '.review-branches/integration-results',
     [switch]$Approve,
+    [string]$ApprovalToken = $env:NEXUS_APPROVAL_TOKEN,
+    [string]$Approver = 'mugalal',
+    [string]$RunId,
+    [ValidateSet('bad_deployment', 'traffic_spike')][string]$Scenario,
+    [Nullable[DateTimeOffset]]$InjectionTime,
+    [string]$InjectionEvidence,
     [ValidateRange(15, 3600)][int]$RecoveryTimeoutSeconds = 600
 )
 
@@ -13,6 +19,15 @@ $incidentRoute = [Uri]::EscapeDataString($IncidentId)
 $anomaly = Get-Content -LiteralPath $AnomalyPath -Raw | ConvertFrom-Json
 if (-not $anomaly.anomaly_id -or -not $anomaly.service -or -not $anomaly.timestamp) {
     throw 'AnomalyPath must contain an actual AnomalyEvent with ID, service and timestamp.'
+}
+if ($Approve -and [string]::IsNullOrWhiteSpace($ApprovalToken)) {
+    throw 'Set NEXUS_APPROVAL_TOKEN before requesting approval.'
+}
+if ($RunId -and (-not $Scenario -or [string]::IsNullOrWhiteSpace($ApprovalToken))) {
+    throw 'Experiment registration requires Scenario and a configured operator token.'
+}
+if ($null -ne $InjectionTime -and (-not $RunId -or -not $InjectionEvidence)) {
+    throw 'An observed injection time requires RunId and InjectionEvidence.'
 }
 if ($anomaly.timestamp -is [DateTime] -or $anomaly.timestamp -is [DateTimeOffset]) {
     $eventTime = [DateTimeOffset]$anomaly.timestamp
@@ -31,6 +46,9 @@ function Save-Result([string]$Name, $Value) {
 
 function Send-Json([string]$Path, $Body) {
     $parameters = @{ Method = 'Post'; Uri = "$M4Url$Path"; ContentType = 'application/json'; TimeoutSec = 180 }
+    if ($ApprovalToken) {
+        $parameters.Headers = @{ Authorization = "Bearer $ApprovalToken"; 'X-Nexus-Approver' = $Approver }
+    }
     if ($null -ne $Body) { $parameters.Body = $Body | ConvertTo-Json -Depth 30 }
     Invoke-RestMethod @parameters
 }
@@ -45,6 +63,14 @@ $incident = Send-Json '/api/incidents/' @{
 Save-Result 'incident.json' $incident
 $null = Send-Json "/internal/anomalies?incident_id=$incidentRoute" $anomaly
 Save-Result 'anomaly.json' $anomaly
+if ($RunId) {
+    $registration = @{ run_id = $RunId; scenario = $Scenario }
+    if ($null -ne $InjectionTime) {
+        $registration.injection_time = ([DateTimeOffset]$InjectionTime).ToUniversalTime().ToString('o')
+        $registration.injection_evidence = $InjectionEvidence
+    }
+    Save-Result 'experiment.json' (Send-Json "/api/incidents/$incidentRoute/experiment" $registration)
+}
 $decision = Send-Json "/internal/decisions/build/$incidentRoute" $null
 Save-Result 'decision.json' $decision
 $proposal = Invoke-RestMethod "$M4Url/api/incidents/$incidentRoute/proposal"

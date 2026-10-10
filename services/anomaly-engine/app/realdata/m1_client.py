@@ -109,11 +109,7 @@ class M1Client:
         end: datetime,
         step_seconds: int = 15,
     ) -> list[TelemetrySnapshot]:
-        """History for one service, one snapshot per step, oldest first.
-
-        M1 gives one `version` for the whole window, so every snapshot here
-        carries that same version. The detectors never use it.
-        """
+        """Verify the upstream identity and sampling grid before using history."""
         body = self._get(
             "/internal/telemetry/window",
             {
@@ -129,13 +125,38 @@ class M1Client:
                 f"M1 returned no readings for {service} between {_utc_text(start)} and {_utc_text(end)}",
                 category="no_data",
             )
+        def parse_time(value):
+            try:
+                result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except (AttributeError, ValueError, TypeError):
+                raise M1Error("M1 returned an invalid history timestamp", category="bad_response") from None
+            if result.tzinfo is None or result.utcoffset() is None:
+                raise M1Error("M1 returned a timezone-naive history timestamp", category="bad_response")
+            return result
+
+        expected_start, expected_end = parse_time(_utc_text(start)), parse_time(_utc_text(end))
+        version = body.get("version")
+        if (body.get("service") != service or not isinstance(version, str) or not version.strip()
+                or version == "unknown" or body.get("step_seconds") != step_seconds
+                or parse_time(body.get("start")) != expected_start
+                or parse_time(body.get("end")) != expected_end or not isinstance(points, list)):
+            raise M1Error("M1 history identity, boundaries or sampling step do not match the request",
+                          category="bad_response")
+        times = [parse_time(point.get("timestamp")) for point in points]
+        if (any(a >= b for a, b in zip(times, times[1:]))
+                or any(not expected_start <= stamp <= expected_end for stamp in times)
+                or any(abs((stamp - expected_start).total_seconds() / step_seconds
+                           - round((stamp - expected_start).total_seconds() / step_seconds)) > 1e-6
+                       for stamp in times)):
+            raise M1Error("M1 history has duplicate, unordered, out-of-range or misaligned readings",
+                          category="bad_response")
         snapshots = [
             TelemetrySnapshot(
                 timestamp=point["timestamp"],
-                service=body.get("service", service),
-                version=body.get("version", "unknown"),
+                service=service,
+                version=version,
                 metrics=Metrics.model_validate(point["metrics"]),   # strict: extras rejected
             )
             for point in points
         ]
-        return sorted(snapshots, key=lambda s: s.timestamp)
+        return snapshots

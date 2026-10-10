@@ -31,6 +31,11 @@ spec:
               value: development
             - name: M1_TELEMETRY_BASE_URL
               value: http://telemetry-intelligence:8001
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: DATABASE_URL
           resources:
             requests:
               cpu: 50m
@@ -40,7 +45,7 @@ spec:
               memory: 192Mi
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: http
             periodSeconds: 10
             timeoutSeconds: 3

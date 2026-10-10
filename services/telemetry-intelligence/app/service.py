@@ -70,6 +70,10 @@ class M1Service:
 
     async def health(self) -> HealthResponse:
         dependencies: dict[str, DependencyHealth] = {}
+        storage_ok, storage_detail = self.store.ready()
+        dependencies["evidence_storage"] = DependencyHealth(
+            status="ok" if storage_ok else "unavailable", detail=storage_detail,
+        )
         (telemetry_ok, telemetry_detail), (loki_ok, loki_detail), (kubernetes_ok, kubernetes_detail), (payment_ok, payment_detail) = await asyncio.gather(
             self.telemetry.ready(), self.loki.ready(), self.kubernetes.ready(),
             self.service_health.check("payment-service"),
@@ -103,7 +107,7 @@ class M1Service:
 
         if self.settings.provider_mode == "mock":
             overall = "degraded"
-        elif not telemetry_ok or not payment_ok:
+        elif not telemetry_ok or not payment_ok or not storage_ok:
             overall = "unavailable"
         elif not loki_ok or not kubernetes_ok or not data_ok:
             overall = "degraded"

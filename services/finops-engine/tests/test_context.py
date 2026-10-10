@@ -11,13 +11,15 @@ from app.models import FinOpsContext
 def snapshot(cpu=0.144, replicas=3):
     return {
         "service": "payment-service", "provider_mode": "real",
+        "collected_at": datetime.now(timezone.utc).isoformat(),
         "telemetry": {
             "service": "payment-service", "version": "v1",
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "metrics": {"cpu": cpu, "memory": 0.2, "replica_count": replicas,
                         "request_rate": 20, "latency_p95_ms": 10, "http_5xx_rate": 0},
         },
-        "kubernetes": {"service": "payment-service", "version": "v1", "service_health": "ok"},
+        "kubernetes": {"service": "payment-service", "version": "v1", "service_health": "ok",
+                       "desired_replicas": replicas, "ready_replicas": replicas},
         "resource_config": {"cpu_request_m": 100, "cpu_limit_m": 500,
                             "memory_request_mb": 128, "memory_limit_mb": 512, "memory_unit": "MiB"},
     }

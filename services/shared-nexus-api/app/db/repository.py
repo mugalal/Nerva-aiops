@@ -30,6 +30,7 @@ TABLES = {
     "experiment_runs": ["run_id", "scenario", "incident_id", "injection_time",
                         "detection_time", "rca_correct", "action_time",
                         "recovery_time", "cost_slo_effect"],
+    "memory_outbox": ["job_id", "incident_id", "status", "attempts", "next_attempt_at", "delivered_at", "last_error", "payload"],
 }
 
 

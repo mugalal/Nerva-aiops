@@ -21,11 +21,13 @@ services:
     environment:
       DATABASE_URL: postgresql://nexus:${M5_DB_PASSWORD}@postgres:5432/nexus
       M5_UI_MODE: ${M5_UI_MODE:-live}
-      SHARED_NEXUS_API_BASE_URL: ${SHARED_NEXUS_API_BASE_URL:-http://host.docker.internal:8000}
-      M5_INCIDENTS_PATH: ${M5_INCIDENTS_PATH:-/api/incidents}
+      SHARED_NEXUS_API_BASE_URL: ${SHARED_NEXUS_API_BASE_URL:-http://host.docker.internal:8004}
+      M5_INCIDENTS_PATH: ${M5_INCIDENTS_PATH:-/api/incidents/}
       M5_INCIDENT_DETAIL_PATH: ${M5_INCIDENT_DETAIL_PATH:-}
-      M5_APPROVAL_PATH: ${M5_APPROVAL_PATH:-}
+      M5_APPROVE_PATH: ${M5_APPROVE_PATH:-}
+      M5_REJECT_PATH: ${M5_REJECT_PATH:-}
       M5_SHARED_API_TOKEN: ${M5_SHARED_API_TOKEN:-}
+      M5_OPERATOR_ID: ${M5_OPERATOR_ID:-}
       M5_SERVICE_HEALTH_PATH: ${M5_SERVICE_HEALTH_PATH:-}
       M5_ACTION_REQUEST_PATH: ${M5_ACTION_REQUEST_PATH:-}
       M5_SERVICES_PATH: ${M5_SERVICES_PATH:-}
@@ -42,5 +44,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8005/ready', timeout=5)"]
+      interval: 10s
+      timeout: 8s
+      retries: 10
 volumes:
   memory-postgres:

@@ -29,7 +29,7 @@ def scale_payload():
 
 
 def test_cost_per_hour_by_hand():
-    # 3 x (0.1 core x 1.0 + 0.125 GB x 0.25) = 0.39375
+    # 3 x (0.1 core x 1.0 + 0.125 GiB x 0.25) = 0.39375
     assert cost_model.cost_per_hour(3, 100, 128) == pytest.approx(0.39375)
 
 

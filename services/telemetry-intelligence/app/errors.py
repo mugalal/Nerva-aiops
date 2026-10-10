@@ -62,3 +62,9 @@ class BaselineNotFound(M1Error):
             status_code=409,
             retryable=False,
         )
+
+
+class StorageUnavailable(M1Error):
+    def __init__(self):
+        super().__init__("storage_unavailable", "M1 persistent evidence storage is not readable or writable",
+                         status_code=503, retryable=True)

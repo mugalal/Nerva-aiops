@@ -36,7 +36,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Callable
 
 from .capture import Capture, RunSpec
-from .m1_client import DEFAULT_M1_URL, M1Client
+from .m1_client import DEFAULT_M1_URL, M1Client, M1Error
 
 SERVICE = "payment-service"
 PAYMENT_URL = "http://localhost:8000"
@@ -382,9 +382,52 @@ class Drill:
 
 
 def fetch_points(capture: Capture, client: M1Client) -> Capture:
-    """Ask M1 for the history covering every run, and attach it."""
+    """Read verified history without combining different release versions.
+
+    M1 intentionally rejects a window crossing a rollout, including its metric
+    lookback. Split that window on the same sampling grid. Ambiguous individual
+    readings remain absent and are recorded; unavailable providers still fail
+    the capture. Never extend the request beyond the measured drill.
+    """
     start, end = capture.span()
-    capture.points = client.window(
-        capture.service, start, end + timedelta(seconds=capture.step_seconds), capture.step_seconds
-    )
+    if capture.step_seconds < 5 or start >= end or end > capture.recorded_at:
+        raise ValueError("capture needs a completed positive window and a valid sampling step")
+    # M1Client's wire timestamps have whole-second precision.
+    start, end = start.replace(microsecond=0), end.replace(microsecond=0)
+    step = timedelta(seconds=capture.step_seconds)
+    count = int((end - start).total_seconds() // capture.step_seconds) + 1
+    omitted = []
+
+    def read(first: int, last: int):
+        begin, finish = start + first * step, start + last * step
+        # M1 requires start < end. A one-second range has exactly one grid point.
+        query_end = finish if last > first else min(
+            begin + timedelta(seconds=1), end
+        )
+        if query_end <= begin:
+            # The final boundary has no positive interval inside the capture.
+            omitted.append({"at": _iso(begin), "name": "history_point_unavailable",
+                            "reason": "final boundary cannot form a positive history interval"})
+            return []
+        try:
+            return client.window(capture.service, begin, query_end, capture.step_seconds)
+        except M1Error as exc:
+            message = exc.message.lower()
+            mixed = exc.category == "telemetry_missing" and (
+                "mixed versions" in message or "version is inconsistent" in message
+            )
+            if not mixed:
+                raise
+            if first == last:
+                omitted.append({"at": _iso(begin), "name": "history_point_unavailable",
+                                "category": exc.category, "reason": exc.message})
+                return []
+            middle = (first + last) // 2
+            return read(first, middle) + read(middle + 1, last)
+
+    points = read(0, count - 1)
+    if not points:
+        raise M1Error("No unambiguous history survived the rollout boundaries", category="no_data")
+    capture.points = sorted(points, key=lambda point: point.timestamp)
+    capture.events.extend(omitted)
     return capture

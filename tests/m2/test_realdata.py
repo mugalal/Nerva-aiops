@@ -201,6 +201,35 @@ def test_health_and_snapshot(timeline, fake_m1):
     assert m1.snapshot("payment-service") == timeline[0].points[-1]
 
 
+@pytest.mark.parametrize("defect", ["service", "version", "step", "bounds", "duplicate", "order", "outside", "alignment"])
+def test_history_adapter_rejects_mismatched_metadata_and_points(timeline, defect):
+    points = [{"timestamp": point.timestamp.isoformat(), "metrics": point.metrics.model_dump()}
+              for point in timeline[0].points[:3]]
+    body = {"service": "payment-service", "version": "v1", "start": T0.isoformat(),
+            "end": (T0 + timedelta(seconds=30)).isoformat(), "step_seconds": STEP, "points": points}
+    if defect == "service":
+        body["service"] = "wrong-service"
+    elif defect == "version":
+        body.pop("version")
+    elif defect == "step":
+        body["step_seconds"] = 30
+    elif defect == "bounds":
+        body["start"] = (T0 - timedelta(seconds=15)).isoformat()
+    elif defect == "duplicate":
+        body["points"] = [points[0], points[0]]
+    elif defect == "order":
+        body["points"] = points[::-1]
+    elif defect == "outside":
+        points[-1]["timestamp"] = (T0 + timedelta(seconds=45)).isoformat()
+    elif defect == "alignment":
+        points[1]["timestamp"] = (T0 + timedelta(seconds=16)).isoformat()
+    client = client_mod.M1Client()
+    client._get = lambda *args: body
+    with pytest.raises(client_mod.M1Error) as caught:
+        client.window("payment-service", T0, T0 + timedelta(seconds=30), STEP)
+    assert caught.value.category == "bad_response"
+
+
 def test_naive_timestamps_are_refused():
     with pytest.raises(ValueError):
         client_mod.M1Client().window("payment-service", datetime(2026, 1, 1), datetime(2026, 1, 2))
@@ -586,6 +615,54 @@ def test_fetching_history_covers_every_run(timeline, fake_m1):
     capture = dataclasses.replace(timeline[0], points=None)
     drill_mod.fetch_points(capture, client_mod.M1Client(fake_m1.url))
     assert len(capture.points) == len(timeline[0].points)
+
+
+def test_rollout_history_is_split_and_ambiguous_reading_is_recorded(timeline):
+    template = timeline[0].points[0]
+    points = [template.model_copy(update={"timestamp": T0 + timedelta(seconds=i * STEP),
+                                         "version": "v1" if i < 3 else "v2"}) for i in range(7)]
+    capture = capture_mod.Capture("payment-service", STEP, "http://m1", T0 + timedelta(seconds=120),
+        runs=[capture_mod.RunSpec("rollout", "bad_deployment", T0, points[-1].timestamp, points[3].timestamp)])
+    calls = []
+
+    class StrictM1:
+        def window(self, service, start, end, step):
+            calls.append((start, end))
+            inside = [point for point in points if start <= point.timestamp <= end]
+            if len({point.version for point in inside}) > 1 or points[3] in inside:
+                raise client_mod.M1Error("Historical window contains mixed versions for payment-service",
+                                         category="telemetry_missing", status=503)
+            return inside
+
+    drill_mod.fetch_points(capture, StrictM1())
+    assert capture.points == points[:3] + points[4:]
+    assert all(start < end <= capture.recorded_at for start, end in calls)
+    assert len(capture.events) == 1
+    assert capture.events[0]["at"] == points[3].timestamp.isoformat().replace("+00:00", "Z")
+    assert capture.events[0]["name"] == "history_point_unavailable"
+
+
+@pytest.mark.parametrize("category,message", [
+    ("provider_unavailable", "Prometheus unavailable"),
+    ("telemetry_missing", "Prometheus returned incomplete historical samples"),
+])
+def test_history_provider_failure_is_not_hidden_by_splitting(timeline, category, message):
+    capture = dataclasses.replace(timeline[0], points=None, events=list(timeline[0].events))
+
+    class FailedM1:
+        def window(self, *args):
+            raise client_mod.M1Error(message, category=category, status=503)
+
+    with pytest.raises(client_mod.M1Error, match=message):
+        drill_mod.fetch_points(capture, FailedM1())
+    assert capture.points is None
+    assert capture.events == timeline[0].events
+
+
+def test_history_fetch_never_requests_a_future_drill_window(timeline):
+    capture = dataclasses.replace(timeline[0], recorded_at=timeline[0].runs[0].start, points=None)
+    with pytest.raises(ValueError, match="completed"):
+        drill_mod.fetch_points(capture, None)
 
 
 # ---------------------------------------------------------------------------

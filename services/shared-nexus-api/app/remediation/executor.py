@@ -198,15 +198,27 @@ def _get_json(arguments):
         raise ValueError("kubectl returned invalid deployment data") from exc
 
 
+class RolloutUnconfirmed(ValueError):
+    """The change was applied, but the rollout did not report ready in time."""
+
+
 def _run(arguments, timeout):
-    completed = subprocess.run([*_kubectl_command(), *arguments], capture_output=True, text=True, timeout=timeout)
+    try:
+        completed = subprocess.run([*_kubectl_command(), *arguments], capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise ValueError(f"kubectl timed out after {timeout}s") from exc
+    except OSError as exc:
+        raise ValueError(f"kubectl could not be started: {exc.strerror}") from exc
     if completed.returncode != 0:
         raise ValueError(completed.stderr.strip() or "Kubernetes command failed")
     return completed
 
 
 def _wait_for_rollout(service: str):
-    _run(["rollout", "status", f"deployment/{service}", "-n", TARGET_NAMESPACE, "--timeout=120s"], timeout=130)
+    try:
+        _run(["rollout", "status", f"deployment/{service}", "-n", TARGET_NAMESPACE, "--timeout=120s"], timeout=130)
+    except ValueError as exc:
+        raise RolloutUnconfirmed(f"change applied but rollout of {service} is unconfirmed: {exc}") from exc
 
 
 def _kubectl_command():

@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from app.errors import BaselineNotFound, EvidenceNotFound
+from app.errors import BaselineNotFound, EvidenceNotFound, StorageUnavailable
 from app.models import (
     BaselineThresholds, HealthyBaseline, IncidentEvidence, MetricStatistics,
     RecoveryEvidenceRecord, RecoveryMetrics, RecoveryResult,
@@ -144,9 +144,28 @@ class EvidenceStorageTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             store = EvidenceStore(Path(directory))
             with patch("app.storage.Path.replace", side_effect=OSError("replace failed")):
-                with self.assertRaises(OSError):
+                with self.assertRaises(StorageUnavailable) as caught:
                     store.save_evidence(evidence("test"))
+                self.assertEqual(caught.exception.category, "storage_unavailable")
             self.assertEqual(list(store.incident_dir.iterdir()), [])
+
+    def test_existing_unreadable_records_make_storage_unready(self):
+        with TemporaryDirectory() as directory:
+            store = EvidenceStore(Path(directory))
+            store.save_baseline(baseline("payment-service"))
+            with patch("app.storage.os.access", return_value=False):
+                self.assertFalse(store.ready()[0])
+            self.assertTrue(store.ready()[0])
+
+    def test_persistent_read_permissions_return_retryable_storage_error(self):
+        with TemporaryDirectory() as directory:
+            store = EvidenceStore(Path(directory))
+            store.save_baseline(baseline("payment-service"))
+            with patch("app.storage.Path.read_text", side_effect=PermissionError("blocked")):
+                with self.assertRaises(StorageUnavailable) as caught:
+                    store.get_baseline("payment-service")
+            self.assertEqual(caught.exception.status_code, 503)
+            self.assertTrue(caught.exception.retryable)
 
 
 if __name__ == "__main__":

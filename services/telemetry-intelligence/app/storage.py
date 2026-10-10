@@ -1,5 +1,7 @@
 import hashlib
 import json
+import os
+from functools import wraps
 from pathlib import Path
 import re
 from tempfile import NamedTemporaryFile
@@ -7,12 +9,22 @@ from threading import RLock
 import time
 from typing import Callable, TypeVar
 
-from .errors import BaselineNotFound, EvidenceNotFound
+from .errors import BaselineNotFound, EvidenceNotFound, StorageUnavailable
 from .models import HealthyBaseline, IncidentEvidence, RecoveryEvidenceRecord
 
 
 _T = TypeVar("_T")
 _storage_io_lock = RLock()
+
+
+def _storage_io(operation):
+    @wraps(operation)
+    def guarded(*args, **kwargs):
+        try:
+            return operation(*args, **kwargs)
+        except OSError as exc:
+            raise StorageUnavailable() from exc
+    return guarded
 
 
 def _retry_permission_error(operation: Callable[[], _T]) -> _T:
@@ -47,6 +59,7 @@ def _legacy_name(value: str) -> str | None:
 
 
 class EvidenceStore:
+    @_storage_io
     def __init__(self, root: Path):
         self.root = root
         self.baseline_dir = root / "baselines"
@@ -55,7 +68,19 @@ class EvidenceStore:
         for directory in (self.baseline_dir, self.incident_dir, self.recovery_dir):
             directory.mkdir(parents=True, exist_ok=True)
 
+    def ready(self):
+        try:
+            for directory in (self.baseline_dir, self.incident_dir, self.recovery_dir):
+                with NamedTemporaryFile(dir=directory, prefix=".readiness-", mode="w") as probe:
+                    probe.write("ok")
+                if any(not os.access(path, os.R_OK) for path in directory.glob("*.json")):
+                    return False, "Existing M1 evidence records are not readable"
+        except OSError:
+            return False, "M1 persistent evidence storage is not readable or writable"
+        return True, "Persistent evidence storage is readable and writable"
+
     @staticmethod
+    @_storage_io
     def _write(path: Path, payload: dict) -> None:
         temporary = None
         try:
@@ -71,6 +96,7 @@ class EvidenceStore:
                 temporary.unlink(missing_ok=True)
 
     @staticmethod
+    @_storage_io
     def _read_path(directory: Path, key: str) -> Path | None:
         path = directory / f"{_safe_name(key)}.json"
         if _retry_permission_error(path.exists):
@@ -86,6 +112,7 @@ class EvidenceStore:
         path = self.baseline_dir / f"{_safe_name(baseline.service)}.json"
         self._write(path, baseline.model_dump(mode="json"))
 
+    @_storage_io
     def get_baseline(self, service: str) -> HealthyBaseline:
         path = self._read_path(self.baseline_dir, service)
         if path is None:
@@ -101,6 +128,7 @@ class EvidenceStore:
         path = self.incident_dir / f"{_safe_name(evidence.incident_id)}.json"
         self._write(path, evidence.model_dump(mode="json"))
 
+    @_storage_io
     def get_evidence(self, incident_id: str) -> IncidentEvidence:
         path = self._read_path(self.incident_dir, incident_id)
         if path is None:
@@ -116,6 +144,7 @@ class EvidenceStore:
         path = self.recovery_dir / f"{_safe_name(record.incident_id)}.json"
         self._write(path, record.model_dump(mode="json"))
 
+    @_storage_io
     def get_recovery(self, incident_id: str) -> RecoveryEvidenceRecord:
         path = self._read_path(self.recovery_dir, incident_id)
         if path is None:

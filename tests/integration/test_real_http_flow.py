@@ -35,11 +35,15 @@ def available_ports(count):
 
 
 class HttpStack:
-    def __init__(self, directory):
+    def __init__(self, directory, *, extra_env=None, extra_members=()):
         self.directory = directory
+        self.approval_token = uuid4().hex
+        members = ("m1", "m3", "m4", "m6", *extra_members)
         self.urls = {name: f"http://127.0.0.1:{port}"
-                     for name, port in zip(("m1", "m3", "m4", "m6"), available_ports(4))}
+                     for name, port in zip(members, available_ports(len(members)))}
         self.processes, self.logs = [], []
+        self.extra_env = extra_env or {}
+        self.launches = {}
 
     def start(self):
         env = dict(os.environ)
@@ -47,6 +51,9 @@ class HttpStack:
                    M1_PROVIDER_MODE="real", M3_PROVIDER_MODE="real", RCA_PROVIDER="real",
                    FINOPS_PROVIDER="real", EVIDENCE_PROVIDER="real", RECOVERY_PROVIDER="real",
                    REMEDIATION_BACKEND="mock", M1_DATA_DIR=str(self.directory / "m1-data"),
+                   M4_STATE_BACKEND="sqlite", M4_SQLITE_PATH=str(self.directory / "m4-state.sqlite"),
+                   NEXUS_APPROVAL_TOKEN=self.approval_token,
+                   NEXUS_APPROVER_IDENTITY="controlled-test-operator",
                    M1_REQUEST_RATE_WINDOW="5s", M1_LATENCY_WINDOW="5s", M1_HISTORY_STEP_SECONDS="5",
                    M1_RECOVERY_HOLD_SECONDS="10", M1_RECOVERY_MIN_SAMPLES="3",
                    M1_TELEMETRY_BASE_URL=self.urls["m1"], SHARED_NEXUS_API_BASE_URL=self.urls["m4"],
@@ -55,35 +62,56 @@ class HttpStack:
                    M1_RECOVERY_URL=self.urls["m1"] + "/internal/recovery/validate",
                    M3_RCA_URL=self.urls["m3"] + "/internal/rca/analyze",
                    M6_FINOPS_URL=self.urls["m6"] + "/internal/finops/context")
+        env.update(self.extra_env)
+        self.env = env
         layouts = {"m1": (REPO / "services/telemetry-intelligence", "controlled_m1_server:app", REPO / "tests/integration"),
                    "m3": (REPO / "services/root-cause-analysis", "app.main:app", None),
                    "m4": (REPO / "services/shared-nexus-api", "app.main:app", None),
                    "m6": (REPO / "services/finops-engine", "app.main:app", None)}
         for name in ("m1", "m6", "m4", "m3"):
             cwd, application, app_dir = layouts[name]
-            command = [sys.executable, "-m", "uvicorn", application, "--host", "127.0.0.1",
-                       "--port", self.urls[name].rsplit(":", 1)[1], "--log-level", "warning", "--no-access-log"]
-            if app_dir is not None:
-                command += ["--app-dir", str(app_dir)]
-            path = self.directory / f"{name}.log"
-            log = path.open("w", encoding="utf-8")
-            self.logs.append(log)
-            process = subprocess.Popen(command, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
-            self.processes.append((name, process, path))
-        for name, process, path in self.processes:
-            deadline = time.monotonic() + 20
-            while time.monotonic() < deadline:
-                assert process.poll() is None, f"{name} exited during startup:\n{path.read_text(encoding='utf-8')}"
-                try:
-                    if requests.get(self.urls[name] + "/health", timeout=2).status_code == 200:
-                        break
-                except requests.RequestException:
-                    pass
-                time.sleep(0.1)
-            else:
-                pytest.fail(f"{name} did not start:\n{path.read_text(encoding='utf-8')}")
+            self.start_member(name, cwd, application, app_dir=app_dir, env=env)
         return self
+
+    def start_member(self, name, cwd, application, *, app_dir=None, env=None, wait_seconds=20):
+        env = dict(env if env is not None else self.env)
+        self.launches[name] = (cwd, application, app_dir, env, wait_seconds)
+        command = [sys.executable, "-m", "uvicorn", application, "--host", "127.0.0.1",
+                   "--port", self.urls[name].rsplit(":", 1)[1], "--log-level", "warning", "--no-access-log"]
+        if app_dir is not None:
+            command += ["--app-dir", str(app_dir)]
+        generation = sum(member == name for member, _, _ in self.processes)
+        path = self.directory / f"{name}-{generation}.log"
+        log = path.open("w", encoding="utf-8")
+        self.logs.append(log)
+        process = subprocess.Popen(command, cwd=cwd, env=env, stdout=log, stderr=subprocess.STDOUT,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
+        self.processes.append((name, process, path))
+        deadline = time.monotonic() + wait_seconds
+        while time.monotonic() < deadline:
+            assert process.poll() is None, f"{name} exited during startup:\n{path.read_text(encoding='utf-8')}"
+            try:
+                if requests.get(self.urls[name] + "/health", timeout=2).status_code == 200:
+                    return
+            except requests.RequestException:
+                pass
+            time.sleep(0.1)
+        pytest.fail(f"{name} did not start:\n{path.read_text(encoding='utf-8')}")
+
+    def stop_member(self, name):
+        for member, process, _ in reversed(self.processes):
+            if member == name and process.poll() is None:
+                process.terminate()
+                try:
+                    process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=5)
+
+    def restart_member(self, name):
+        self.stop_member(name)
+        cwd, application, app_dir, env, wait_seconds = self.launches[name]
+        self.start_member(name, cwd, application, app_dir=app_dir, env=env, wait_seconds=wait_seconds)
 
     def close(self):
         # Terminate only the exact child process handles created by this fixture.
@@ -99,6 +127,9 @@ class HttpStack:
             log.close()
 
     def request(self, method, member, route, expected=200, **kwargs):
+        if member == "m4" and "headers" not in kwargs:
+            kwargs["headers"] = {"X-Nexus-Approver-Token": self.approval_token,
+                                 "X-Nexus-Approver": "controlled-test-operator"}
         response = requests.request(method, self.urls[member] + route, timeout=20, **kwargs)
         assert response.status_code == expected, f"{member} {route}: HTTP {response.status_code} {response.text}"
         return response

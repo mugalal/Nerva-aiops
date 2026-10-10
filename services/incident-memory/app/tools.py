@@ -162,7 +162,8 @@ class CopilotTools:
         records = self.repo.all(self.source)
         for record in records:
             memory = record["memory"]
-            rows[memory["incident_id"]] = {"incident_id": memory["incident_id"], "status": "RESOLVED",
+            rows[memory["incident_id"]] = {"incident_id": memory["incident_id"], "status":
+                (record["context"].get("incident") or {}).get("status") or ("RESOLVED" if record["resolved"] else "ESCALATED"),
                 "affected_services": [memory["service"]], "severity": (record["context"].get("incident") or {}).get("severity"), "origin": "memory"}
         if self.provider.mode == ("mock" if self.source == "mock" else "live"):
             try:
@@ -184,7 +185,8 @@ class CopilotTools:
         closed_statuses = {"RESOLVED", "CLOSED"}
         open_statuses = {"DETECTED", "OPEN", "ACTIVE", "ACKNOWLEDGED", "INVESTIGATING",
                          "IN_PROGRESS", "MITIGATING", "MONITORING", "PENDING_APPROVAL",
-                         "AWAITING_APPROVAL", "EXECUTING"}
+                         "AWAITING_APPROVAL", "EXECUTING", "CORRELATING", "DIAGNOSING", "DIAGNOSED",
+                         "ACTION_PROPOSED", "VALIDATING", "ESCALATED"}
         if any(str(row.get("status")).upper() not in closed_statuses | open_statuses for row in rows.values()):
             notices.append("Some incident statuses are unknown; unresolved coverage may be incomplete.")
         for row in rows.values():

@@ -1,40 +1,51 @@
-import json
-import os
-from pathlib import Path
 from datetime import datetime, timezone
+from contextlib import contextmanager
+from copy import deepcopy
 from threading import RLock
 from fastapi import APIRouter, HTTPException
 from pydantic import AwareDatetime, BaseModel, Field, field_validator
 from app.contracts import IncidentView
 from app.state_machine.states import IncidentStatus
 from app.state_machine.machine import transition
+from app.db import workflow_store
 
 router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 incidents = []
-_locks = {}
-_lock_guard = RLock()
+_workflow_lock = RLock()
+_committed_incidents = []
 
-_DATA_PATH = Path(os.getenv("M4_STORAGE_FILE", "/data/incidents.json") if os.path.exists("/data") else "./data/incidents.json")
 
-def _load_incidents():
-    try:
-        if _DATA_PATH.exists():
-            data = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
-            if isinstance(data, list):
-                incidents.extend(data)
-    except Exception:
-        pass
+def mark_persisted():
+    """Publish one immutable checkpoint after the storage transaction succeeds."""
+    global _committed_incidents
+    _committed_incidents = deepcopy(incidents)
+
+
+def restore_persisted():
+    # Preserve incident references held by callers while discarding unsaved fields.
+    existing = {item["incident_id"]: item for item in incidents}
+    restored = []
+    for saved in _committed_incidents:
+        item = existing.get(saved["incident_id"], {})
+        item.clear()
+        item.update(deepcopy(saved))
+        restored.append(item)
+    incidents[:] = restored
 
 def persist_incidents():
-    try:
-        _DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
-        tmp = _DATA_PATH.with_suffix(".tmp")
-        tmp.write_text(json.dumps(incidents, indent=2), encoding="utf-8")
-        tmp.replace(_DATA_PATH)
-    except Exception:
-        pass
+    with _workflow_lock:
+        try:
+            workflow_store.save_incidents(incidents)
+        except workflow_store.StorageError:
+            restore_persisted()
+            raise
+        mark_persisted()
 
-_load_incidents()
+
+def persist_anomaly(payload, incident_id):
+    with _workflow_lock:
+        workflow_store.save_anomaly(payload, incident_id, incidents)
+        mark_persisted()
 
 class IncidentCreate(BaseModel):
     incident_id: str = Field(min_length=1)
@@ -66,9 +77,28 @@ class IncidentCreate(BaseModel):
         return value
 
 
-def lock_for(incident_id):
-    with _lock_guard:
-        return _locks.setdefault(incident_id, RLock())
+@contextmanager
+def lock_for(incident_id, timeout: float | None = None):
+    # A save projects the complete in-process snapshot. Serialize mutation units
+    # so another incident cannot publish half of an unfinished workflow change.
+    acquired = _workflow_lock.acquire(timeout=timeout if timeout is not None else -1)
+    if not acquired:
+        from app.providers.errors import IntegrationError
+        raise IntegrationError("Another operation is running for this incident; retry shortly",
+                               status_code=409, retryable=True)
+    try:
+        yield
+    except workflow_store.StorageError:
+        restore_persisted()
+        raise
+    finally:
+        _workflow_lock.release()
+
+
+@contextmanager
+def incident_operation(incident_id: str, wait: float = 5.0):
+    with lock_for(incident_id, timeout=wait):
+        yield
 
 
 def find_incident(incident_id: str):
@@ -98,6 +128,7 @@ def create_incident(incident: IncidentCreate):
             raise HTTPException(status_code=409, detail="Incident already exists")
         incident_data = incident.model_dump(mode="json")
         incident_data["status"] = IncidentStatus.DETECTED.value
+        incident_data["detected_at"] = datetime.now(timezone.utc).isoformat()
         incidents.append(incident_data)
         persist_incidents()
         return public_incident(incident_data)
@@ -105,12 +136,42 @@ def create_incident(incident: IncidentCreate):
 
 @router.get("/", response_model=list[IncidentView])
 def list_incidents():
-    return [public_incident(incident) for incident in incidents]
+    # M3 calls these reads while M4 holds the mutation lock awaiting RCA.
+    # Read the last committed checkpoint without acquiring that lock.
+    return [public_incident(incident) for incident in _committed_incidents]
 
 
 @router.get("/{incident_id}", response_model=IncidentView)
 def get_incident(incident_id: str):
-    incident = find_incident(incident_id)
+    incident = next((item for item in _committed_incidents if item["incident_id"] == incident_id), None)
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
     return public_incident(incident)
+
+
+@router.get("/{incident_id}/context")
+def get_incident_context(incident_id: str):
+    from app.api.anomalies import anomalies
+    from app.orchestration.orchestrator import provenance
+    from app.remediation.audit import audit_records
+    with lock_for(incident_id):
+        incident = find_incident(incident_id)
+        if incident is None:
+            raise HTTPException(status_code=404, detail="Incident not found")
+        linked = [anomalies[key] for key in incident["anomaly_ids"] if key in anomalies]
+        recovery = incident.get("_recovery") or incident.get("_last_recovery_measurement") or {}
+        modes = incident.get("_provenance") or provenance()
+        sources = set(modes.values())
+        source = "real" if sources == {"real"} else "mock" if sources == {"mock"} else "mixed"
+        return {"incident": public_incident(incident), "anomaly": linked[-1] if linked else None,
+            "anomalies": linked, "rca": incident.get("_rca"), "decision": incident.get("_proposal"),
+            "action_result": incident.get("_action_result"), "recovery_result": recovery.get("details"),
+            "recovery_validation": recovery or None, "finops_context": incident.get("_finops"),
+            "deployment_event": (incident.get("_evidence") or {}).get("deployment_event"),
+            "evidence": incident.get("_evidence"), "source": source, "provider_modes": modes,
+            "workflow": {"action_completed_at": incident.get("action_completed_at"),
+                "recovery_deadline_at": incident.get("recovery_deadline_at"),
+                "execution_ambiguous": bool(incident.get("_execution_ambiguous")),
+                "archive_status": (incident.get("_archive_outbox") or {}).get("status"),
+                "archive_error": (incident.get("_archive_outbox") or {}).get("last_error") or incident.get("_archive_blocked_reason")},
+            "audit": [record for record in audit_records if record["incident_id"] == incident_id]}

@@ -88,6 +88,20 @@ spec:
               value: http://telemetry-intelligence:8001/internal/recovery/validate
             - name: ENVIRONMENT
               value: development
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: DATABASE_URL
+            - name: NEXUS_APPROVAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: NEXUS_APPROVAL_TOKEN
+            - name: M5_MEMORY_BASE_URL
+              value: http://incident-memory:8005
+            - name: M4_AUTO_VALIDATE_RECOVERY
+              value: "true"
           resources:
             requests:
               cpu: 100m
@@ -97,7 +111,7 @@ spec:
               memory: 256Mi
           readinessProbe:
             httpGet:
-              path: /health
+              path: /ready
               port: http
             initialDelaySeconds: 5
             periodSeconds: 10

@@ -59,6 +59,24 @@ spec:
         prometheus.io/port: "8001"
     spec:
       serviceAccountName: telemetry-intelligence
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        fsGroupChangePolicy: OnRootMismatch
+      initContainers:
+        - name: prepare-evidence-volume
+          image: nexus/telemetry-intelligence:dev
+          imagePullPolicy: IfNotPresent
+          command: [python, -m, app.storage_permissions, /data]
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: evidence
+              mountPath: /data
       containers:
         - name: telemetry-intelligence
           image: nexus/telemetry-intelligence:dev

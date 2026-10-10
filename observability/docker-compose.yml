@@ -1,4 +1,23 @@
 services:
+  postgres:
+    profiles: [integration]
+    build:
+      context: ..
+      dockerfile: observability/postgres/Dockerfile
+    image: nexus/postgres:dev
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_DB: nexus
+      POSTGRES_PASSWORD: ${NEXUS_DB_PASSWORD:?Set NEXUS_DB_PASSWORD to a URL-safe password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U nexus -d nexus"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
   payment-service:
     build:
       context: ../apps/demo-microservices/payment-service
@@ -18,6 +37,11 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   root-cause-analysis:
     profiles: [integration]
@@ -34,8 +58,14 @@ services:
     cpus: 0.25
     mem_limit: 256m
     depends_on:
-      - telemetry-intelligence
+      telemetry-intelligence:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/health', timeout=10)"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
 
   finops-engine:
     profiles: [integration]
@@ -46,6 +76,7 @@ services:
     environment:
       SERVICE_NAME: finops-engine
       M1_TELEMETRY_BASE_URL: http://telemetry-intelligence:8001
+      DATABASE_URL: postgresql://nexus:${NEXUS_DB_PASSWORD}@postgres:5432/nexus
       # Compose has no Kubernetes requests; these are explicit demo sizing inputs.
       FINOPS_CPU_REQUEST_M: "100"
       FINOPS_CPU_LIMIT_M: "1000"
@@ -56,8 +87,16 @@ services:
     cpus: 0.25
     mem_limit: 256m
     depends_on:
-      - telemetry-intelligence
+      telemetry-intelligence:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import json,urllib.request; result=json.load(urllib.request.urlopen('http://127.0.0.1:8006/health', timeout=5)); assert result['status']=='ok'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
 
   shared-nexus-api:
     profiles: [integration]
@@ -74,16 +113,42 @@ services:
       M6_FINOPS_URL: http://finops-engine:8006/internal/finops/context
       M1_EVIDENCE_URL: http://telemetry-intelligence:8001/internal/evidence/capture
       M1_RECOVERY_URL: http://telemetry-intelligence:8001/internal/recovery/validate
-      # Real data providers; opt-in actuator configuration is separate.
-      REMEDIATION_BACKEND: "${REMEDIATION_BACKEND:-mock}"
+      M5_MEMORY_BASE_URL: http://incident-memory:8005
+      DATABASE_URL: postgresql://nexus:${NEXUS_DB_PASSWORD}@postgres:5432/nexus
+      NEXUS_APPROVAL_TOKEN: ${NEXUS_APPROVAL_TOKEN:?Set NEXUS_APPROVAL_TOKEN}
+      # Compose verifies real data integration; actual actions use the isolated Kubernetes stack.
+      REMEDIATION_BACKEND: mock
+      RECOVERY_TIMEOUT_SECONDS: "360"
+      M4_AUTO_VALIDATE_RECOVERY: "true"
     ports:
-      - "8004:8004"
+      - "127.0.0.1:8004:8004"
     cpus: 0.5
     mem_limit: 256m
     depends_on:
-      - root-cause-analysis
-      - finops-engine
+      root-cause-analysis:
+        condition: service_started
+      finops-engine:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8004/ready', timeout=5)"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  m1-storage-init:
+    build:
+      context: ..
+      dockerfile: services/telemetry-intelligence/Dockerfile
+    image: nexus/telemetry-intelligence:dev
+    user: "0:0"
+    entrypoint: [python, -m, app.storage_permissions, /data]
+    network_mode: none
+    volumes:
+      - m1-data:/data
+    restart: "no"
 
   telemetry-intelligence:
     build:
@@ -106,7 +171,16 @@ services:
       - "8001:8001"
     volumes:
       - "m1-data:/data"
+    depends_on:
+      m1-storage-init:
+        condition: service_completed_successfully
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/health', timeout=5)"]
+      interval: 20s
+      timeout: 10s
+      retries: 15
+      start_period: 20s
 
   prometheus:
     image: prom/prometheus:v2.55.1
@@ -181,11 +255,26 @@ services:
       M2_HANDOFF_ENABLED: "true"
       M2_HANDOFF_URL: http://shared-nexus-api:8004
       M1_TELEMETRY_BASE_URL: http://telemetry-intelligence:8001
+      M2_POLL_INTERVAL_S: "15"
+      M2_EVIDENCE_PATH: /data/evidence.jsonl
     ports:
       - "8002:8002"
     cpus: 0.5
-    mem_limit: 256m
+    mem_limit: 512m
+    volumes:
+      - m2-data:/data
+    depends_on:
+      telemetry-intelligence:
+        condition: service_healthy
+      shared-nexus-api:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/health', timeout=5)"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
 
   incident-memory:
     profiles: [integration]
@@ -196,23 +285,35 @@ services:
     environment:
       SERVICE_NAME: incident-memory
       ENVIRONMENT: development
-      DATABASE_URL: sqlite:////data/memory.db
+      DATABASE_URL: postgresql://nexus:${NEXUS_DB_PASSWORD}@postgres:5432/nexus
       M5_UI_MODE: live
       SHARED_NEXUS_API_BASE_URL: http://shared-nexus-api:8004
-      M5_APPROVAL_PATH: /api/incidents/{incident_id}/approve
-      M5_SHARED_API_TOKEN: ${NEXUS_APPROVAL_TOKEN:-secret-demo-token}
+      M5_INCIDENT_DETAIL_PATH: /api/incidents/{incident_id}/context
+      M5_APPROVE_PATH: /api/incidents/{incident_id}/approve
+      M5_REJECT_PATH: /api/incidents/{incident_id}/reject
+      M5_SHARED_API_TOKEN: ${NEXUS_APPROVAL_TOKEN:?Set NEXUS_APPROVAL_TOKEN}
+      M5_OPERATOR_ID: ${M5_OPERATOR_ID:?Set M5_OPERATOR_ID}
     ports:
-      - "8005:8005"
+      - "127.0.0.1:8005:8005"
     cpus: 0.5
     mem_limit: 256m
-    volumes:
-      - "m5-data:/data"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      shared-nexus-api:
+        condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8005/ready', timeout=5)"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
 
 volumes:
   alloy-data:
   grafana-data:
   loki-data:
   m1-data:
-  m5-data:
+  m2-data:
+  postgres-data:
   prometheus-data:

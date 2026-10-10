@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import hmac
 import logging
 import os
 from pathlib import Path
@@ -57,7 +58,7 @@ def create_app(repository=None, provider=None):
 
     @app.exception_handler(ProviderUnavailable)
     async def provider_error(request, exc):
-        return JSONResponse(status_code=503, content={"status": "degraded", "detail": str(exc), "source": upstream.mode})
+        return JSONResponse(status_code=exc.status_code, content={"status": "degraded", "detail": str(exc), "source": upstream.mode})
 
     @app.exception_handler(MemoryConflict)
     async def conflict(request, exc):
@@ -82,8 +83,21 @@ def create_app(repository=None, provider=None):
                 "environment": settings.environment, "storage": "postgresql" if repo.postgres else "sqlite",
                 "ui_mode": upstream.mode, "reason": reason}
 
+    @app.get("/ready")
+    def ready():
+        result = health()
+        # Explicit mock previews may be ready, but unavailable storage/upstream is never ready.
+        if result["status"] == "unavailable" or (upstream.mode == "live" and result["status"] != "ok"):
+            return JSONResponse(status_code=503, content=result)
+        return result
+
     @app.post("/internal/memory/store")
-    def store(request: StoreRequest):
+    def store(request: StoreRequest, raw: Request):
+        token = os.getenv("M5_SHARED_API_TOKEN")
+        if upstream.mode == "live" and not token:
+            raise HTTPException(503, "Configure the private backend token before archiving incidents")
+        if token and not hmac.compare_digest(raw.headers.get("authorization", ""), f"Bearer {token}"):
+            raise HTTPException(401, "A valid backend authorization token is required")
         record, status = repo.save(request)
         logger.info("incident memory stored", extra={"incident_id": request.memory.incident_id})
         return {"status": status, "record": record}
@@ -106,7 +120,8 @@ def create_app(repository=None, provider=None):
     @app.get("/internal/ui/config")
     def config():
         return {"source": "mock" if upstream.mode == "mock" else "real", "ui_mode": upstream.mode,
-                "approval_enabled": upstream.mode == "live" and bool(os.getenv("M5_APPROVAL_PATH")),
+                "approval_enabled": upstream.approval_enabled(),
+                "operator": os.getenv("M5_OPERATOR_ID") if upstream.approval_enabled() else None,
                 "chat": chat_config()}
 
     @app.post("/internal/copilot/chat")
@@ -136,6 +151,11 @@ def create_app(repository=None, provider=None):
         result = upstream.detail(incident_id)
         if result is None:
             raise HTTPException(404, "Incident not found")
+        archive_source = "real" if result.get("source") == "real" else "mock"
+        archived = repo.get(incident_id, archive_source)
+        if archived:
+            result = {**result, "memory": archived["memory"], "archive": {
+                "source": archived["source"], "stored_at": archived["stored_at"], "resolved": archived["resolved"]}}
         return result
 
     @app.post("/internal/ui/incidents/{incident_id}/approval")
