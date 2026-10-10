@@ -19,9 +19,12 @@ def choose_scale_option(finops: dict):
         replicas, cost = option.get("replicas"), option.get("estimated_cost_delta")
         if (isinstance(replicas, int) and not isinstance(replicas, bool) and current < replicas <= 10
                 and isinstance(cost, (int, float)) and not isinstance(cost, bool) and math.isfinite(cost)
-                and cost >= 0 and option.get("risk") == "LOW"):
+                and cost >= 0 and option.get("risk") in {"LOW", "MEDIUM"}):
             candidates.append(option)
-    return min(candidates, key=lambda option: option["estimated_cost_delta"]) if candidates else None
+    if not candidates:
+        return None
+    low_risk = [c for c in candidates if c.get("risk") == "LOW"]
+    return min(low_risk or candidates, key=lambda option: option["estimated_cost_delta"])
 
 
 def decide_from_rca(rca: dict, finops: dict | None = None) -> DecisionResult:

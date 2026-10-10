@@ -22,9 +22,9 @@ spec:
         - name: TARGET_URL
           value: http://payment-service/pay
         - name: RPS
-          value: "90"
+          value: "200"
         - name: DURATION_SECONDS
-          value: "600"
+          value: "3600"
         - name: MAX_IN_FLIGHT
           value: "300"
         - name: REQUEST_TIMEOUT_SECONDS
