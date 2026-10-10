@@ -14,32 +14,36 @@ class CircuitOpen(requests.ConnectionError):
 
 
 class Breaker:
-    """Thread-safe circuit breaker with failure threshold and cooldown period."""
+    """State machine: closed -> open after `threshold` failures -> half_open (probe) -> closed or open."""
 
-    def __init__(self, threshold: int = 5, cooldown: float = 30.0):
+    def __init__(self, threshold: int = 5, cooldown: float = 30.0, clock=time.monotonic):
         self.threshold = threshold
         self.cooldown = cooldown
+        self._clock = clock
+        self._state = "closed"
         self._failures = 0
         self._opened_at = 0.0
         self._lock = threading.Lock()
 
     def allow(self) -> bool:
         with self._lock:
-            if self._failures < self.threshold:
+            if self._state == "closed":
                 return True
-            if time.monotonic() - self._opened_at >= self.cooldown:
-                # Cooldown period elapsed; allow probe request
+            if self._state == "open" and self._clock() - self._opened_at >= self.cooldown:
+                self._state = "half_open"  # exactly one caller becomes the probe
                 return True
             return False
 
     def record(self, ok: bool) -> None:
         with self._lock:
             if ok:
+                self._state = "closed"
                 self._failures = 0
-            else:
-                self._failures += 1
-                if self._failures >= self.threshold and self._opened_at == 0.0:
-                    self._opened_at = time.monotonic()
+                return
+            self._failures += 1
+            if self._state == "half_open" or self._failures >= self.threshold:
+                self._state = "open"
+                self._opened_at = self._clock()
 
 
 def make_session(retry_post: bool = False, total_retries: int = 2) -> requests.Session:
@@ -63,10 +67,7 @@ def make_session(retry_post: bool = False, total_retries: int = 2) -> requests.S
 
 
 def resilient_call(breaker: Breaker, session: requests.Session, method: str, url: str, **kwargs) -> requests.Response:
-    """Execute an HTTP request protected by circuit breaker and retry session.
-    
-    If requests.post/get is monkeypatched in tests, delegates to the mock.
-    """
+    """Execute an HTTP request protected by circuit breaker and retry session."""
     if method == "POST" and requests.post != _orig_post:
         return requests.post(url, **kwargs)
     if method == "GET" and requests.get != _orig_get:
@@ -76,7 +77,7 @@ def resilient_call(breaker: Breaker, session: requests.Session, method: str, url
         raise CircuitOpen(f"Circuit open for {url}")
     try:
         response = session.request(method, url, **kwargs)
-    except requests.RequestException:
+    except Exception:
         breaker.record(False)
         raise
     breaker.record(response.status_code < 500)

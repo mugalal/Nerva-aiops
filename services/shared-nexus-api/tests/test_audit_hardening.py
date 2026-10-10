@@ -66,6 +66,14 @@ def test_circuit_breaker_trips_and_recovers():
     breaker.record(True)
     assert breaker.allow() is True
 
+    # Second outage: must trip again (F3 fix)
+    breaker.record(False)
+    breaker.record(False)
+    breaker.record(False)
+    assert breaker.allow() is False
+    time.sleep(0.15)
+    assert breaker.allow() is True
+
 
 def test_rollout_unconfirmed_audit_type():
     from app.orchestration import orchestrator
@@ -81,8 +89,11 @@ def test_rollout_unconfirmed_audit_type():
         raise RolloutUnconfirmed("Timeout waiting for rollout")
 
     with patch("app.orchestration.orchestrator.execute_remediation", fail_rollout):
-        with pytest.raises(ValueError, match="Remediation failed"):
-            orchestrator.execute_approved_action(incident_id, DecisionAction.SCALE, approved=True, replicas=2)
+        res = orchestrator.execute_approved_action(incident_id, DecisionAction.SCALE, approved=True, replicas=2)
+        assert res.success is True
+
+    # Status must advance to VALIDATING so M1 can measure recovery
+    assert incident["status"] == "VALIDATING"
 
     # Audit records must record ACTION_APPLIED_ROLLOUT_UNCONFIRMED
     records = [r for r in audit_records if r["incident_id"] == incident_id]

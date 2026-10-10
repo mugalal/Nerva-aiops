@@ -3,9 +3,14 @@ import requests
 from pydantic import ValidationError
 from app.contracts import RecoveryResult
 from app.providers.errors import IntegrationError, RecoveryPending
+from app.providers.resilient import Breaker, make_session, resilient_call, CircuitOpen
 
 RECOVERY_PROVIDER = os.getenv("RECOVERY_PROVIDER", "real").lower()
 M1_RECOVERY_URL = os.getenv("M1_RECOVERY_URL", os.getenv("M1_TELEMETRY_BASE_URL", "http://localhost:8001").rstrip("/") + "/internal/recovery/validate")
+
+_breaker = Breaker(threshold=5, cooldown=30.0)
+_session = make_session(retry_post=True)
+
 
 def validate_recovery(incident_id: str, scenario: str, action_completed_at: str, service: str = "payment-service"):
     if RECOVERY_PROVIDER == "mock":
@@ -14,8 +19,10 @@ def validate_recovery(incident_id: str, scenario: str, action_completed_at: str,
         raise ValueError(f"Unsupported recovery provider: {RECOVERY_PROVIDER}")
     m1_scenario = "bad_deployment" if scenario == "faulty_deployment" else scenario
     try:
-        response = requests.post(M1_RECOVERY_URL, json={"incident_id": incident_id, "service": service,
-                                 "action_completed_at": action_completed_at, "scenario": m1_scenario}, timeout=30)
+        response = resilient_call(_breaker, _session, "POST", M1_RECOVERY_URL, json={"incident_id": incident_id, "service": service,
+                                  "action_completed_at": action_completed_at, "scenario": m1_scenario}, timeout=30)
+    except CircuitOpen as exc:
+        raise IntegrationError("M1 recovery validation circuit is open", status_code=503, retryable=True) from exc
     except requests.RequestException as exc:
         raise IntegrationError("M1 recovery validation is unavailable") from exc
     try:

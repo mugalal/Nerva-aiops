@@ -33,6 +33,9 @@ def ingest_anomaly(event: AnomalyEvent, incident_id: str = Query(min_length=1)):
                 incident["anomaly_ids"].append(event.anomaly_id)
             if (is_first_anomaly or "_proposal" not in incident) and incident.get("status") in {"DETECTED", "CORRELATING", "DIAGNOSING"}:
                 incident["_diagnosis_pending"] = True
+                delay = float(os.getenv("M4_AUTO_BUILD_DELAY_SECONDS", "0"))
+                if delay > 0 and "_diagnosis_not_before" not in incident:
+                    incident["_diagnosis_not_before"] = (datetime.now(timezone.utc) + timedelta(seconds=delay)).isoformat()
             persist_anomaly(payload, incident_id)
             anomalies[event.anomaly_id] = payload
             anomaly_owners[event.anomaly_id] = incident_id

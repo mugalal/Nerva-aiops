@@ -5,9 +5,14 @@ from pathlib import Path
 import requests
 from app.contracts import DeploymentEvent, TelemetrySnapshot
 from app.providers.errors import IntegrationError
+from app.providers.resilient import Breaker, make_session, resilient_call, CircuitOpen
 
 EVIDENCE_PROVIDER = os.getenv("EVIDENCE_PROVIDER", "real").lower()
 M1_EVIDENCE_URL = os.getenv("M1_EVIDENCE_URL", os.getenv("M1_TELEMETRY_BASE_URL", "http://localhost:8001").rstrip("/") + "/internal/evidence/capture")
+
+_breaker = Breaker(threshold=5, cooldown=30.0)
+_session = make_session(retry_post=True)
+
 
 def capture_incident_evidence(incident_id: str, service: str, scenario: str, incident_started_at: str | None = None):
     m1_scenario = "bad_deployment" if scenario == "faulty_deployment" else scenario
@@ -27,7 +32,9 @@ def capture_incident_evidence(incident_id: str, service: str, scenario: str, inc
     if EVIDENCE_PROVIDER != "real":
         raise ValueError(f"Unsupported evidence provider: {EVIDENCE_PROVIDER}")
     try:
-        response = requests.post(M1_EVIDENCE_URL, json={"incident_id": incident_id, "service": service, "scenario": m1_scenario}, timeout=10)
+        response = resilient_call(_breaker, _session, "POST", M1_EVIDENCE_URL, json={"incident_id": incident_id, "service": service, "scenario": m1_scenario}, timeout=10)
+    except CircuitOpen as exc:
+        raise IntegrationError("M1 evidence capture circuit is open", status_code=503, retryable=True) from exc
     except requests.RequestException as exc:
         raise IntegrationError("M1 evidence capture is unavailable") from exc
     if response.status_code != 200:
