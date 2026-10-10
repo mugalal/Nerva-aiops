@@ -44,8 +44,10 @@ def work_once():
             if incident["status"] in {"RESOLVED", "ESCALATED"}:
                 enqueue_archive(incident)
             retry = incident.get("_diagnosis_retry_at")
+            not_before = incident.get("_diagnosis_not_before")
             if (os.getenv("M4_AUTO_BUILD_DECISIONS", "true").lower() == "true" and incident.get("_diagnosis_pending")
                     and incident["status"] in {"DETECTED", "CORRELATING", "DIAGNOSING", "DIAGNOSED"}
+                    and (not not_before or datetime.fromisoformat(not_before) <= now)
                     and (not retry or datetime.fromisoformat(retry) <= now)):
                 try:
                     build_decision(identity)

@@ -61,7 +61,13 @@ async def storage_error(request, exc):
 
 
 @app.get("/health")
-def health():
+async def health():
+    if workflow_store.lease_lost():
+        return JSONResponse(status_code=503, content={
+            "service": "shared-nexus-api",
+            "status": "unavailable",
+            "detail": "Writer lease lost; instance must restart",
+        })
     try:
         workflow_store.probe()
     except workflow_store.StorageError:
@@ -83,8 +89,10 @@ def health():
 
 
 @app.get("/ready")
-def ready():
-    result = health()
+async def ready():
+    result = await health() if isinstance(health, type(ready)) else health()
+    if isinstance(result, JSONResponse):
+        return result
     if result["status"] == "unavailable" or (executor.REMEDIATION_BACKEND != "mock" and result["status"] != "ok"):
         return JSONResponse(status_code=503, content=result)
     return result

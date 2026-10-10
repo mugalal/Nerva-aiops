@@ -17,7 +17,11 @@ class StorageError(RuntimeError):
 
 _lock = RLock()
 _last_error = None
-_writer_lease = None
+_lease_lost = False
+
+
+def lease_lost() -> bool:
+    return _lease_lost
 
 
 def backend():
@@ -25,7 +29,7 @@ def backend():
 
 
 def health():
-    return {"backend": backend(), "durable": backend() == "postgres", "error": _last_error}
+    return {"backend": backend(), "durable": backend() == "postgres", "error": _last_error, "lease_lost": _lease_lost}
 
 
 def _sqlite():
@@ -39,10 +43,15 @@ def _sqlite():
 
 
 def _guard(operation):
-    global _last_error
+    global _last_error, _lease_lost
     try:
         if backend() == "postgres" and _writer_lease is not None:
             _writer_lease.execute("SELECT 1")
+    except Exception as exc:
+        _lease_lost = True
+        _last_error = type(exc).__name__
+        raise StorageError("Writer lease lost; this instance must restart") from exc
+    try:
         result = operation()
     except Exception as exc:
         _last_error = type(exc).__name__

@@ -61,39 +61,62 @@ def enqueue_archive(incident):
 
 
 def deliver_archive(incident_id, now=None):
+    from copy import deepcopy
     from app.api.incidents import find_incident, lock_for, persist_incidents
     now = now or datetime.now(timezone.utc)
+
+    # 1. Claim under lock
     with lock_for(incident_id):
         incident = find_incident(incident_id)
         job = (incident or {}).get("_archive_outbox")
         if not job or job["status"] != "PENDING" or datetime.fromisoformat(job["next_attempt_at"]) > now:
             return False
         job["attempts"] += 1
-        # Persist the attempt before delivery. An unknown response can be retried
-        # with exactly the same payload; M5's incident/source key is idempotent.
         persist_incidents()
-        headers = {"Idempotency-Key": job["job_id"]}
-        token = os.getenv("M5_SHARED_API_TOKEN") or os.getenv("NEXUS_APPROVAL_TOKEN")
-        if token:
-            headers["Authorization"] = "Bearer " + token
-        try:
-            response = requests.post(os.getenv("M5_MEMORY_BASE_URL", "http://localhost:8005").rstrip("/") +
-                                     "/internal/memory/store", json=job["payload"], headers=headers, timeout=5)
-            if response.status_code not in {200, 201}:
-                job["last_error"] = "M5 returned HTTP " + str(response.status_code)
-                if 400 <= response.status_code < 500 and response.status_code not in {408, 429}:
-                    job["status"] = "BLOCKED"
-            else:
-                body = response.json()
-                record = body.get("record") if isinstance(body, dict) else None
-                if (not isinstance(record, dict) or record.get("memory") != job["payload"]["memory"]
-                        or record.get("source") != job["payload"]["source"]
-                        or record.get("resolved") is not job["payload"]["resolved"]):
-                    raise ValueError("M5 acknowledgement did not match the delivered outcome and provenance")
-                job.update(status="DELIVERED", last_error=None, delivered_at=datetime.now(timezone.utc).isoformat())
-        except (requests.RequestException, ValueError) as exc:
-            job["last_error"] = type(exc).__name__
-        if job["status"] == "PENDING":
-            job["next_attempt_at"] = (now + timedelta(seconds=min(300, 2 ** min(job["attempts"], 8)))).isoformat()
+        payload = deepcopy(job["payload"])
+        job_id = job["job_id"]
+
+    # 2. Network delivery outside the lock
+    headers = {"Idempotency-Key": job_id}
+    token = os.getenv("M5_SHARED_API_TOKEN") or os.getenv("NEXUS_APPROVAL_TOKEN")
+    if token:
+        headers["Authorization"] = "Bearer " + token
+
+    last_error = None
+    is_delivered = False
+    is_blocked = False
+
+    try:
+        url = os.getenv("M5_MEMORY_BASE_URL", "http://localhost:8005").rstrip("/") + "/internal/memory/store"
+        response = requests.post(url, json=payload, headers=headers, timeout=5)
+        if response.status_code not in {200, 201}:
+            last_error = "M5 returned HTTP " + str(response.status_code)
+            if 400 <= response.status_code < 500 and response.status_code not in {408, 429}:
+                is_blocked = True
+        else:
+            body = response.json()
+            record = body.get("record") if isinstance(body, dict) else None
+            if (not isinstance(record, dict) or record.get("memory") != payload["memory"]
+                    or record.get("source") != payload["source"]
+                    or record.get("resolved") is not payload["resolved"]):
+                raise ValueError("M5 acknowledgement did not match the delivered outcome and provenance")
+            is_delivered = True
+    except (requests.RequestException, ValueError) as exc:
+        last_error = type(exc).__name__
+
+    # 3. Record outcome under lock
+    with lock_for(incident_id):
+        incident = find_incident(incident_id)
+        job = (incident or {}).get("_archive_outbox")
+        if not job:
+            return False
+        if is_delivered:
+            job.update(status="DELIVERED", last_error=None, delivered_at=datetime.now(timezone.utc).isoformat())
+        else:
+            if is_blocked:
+                job["status"] = "BLOCKED"
+            job["last_error"] = last_error
+            if job["status"] == "PENDING":
+                job["next_attempt_at"] = (now + timedelta(seconds=min(300, 2 ** min(job["attempts"], 8)))).isoformat()
         persist_incidents()
         return job["status"] == "DELIVERED"

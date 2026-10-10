@@ -229,15 +229,31 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
                 raise ValueError("Remediation reported failure")
         except Exception as exc:
             completed_at = datetime.now(timezone.utc)
+            if isinstance(exc, remediation_backend.RolloutUnconfirmed):
+                incident["action_completed_at"] = completed_at.isoformat()
+                incident["_action_result"] = ActionResult(
+                    action_id=action_id, incident_id=incident_id,
+                    action=action.value, status="SUCCESS", started_at=started_at, completed_at=completed_at
+                ).model_dump(mode="json")
+                incident["_execution_result"] = {
+                    "action": action.value, "success": True, "message": str(exc), "rollout_unconfirmed": True
+                }
+                incident["recovery_deadline_at"] = (completed_at + timedelta(seconds=RECOVERY_TIMEOUT_SECONDS)).isoformat()
+                incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.VALIDATING).value
+                _pending_executions[incident_id] = {
+                    "snapshot": deepcopy(incident), "committed": False,
+                    "event_type": "ACTION_APPLIED_ROLLOUT_UNCONFIRMED",
+                    "details": {"action": action.value, "message": str(exc)}
+                }
+                _finish_pending_execution(incident_id)
+                return RemediationResult(action=action, success=True, message=str(exc))
+
             incident["_action_result"] = ActionResult(action_id=action_id, incident_id=incident_id,
                 action=action.value, status="FAILED", started_at=started_at, completed_at=completed_at).model_dump(mode="json")
             incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.FAILED_REMEDIATION).value
             incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.ESCALATED).value
-            event_type = ("ACTION_APPLIED_ROLLOUT_UNCONFIRMED"
-                          if isinstance(exc, remediation_backend.RolloutUnconfirmed)
-                          else "ACTION_EXECUTION_FAILED")
             _pending_executions[incident_id] = {"snapshot": deepcopy(incident), "committed": False,
-                "event_type": event_type, "details": {"action": action.value, "message": str(exc)},
+                "event_type": "ACTION_EXECUTION_FAILED", "details": {"action": action.value, "message": str(exc)},
                 "failure": f"Remediation failed: {exc}"}
             _finish_pending_execution(incident_id)
             raise ValueError("Remediation failed; see the audit trail for this incident") from exc
