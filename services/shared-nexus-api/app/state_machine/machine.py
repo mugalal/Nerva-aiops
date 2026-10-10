@@ -33,7 +33,9 @@ ALLOWED_TRANSITIONS = {
         IncidentStatus.ESCALATED,
     },
     IncidentStatus.RESOLVED: set(),
-    IncidentStatus.ESCALATED: set(),
+    IncidentStatus.ESCALATED: {
+        IncidentStatus.VALIDATING,
+    },
 }
 
 def can_transition(current_status: IncidentStatus, next_status: IncidentStatus) -> bool:
@@ -43,7 +45,8 @@ def transition(
     current_status: IncidentStatus,
     next_status: IncidentStatus,
     approved: bool = False,
-    recovery_validated: bool = False
+    recovery_validated: bool = False,
+    reconciled: bool = False,
 ) -> IncidentStatus:
 
     if not can_transition(current_status, next_status):
@@ -68,5 +71,15 @@ def transition(
         raise ValueError(
             "Cannot move to RESOLVED without successful recovery validation"
         )
+
+    if (
+        current_status == IncidentStatus.ESCALATED
+        and next_status == IncidentStatus.VALIDATING
+        and not reconciled
+    ):
+        raise ValueError(
+            "Cannot move from ESCALATED to VALIDATING without operator reconciliation"
+        )
+
 
     return next_status

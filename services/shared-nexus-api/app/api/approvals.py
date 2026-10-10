@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, Header
-from datetime import datetime, timezone
-from app.api.incidents import find_incident, lock_for, persist_incidents, update_incident_status, incident_operation
+from datetime import datetime, timezone, timedelta
+from typing import Literal
+from uuid import uuid4
+from pydantic import BaseModel
+from app.api.incidents import find_incident, lock_for, persist_incidents, update_incident_status, incident_operation, _committed_incidents
 from app.api.auth import verify_approver_auth
-from app.contracts import ActionResult, DecisionProposal
+from app.contracts import ActionResult, DecisionProposal, IncidentView
 from app.state_machine.states import IncidentStatus
 from app.orchestration.orchestrator import execute_approved_action
 from app.decision_engine.models import DecisionAction
@@ -13,19 +16,23 @@ router = APIRouter(prefix="/api/incidents", tags=["approvals"])
 
 @router.get("/{incident_id}/proposal", response_model=DecisionProposal)
 def get_proposal(incident_id: str):
-    with lock_for(incident_id):
+    incident = next((item for item in _committed_incidents if item["incident_id"] == incident_id), None)
+    if incident is None:
         incident = find_incident(incident_id)
-        if incident is None or "_proposal" not in incident:
-            raise HTTPException(status_code=404, detail="Decision proposal not found")
-        return incident["_proposal"]
+    if incident is None or "_proposal" not in incident:
+        raise HTTPException(status_code=404, detail="Decision proposal not found")
+    return incident["_proposal"]
 
 @router.get("/{incident_id}/actions/latest", response_model=ActionResult)
 def get_action_result(incident_id: str):
-    with lock_for(incident_id):
+    incident = next((item for item in _committed_incidents if item["incident_id"] == incident_id), None)
+    if incident is None:
         incident = find_incident(incident_id)
-        if incident is None or "_action_result" not in incident:
-            raise HTTPException(status_code=404, detail="Action result not found")
-        return incident["_action_result"]
+    if incident is None or "_action_result" not in incident:
+        raise HTTPException(status_code=404, detail="Action result not found")
+    return incident["_action_result"]
+
+
 
 import hashlib
 import json
@@ -109,3 +116,76 @@ def retry_archive(incident_id: str, authorization: str | None = Header(default=N
             persist_incidents()
             add_audit_record(incident_id, "MEMORY_ARCHIVE_RETRY_REQUESTED", {"approver": approver, "job_id": job["job_id"]})
         return {"incident_id": incident_id, "archive_status": job["status"], "attempts": job["attempts"]}
+
+
+class ReconciliationRequest(BaseModel):
+    outcome: Literal["CONFIRMED", "FAILED"]
+    note: str = ""
+
+
+@router.post("/{incident_id}/reconcile", response_model=IncidentView)
+def reconcile_incident(
+    incident_id: str,
+    request: ReconciliationRequest,
+    authorization: str | None = Header(default=None),
+    x_nexus_approver_token: str | None = Header(default=None),
+    x_nexus_approver: str | None = Header(default="operator"),
+):
+    approver = verify_approver_auth(authorization, x_nexus_approver_token, x_nexus_approver)
+    with incident_operation(incident_id):
+        incident = find_incident(incident_id)
+        if incident is None:
+            raise HTTPException(status_code=404, detail="Incident not found")
+        if not incident.get("_execution_ambiguous") and incident["status"] != IncidentStatus.ESCALATED.value:
+            raise HTTPException(status_code=409, detail="Only ambiguous or escalated incidents can be reconciled")
+        intent = incident.pop("_execution_intent", None) or {}
+        incident.pop("_execution_ambiguous", None)
+        incident.pop("_execution_reconciliation_reason", None)
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        action_id = intent.get("action_id") or ("ACT-" + uuid4().hex)
+        raw_action = intent.get("action") or incident.get("proposed_action") or "ROLLBACK"
+        action_val = "SCALE" if raw_action == "SCALE" else "ROLLBACK"
+        if request.outcome == "CONFIRMED":
+            incident["action_completed_at"] = now_iso
+            incident["recovery_deadline_at"] = (now + timedelta(seconds=360)).isoformat()
+            incident["_action_result"] = ActionResult(
+                action_id=action_id,
+                incident_id=incident_id,
+                action=action_val,
+                status="SUCCESS",
+                started_at=intent.get("started_at") or now_iso,
+                completed_at=now_iso,
+            ).model_dump(mode="json")
+            incident["_execution_result"] = {
+                "action": action_val,
+                "success": True,
+                "message": f"Operator reconciled: {request.note or 'Rollout confirmed manually'}",
+            }
+            add_audit_record(incident_id, "MANUAL_RECONCILIATION_CONFIRMED", {
+                "approver": approver, "note": request.note, "outcome": "CONFIRMED",
+            })
+            update_incident_status(incident_id, IncidentStatus.VALIDATING, reconciled=True)
+        else:
+            incident["_action_result"] = ActionResult(
+                action_id=action_id,
+                incident_id=incident_id,
+                action=action_val,
+                status="FAILED",
+                started_at=intent.get("started_at") or now_iso,
+                completed_at=now_iso,
+            ).model_dump(mode="json")
+            incident["_execution_result"] = {
+                "action": action_val,
+                "success": False,
+                "message": f"Operator reconciled: {request.note or 'Rollout aborted manually'}",
+            }
+            add_audit_record(incident_id, "MANUAL_RECONCILIATION_FAILED", {
+                "approver": approver, "note": request.note, "outcome": "FAILED",
+            })
+            from app.orchestration.archive import enqueue_archive
+            enqueue_archive(incident)
+            persist_incidents()
+        from app.api.incidents import public_incident
+        return public_incident(incident)
+
