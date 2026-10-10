@@ -1,5 +1,11 @@
 import os
+import sys
+from pathlib import Path
 import pytest
+
+_repo_root = Path(__file__).resolve().parents[3]
+if _repo_root.exists() and (_repo_root / "shared").is_dir() and str(_repo_root) not in sys.path:
+    sys.path.insert(0, str(_repo_root))
 
 for name in ("REMEDIATION_BACKEND", "RCA_PROVIDER", "FINOPS_PROVIDER", "RECOVERY_PROVIDER", "EVIDENCE_PROVIDER"):
     os.environ[name] = "mock"

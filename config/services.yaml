@@ -1,0 +1,48 @@
+version: 1
+services:
+  - name: payment-service
+    namespace: nexus-demo
+    workload:
+      kind: Deployment
+      name: payment-service
+    tier: critical
+    depends_on: []
+    remediation:
+      actions:
+        - ROLLBACK
+        - SCALE
+      min_replicas: 1
+      max_replicas: 10
+      max_scale_step: 7
+      approval: always
+  - name: cart-service
+    namespace: nexus-demo
+    workload:
+      kind: Deployment
+      name: cart-service
+    tier: standard
+    depends_on: []
+    remediation:
+      actions:
+        - SCALE
+      min_replicas: 1
+      max_replicas: 5
+      max_scale_step: 2
+      approval: always
+  - name: frontend
+    namespace: nexus-demo
+    workload:
+      kind: Deployment
+      name: frontend
+    tier: critical
+    depends_on:
+      - payment-service
+      - cart-service
+    remediation:
+      actions:
+        - SCALE
+        - ROLLBACK
+      min_replicas: 1
+      max_replicas: 10
+      max_scale_step: 4
+      approval: always

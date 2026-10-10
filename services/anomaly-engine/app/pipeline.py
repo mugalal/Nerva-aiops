@@ -48,6 +48,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import threading
 import uuid
 from collections import deque
@@ -141,6 +142,12 @@ class Pipeline:
         self._latest: dict[str, AnomalyEvent] = {}
         self._handoff_error: str | None = None
         self._lock = threading.RLock()
+        use_async = os.getenv("M2_ASYNC_DISPATCH", "false").lower() in {"1", "true", "yes", "on"}
+        if use_async:
+            from app.dispatch import Dispatcher
+            self._dispatcher = Dispatcher(self._deliver)
+        else:
+            self._dispatcher = None
 
     # -- what is configured ------------------------------------------------
 
@@ -163,7 +170,10 @@ class Pipeline:
         with self._lock:
             reading, opened = self._score(snapshot)
         if reading.alert and self.handoff is not None:
-            self._deliver(reading.incident.incident_id)   # outside the lock: it talks to the network
+            if self._dispatcher is not None:
+                self._dispatcher.submit(reading.incident.incident_id)
+            else:
+                self._deliver(reading.incident.incident_id)   # outside the lock: it talks to the network
         return reading
 
     def _score(self, snapshot: TelemetrySnapshot) -> tuple[Reading, bool]:

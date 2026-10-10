@@ -187,9 +187,9 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
             raise ValueError("Remediation cannot execute without approval")
         service = incident_service(incident)
         validate_service_allowed(service)
-        validate_action_allowed(action)
+        validate_action_allowed(action, service=service)
         if action == DecisionAction.SCALE:
-            validate_replica_count(replicas)
+            validate_replica_count(replicas, service=service)
         proposed = incident.get("proposed_action")
         if proposed is not None and proposed != action.value:
             raise ValueError("Requested action does not match the approved proposal")
