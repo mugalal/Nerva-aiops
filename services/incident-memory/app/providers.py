@@ -15,7 +15,7 @@ class Provider:
         self.mode = mode or os.getenv("M5_UI_MODE", "live")
         if self.mode not in {"mock", "live"}:
             raise ValueError("M5_UI_MODE must be live or mock")
-        self.base = os.getenv("SHARED_NEXUS_API_BASE_URL", "http://localhost:8000").rstrip("/")
+        self.base = os.getenv("SHARED_NEXUS_API_BASE_URL", "http://localhost:8004").rstrip("/")
         self.client = client
 
     def request(self, method, path, payload=None):

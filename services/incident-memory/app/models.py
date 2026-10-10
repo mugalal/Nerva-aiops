@@ -71,16 +71,16 @@ class StoreRequest(Model):
 
     @model_validator(mode="after")
     def consistent_records(self):
-        if not self.resolved:
-            raise ValueError("Only resolved incidents can enter incident memory")
         m, c = self.memory, self.context
+        if not self.resolved and (not c.incident or c.incident.get("status") != "ESCALATED"):
+            raise ValueError("Only resolved or escalated incidents can enter incident memory")
         for name in ("incident", "rca", "decision", "action_result", "recovery_result"):
             record = getattr(c, name)
             if record is not None and record.get("incident_id") != m.incident_id:
                 raise ValueError(f"{name}.incident_id must match memory.incident_id")
         if c.incident:
-            if c.incident.get("status") != "RESOLVED":
-                raise ValueError("context.incident must be RESOLVED")
+            if c.incident.get("status") not in {"RESOLVED", "ESCALATED"}:
+                raise ValueError("context.incident must be RESOLVED or ESCALATED")
             if m.service not in c.incident.get("affected_services", []):
                 raise ValueError("memory.service must belong to affected_services")
         if c.anomaly:

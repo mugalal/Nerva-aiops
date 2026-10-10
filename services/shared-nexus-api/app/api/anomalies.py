@@ -1,3 +1,6 @@
+import json
+import os
+from pathlib import Path
 from datetime import datetime, timezone
 from threading import RLock
 from fastapi import APIRouter, HTTPException, Query
@@ -7,6 +10,28 @@ from app.contracts import AnomalyEvent
 router = APIRouter(prefix="/internal/anomalies", tags=["anomalies"])
 anomalies = {}
 _anomaly_lock = RLock()
+
+_ANOMALY_PATH = Path(os.getenv("M4_ANOMALIES_FILE", "/data/anomalies.json") if os.path.exists("/data") else "./data/anomalies.json")
+
+def _load_anomalies():
+    try:
+        if _ANOMALY_PATH.exists():
+            data = json.loads(_ANOMALY_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                anomalies.update(data)
+    except Exception:
+        pass
+
+def _persist_anomalies():
+    try:
+        _ANOMALY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _ANOMALY_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(anomalies, indent=2), encoding="utf-8")
+        tmp.replace(_ANOMALY_PATH)
+    except Exception:
+        pass
+
+_load_anomalies()
 
 @router.post("", response_model=AnomalyEvent)
 def ingest_anomaly(event: AnomalyEvent, incident_id: str = Query(min_length=1)):
@@ -24,8 +49,20 @@ def ingest_anomaly(event: AnomalyEvent, incident_id: str = Query(min_length=1)):
             if previous is not None and previous != payload:
                 raise HTTPException(status_code=409, detail="Anomaly ID already contains different evidence")
             anomalies[event.anomaly_id] = payload
+            _persist_anomalies()
+        is_first_anomaly = len(incident["anomaly_ids"]) == 0
         if event.anomaly_id not in incident["anomaly_ids"]:
             incident["anomaly_ids"].append(event.anomaly_id)
+        if (is_first_anomaly or "_proposal" not in incident) and incident.get("status") in {"DETECTED", "CORRELATING", "DIAGNOSING"}:
+            import threading
+            from app.orchestration.orchestrator import build_decision
+            def safe_build():
+                try:
+                    build_decision(incident_id)
+                except Exception as exc:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Auto build_decision failed for {incident_id}: {exc}")
+            threading.Thread(target=safe_build, daemon=True).start()
         return event
 
 @router.get("", response_model=AnomalyEvent)

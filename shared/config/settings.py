@@ -25,7 +25,7 @@ def get_runtime_settings(default_service_name: str) -> RuntimeSettings:
         environment=os.getenv("ENVIRONMENT", "development"),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
         database_url=os.getenv("DATABASE_URL"),
-        shared_nexus_api_base_url=os.getenv("SHARED_NEXUS_API_BASE_URL", "http://localhost:8000"),
+        shared_nexus_api_base_url=os.getenv("SHARED_NEXUS_API_BASE_URL", "http://localhost:8004"),
         m1_telemetry_base_url=os.getenv("M1_TELEMETRY_BASE_URL", "http://localhost:8001"),
         m2_anomaly_base_url=os.getenv("M2_ANOMALY_BASE_URL", "http://localhost:8002"),
         m3_rca_base_url=os.getenv("M3_RCA_BASE_URL", "http://localhost:8003"),

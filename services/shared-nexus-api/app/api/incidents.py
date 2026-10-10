@@ -1,3 +1,6 @@
+import json
+import os
+from pathlib import Path
 from datetime import datetime, timezone
 from threading import RLock
 from fastapi import APIRouter, HTTPException
@@ -10,6 +13,28 @@ router = APIRouter(prefix="/api/incidents", tags=["incidents"])
 incidents = []
 _locks = {}
 _lock_guard = RLock()
+
+_DATA_PATH = Path(os.getenv("M4_STORAGE_FILE", "/data/incidents.json") if os.path.exists("/data") else "./data/incidents.json")
+
+def _load_incidents():
+    try:
+        if _DATA_PATH.exists():
+            data = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
+            if isinstance(data, list):
+                incidents.extend(data)
+    except Exception:
+        pass
+
+def persist_incidents():
+    try:
+        _DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _DATA_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(incidents, indent=2), encoding="utf-8")
+        tmp.replace(_DATA_PATH)
+    except Exception:
+        pass
+
+_load_incidents()
 
 class IncidentCreate(BaseModel):
     incident_id: str = Field(min_length=1)
@@ -62,6 +87,7 @@ def update_incident_status(incident_id: str, next_status: IncidentStatus, approv
         new_status = transition(IncidentStatus(incident["status"]), next_status,
                                 approved=approved, recovery_validated=recovery_validated)
         incident["status"] = new_status.value
+        persist_incidents()
         return incident
 
 
@@ -73,6 +99,7 @@ def create_incident(incident: IncidentCreate):
         incident_data = incident.model_dump(mode="json")
         incident_data["status"] = IncidentStatus.DETECTED.value
         incidents.append(incident_data)
+        persist_incidents()
         return public_incident(incident_data)
 
 

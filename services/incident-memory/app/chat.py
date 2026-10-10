@@ -75,7 +75,7 @@ def settings():
     host = urlparse(base).hostname
     provider_key = os.getenv("GEMINI_API_KEY") if host == "generativelanguage.googleapis.com" else os.getenv("OPENAI_API_KEY") if host == "api.openai.com" else None
     key = os.getenv("M5_LLM_API_KEY") or provider_key
-    model = os.getenv("M5_LLM_MODEL", "gemini-3.8-flash")
+    model = os.getenv("M5_LLM_MODEL", "gemini-1.5-flash")
     # Local/compatible providers may explicitly use an empty key.
     local = urlparse(base).hostname in {"localhost", "127.0.0.1", "host.docker.internal", "::1"}
     configured = bool(key) or (local and bool(os.getenv("M5_LLM_MODEL")))

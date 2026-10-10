@@ -1,47 +1,49 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: root-cause-analysis
+  name: anomaly-engine
   namespace: nexus-demo
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: root-cause-analysis
+      app: anomaly-engine
   template:
     metadata:
       labels:
-        app: root-cause-analysis
-        service_name: root-cause-analysis
+        app: anomaly-engine
+        service_name: anomaly-engine
     spec:
       automountServiceAccountToken: false
       containers:
-        - name: root-cause-analysis
-          image: nexus/root-cause-analysis:dev
+        - name: anomaly-engine
+          image: nexus/anomaly-engine:dev
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 8003
+              containerPort: 8002
           env:
             - name: SERVICE_NAME
-              value: root-cause-analysis
+              value: anomaly-engine
             - name: SERVICE_VERSION
               value: 0.1.0
             - name: ENVIRONMENT
               value: integration
-            - name: M3_PROVIDER_MODE
-              value: real
+            - name: M2_POLL_ENABLED
+              value: "true"
+            - name: M2_HANDOFF_ENABLED
+              value: "true"
+            - name: M2_HANDOFF_URL
+              value: http://shared-nexus-api:8004
             - name: M1_TELEMETRY_BASE_URL
               value: http://telemetry-intelligence:8001
-            - name: SHARED_NEXUS_API_BASE_URL
-              value: http://shared-nexus-api:8004
           resources:
             requests:
               cpu: 50m
               memory: 64Mi
             limits:
               cpu: 250m
-              memory: 192Mi
+              memory: 256Mi
           readinessProbe:
             httpGet:
               path: /health
@@ -60,12 +62,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: root-cause-analysis
+  name: anomaly-engine
   namespace: nexus-demo
 spec:
   selector:
-    app: root-cause-analysis
+    app: anomaly-engine
   ports:
     - name: http
-      port: 8003
+      port: 8002
       targetPort: http

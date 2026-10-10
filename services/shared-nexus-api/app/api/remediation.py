@@ -15,8 +15,22 @@ class RemediationRequest(BaseModel):
     approved: bool
     replicas: int | None = Field(default=None, strict=True)
 
+import os
+from fastapi import Header
+
 @router.post("/execute", response_model=RemediationResult)
-def execute(request: RemediationRequest):
+def execute(
+    request: RemediationRequest,
+    authorization: str | None = Header(default=None),
+    x_nexus_approver_token: str | None = Header(default=None),
+):
+    expected_token = os.getenv("NEXUS_APPROVAL_TOKEN", os.getenv("M5_SHARED_API_TOKEN"))
+    if expected_token:
+        received = x_nexus_approver_token
+        if not received and authorization and authorization.startswith("Bearer "):
+            received = authorization[7:].strip()
+        if received != expected_token:
+            raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing approval token")
     if find_incident(request.incident_id) is None:
         raise HTTPException(status_code=404, detail="Incident not found")
     try:

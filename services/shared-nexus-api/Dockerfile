@@ -12,6 +12,9 @@ COPY services/shared-nexus-api/app ./app
 COPY services/shared-nexus-api/shared_nexus_providers ./shared_nexus_providers
 COPY mocks /app/mocks
 
+RUN useradd --uid 10001 --create-home nexus && mkdir -p /data && chown -R nexus:nexus /data /app
+USER nexus
+
 EXPOSE 8004
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8004"]

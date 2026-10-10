@@ -1,3 +1,7 @@
+import logging
+import os
+import threading
+import requests
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from app.api.incidents import find_incident, lock_for, update_incident_status
@@ -17,6 +21,8 @@ from app.remediation.models import RemediationResult
 from app.remediation.guardrails import validate_service_allowed, validate_replica_count, validate_action_allowed
 from app.remediation.audit import add_audit_record
 from app.state_machine.states import IncidentStatus
+
+logger = logging.getLogger(__name__)
 
 
 def incident_service(incident):
@@ -59,7 +65,8 @@ def build_decision(incident_id: str):
         result = decide_from_rca(rca)
         finops = None
         # FinOps is needed only for a confident scaling diagnosis.
-        if rca["root_cause"] == "traffic_spike" and rca["confidence"] >= 0.7:
+        from app.decision_engine.engine import MIN_RCA_CONFIDENCE
+        if rca["root_cause"] == "traffic_spike" and rca["confidence"] >= MIN_RCA_CONFIDENCE:
             try:
                 finops = get_finops_context(service)
                 result = decide_from_rca(rca, finops)
@@ -168,6 +175,7 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
             add_audit_record(incident_id, "ACTION_EXECUTION_FAILED", {"action": action.value, "message": str(exc)})
             update_incident_status(incident_id, IncidentStatus.FAILED_REMEDIATION)
             update_incident_status(incident_id, IncidentStatus.ESCALATED)
+            threading.Thread(target=_notify_m5_memory, args=(incident_id,), daemon=True).start()
             raise ValueError(f"Remediation failed: {exc}") from exc
         completed_at = datetime.now(timezone.utc)
         incident["action_completed_at"] = completed_at.isoformat()
@@ -243,12 +251,79 @@ def validate_and_apply_recovery(incident_id: str):
         return apply_recovery_result(incident_id, True)
 
 
+def _notify_m5_memory(incident_id: str):
+    from app.api.incidents import find_incident
+    try:
+        incident = find_incident(incident_id)
+        if not incident:
+            return
+            
+        url = os.getenv("M5_MEMORY_BASE_URL", "http://localhost:8005").rstrip("/") + "/internal/memory/store"
+        
+        service = incident.get("affected_services", ["unknown"])[0] if incident.get("affected_services") else "unknown"
+        action_result = incident.get("_action_result", {})
+        action = action_result.get("action", incident.get("proposed_action", "unknown"))
+        action_success = action_result.get("status") == "SUCCESS"
+        
+        recovery = incident.get("_recovery", {})
+        recovery_details = recovery.get("details")
+        recovered = bool(recovery_details.get("recovered")) if recovery_details else bool(recovery.get("success", False))
+        
+        incident_type = incident.get("root_cause") or incident.get("type") or "unknown"
+        
+        incident_view = {
+            "incident_id": incident["incident_id"],
+            "started_at": incident["started_at"],
+            "status": incident["status"],
+            "severity": incident.get("severity", "high"),
+            "affected_services": incident.get("affected_services", []),
+            "anomaly_ids": incident.get("anomaly_ids", [])
+        }
+        
+        payload = {
+            "memory": {
+                "incident_id": incident["incident_id"],
+                "incident_type": incident_type,
+                "service": service,
+                "root_cause": incident.get("root_cause", incident_type),
+                "action": action,
+                "action_success": action_success,
+                "recovered": recovered,
+                "tags": []
+            },
+            "context": {
+                "incident": incident_view,
+                "rca": incident.get("_rca"),
+                "decision": incident.get("_proposal"),
+                "action_result": action_result if action_result else None,
+                "recovery_result": recovery_details if recovery_details else None,
+            },
+            "source": "real",
+            "resolved": incident["status"] == IncidentStatus.RESOLVED.value
+        }
+        
+        payload["context"] = {k: v for k, v in payload["context"].items() if v is not None}
+        
+        headers = {}
+        token = os.getenv("M5_SHARED_API_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+            
+        requests.post(url, json=payload, headers=headers, timeout=5.0)
+    except Exception as e:
+        logger.warning(f"Failed to notify M5 memory: {e}")
+
 def apply_recovery_result(incident_id: str, success: bool):
     incident = find_incident(incident_id)
     if incident is None:
         raise ValueError("Incident not found")
     add_audit_record(incident_id, "RECOVERY_VALIDATION", {"success": success})
     if success:
-        return update_incident_status(incident_id, IncidentStatus.RESOLVED, recovery_validated=True)
+        res = update_incident_status(incident_id, IncidentStatus.RESOLVED, recovery_validated=True)
+        threading.Thread(target=_notify_m5_memory, args=(incident_id,), daemon=True).start()
+        return res
     update_incident_status(incident_id, IncidentStatus.FAILED_REMEDIATION)
-    return update_incident_status(incident_id, IncidentStatus.ESCALATED)
+    res = update_incident_status(incident_id, IncidentStatus.ESCALATED)
+    threading.Thread(target=_notify_m5_memory, args=(incident_id,), daemon=True).start()
+    return res
+

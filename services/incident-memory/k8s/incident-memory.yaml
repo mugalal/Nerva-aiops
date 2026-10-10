@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: incident-memory-data
+  namespace: nexus-demo
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-memory
+  namespace: nexus-demo
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: incident-memory
+  template:
+    metadata:
+      labels:
+        app: incident-memory
+        service_name: incident-memory
+    spec:
+      containers:
+        - name: incident-memory
+          image: nexus/incident-memory:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8005
+          env:
+            - name: SERVICE_NAME
+              value: incident-memory
+            - name: ENVIRONMENT
+              value: development
+            - name: DATABASE_URL
+              value: sqlite:////data/memory.db
+            - name: M5_UI_MODE
+              value: live
+            - name: SHARED_NEXUS_API_BASE_URL
+              value: http://shared-nexus-api:8004
+            - name: M5_APPROVAL_PATH
+              value: /api/incidents/{incident_id}/approve
+            - name: M5_SHARED_API_TOKEN
+              value: secret-demo-token
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: incident-memory-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: incident-memory
+  namespace: nexus-demo
+spec:
+  selector:
+    app: incident-memory
+  ports:
+    - name: http
+      port: 8005
+      targetPort: http

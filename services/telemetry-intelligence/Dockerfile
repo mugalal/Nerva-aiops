@@ -8,6 +8,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY shared /app/shared
 COPY services/telemetry-intelligence/app ./app
 
+RUN useradd --uid 10001 --create-home nexus && chown -R nexus:nexus /app
+USER nexus
+
 ENV PYTHONPATH=/app \
     SERVICE_NAME=telemetry-intelligence \
     SERVICE_VERSION=0.1.0 \

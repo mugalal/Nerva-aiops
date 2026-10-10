@@ -1,4 +1,0 @@
-run,scenario,ground_truth,detected,score,detection_delay,prediction
-healthy-1,healthy,normal,false,0.5328,,normal
-bad_deployment-1,bad_deployment,anomalous,true,0.9964,15,anomalous
-traffic_spike-1,traffic_spike,anomalous,true,0.9878,15,anomalous

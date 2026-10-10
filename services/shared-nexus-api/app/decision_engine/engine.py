@@ -1,7 +1,8 @@
+import os
 import math
 from app.decision_engine.models import DecisionAction, DecisionResult
 
-MIN_RCA_CONFIDENCE = 0.7
+MIN_RCA_CONFIDENCE = float(os.getenv("MIN_RCA_CONFIDENCE", "0.60"))
 
 def decide_action(root_cause: str) -> DecisionAction:
     return {"faulty_deployment": DecisionAction.ROLLBACK, "traffic_spike": DecisionAction.SCALE}.get(root_cause, DecisionAction.ESCALATE)

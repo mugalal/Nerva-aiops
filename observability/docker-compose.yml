@@ -168,9 +168,51 @@ services:
       - loki
     restart: unless-stopped
 
+  anomaly-engine:
+    profiles: [integration]
+    build:
+      context: ..
+      dockerfile: services/anomaly-engine/Dockerfile
+    image: nexus/anomaly-engine:dev
+    environment:
+      SERVICE_NAME: anomaly-engine
+      ENVIRONMENT: development
+      M2_POLL_ENABLED: "true"
+      M2_HANDOFF_ENABLED: "true"
+      M2_HANDOFF_URL: http://shared-nexus-api:8004
+      M1_TELEMETRY_BASE_URL: http://telemetry-intelligence:8001
+    ports:
+      - "8002:8002"
+    cpus: 0.5
+    mem_limit: 256m
+    restart: unless-stopped
+
+  incident-memory:
+    profiles: [integration]
+    build:
+      context: ..
+      dockerfile: services/incident-memory/Dockerfile
+    image: nexus/incident-memory:dev
+    environment:
+      SERVICE_NAME: incident-memory
+      ENVIRONMENT: development
+      DATABASE_URL: sqlite:////data/memory.db
+      M5_UI_MODE: live
+      SHARED_NEXUS_API_BASE_URL: http://shared-nexus-api:8004
+      M5_APPROVAL_PATH: /api/incidents/{incident_id}/approve
+      M5_SHARED_API_TOKEN: ${NEXUS_APPROVAL_TOKEN:-secret-demo-token}
+    ports:
+      - "8005:8005"
+    cpus: 0.5
+    mem_limit: 256m
+    volumes:
+      - "m5-data:/data"
+    restart: unless-stopped
+
 volumes:
   alloy-data:
   grafana-data:
   loki-data:
   m1-data:
+  m5-data:
   prometheus-data:

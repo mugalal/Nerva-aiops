@@ -1,4 +1,4 @@
-FROM python:3.13-slim
+FROM python:3.11-slim
 WORKDIR /nexus
 COPY services/incident-memory/requirements.txt /nexus/requirements.txt
 RUN pip install --no-cache-dir -r /nexus/requirements.txt
