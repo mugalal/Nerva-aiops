@@ -78,7 +78,7 @@ class IncidentCreate(BaseModel):
 
 
 @contextmanager
-def lock_for(incident_id, timeout: float | None = None):
+def lock_for(incident_id: str, timeout: float | None = None):
     # A save projects the complete in-process snapshot. Serialize mutation units
     # so another incident cannot publish half of an unfinished workflow change.
     acquired = _workflow_lock.acquire(timeout=timeout if timeout is not None else -1)
@@ -95,6 +95,7 @@ def lock_for(incident_id, timeout: float | None = None):
         _workflow_lock.release()
 
 
+
 @contextmanager
 def incident_operation(incident_id: str, wait: float = 5.0):
     with lock_for(incident_id, timeout=wait):
@@ -109,13 +110,24 @@ def public_incident(incident):
     return IncidentView.model_validate({key: incident[key] for key in IncidentView.model_fields}).model_dump(mode="json")
 
 
-def update_incident_status(incident_id: str, next_status: IncidentStatus, approved: bool = False, recovery_validated: bool = False):
+def update_incident_status(
+    incident_id: str,
+    next_status: IncidentStatus,
+    approved: bool = False,
+    recovery_validated: bool = False,
+    reconciled: bool = False,
+):
     with lock_for(incident_id):
         incident = find_incident(incident_id)
         if incident is None:
             raise ValueError("Incident not found")
-        new_status = transition(IncidentStatus(incident["status"]), next_status,
-                                approved=approved, recovery_validated=recovery_validated)
+        new_status = transition(
+            IncidentStatus(incident["status"]),
+            next_status,
+            approved=approved,
+            recovery_validated=recovery_validated,
+            reconciled=reconciled,
+        )
         incident["status"] = new_status.value
         persist_incidents()
         return incident
@@ -154,24 +166,26 @@ def get_incident_context(incident_id: str):
     from app.api.anomalies import anomalies
     from app.orchestration.orchestrator import provenance
     from app.remediation.audit import audit_records
-    with lock_for(incident_id):
+    incident = next((item for item in _committed_incidents if item["incident_id"] == incident_id), None)
+    if incident is None:
         incident = find_incident(incident_id)
-        if incident is None:
-            raise HTTPException(status_code=404, detail="Incident not found")
-        linked = [anomalies[key] for key in incident["anomaly_ids"] if key in anomalies]
-        recovery = incident.get("_recovery") or incident.get("_last_recovery_measurement") or {}
-        modes = incident.get("_provenance") or provenance()
-        sources = set(modes.values())
-        source = "real" if sources == {"real"} else "mock" if sources == {"mock"} else "mixed"
-        return {"incident": public_incident(incident), "anomaly": linked[-1] if linked else None,
-            "anomalies": linked, "rca": incident.get("_rca"), "decision": incident.get("_proposal"),
-            "action_result": incident.get("_action_result"), "recovery_result": recovery.get("details"),
-            "recovery_validation": recovery or None, "finops_context": incident.get("_finops"),
-            "deployment_event": (incident.get("_evidence") or {}).get("deployment_event"),
-            "evidence": incident.get("_evidence"), "source": source, "provider_modes": modes,
-            "workflow": {"action_completed_at": incident.get("action_completed_at"),
-                "recovery_deadline_at": incident.get("recovery_deadline_at"),
-                "execution_ambiguous": bool(incident.get("_execution_ambiguous")),
-                "archive_status": (incident.get("_archive_outbox") or {}).get("status"),
-                "archive_error": (incident.get("_archive_outbox") or {}).get("last_error") or incident.get("_archive_blocked_reason")},
-            "audit": [record for record in audit_records if record["incident_id"] == incident_id]}
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    linked = [anomalies[key] for key in incident.get("anomaly_ids", []) if key in anomalies]
+    recovery = incident.get("_recovery") or incident.get("_last_recovery_measurement") or {}
+    modes = incident.get("_provenance") or provenance()
+    sources = set(modes.values())
+    source = "real" if sources == {"real"} else "mock" if sources == {"mock"} else "mixed"
+    return {"incident": public_incident(incident), "anomaly": linked[-1] if linked else None,
+        "anomalies": linked, "rca": incident.get("_rca"), "decision": incident.get("_proposal"),
+        "action_result": incident.get("_action_result"), "recovery_result": recovery.get("details"),
+        "recovery_validation": recovery or None, "finops_context": incident.get("_finops"),
+        "deployment_event": (incident.get("_evidence") or {}).get("deployment_event"),
+        "evidence": incident.get("_evidence"), "source": source, "provider_modes": modes,
+        "workflow": {"action_completed_at": incident.get("action_completed_at"),
+            "recovery_deadline_at": incident.get("recovery_deadline_at"),
+            "execution_ambiguous": bool(incident.get("_execution_ambiguous")),
+            "archive_status": (incident.get("_archive_outbox") or {}).get("status"),
+            "archive_error": (incident.get("_archive_outbox") or {}).get("last_error") or incident.get("_archive_blocked_reason")},
+        "audit": [record for record in audit_records if record["incident_id"] == incident_id]}
+

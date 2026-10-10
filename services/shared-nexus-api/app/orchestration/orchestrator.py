@@ -221,43 +221,56 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
         incident.setdefault("_provenance", provenance())
         # The durable intent and captured preconditions precede the external side effect.
         update_incident_status(incident_id, IncidentStatus.EXECUTING, approved=True)
-        try:
-            result = execute_remediation(action, approved=True, replicas=replicas, service=service,
-                                         expected_state=incident.get("_expected_state"),
-                                         rollback_target=incident.get("_proposal", {}).get("parameters", {}).get("to_version"))
-            if not result.success:
-                raise ValueError("Remediation reported failure")
-        except Exception as exc:
-            completed_at = datetime.now(timezone.utc)
-            if isinstance(exc, remediation_backend.RolloutUnconfirmed):
+        expected_state = incident.get("_expected_state")
+        rollback_target = incident.get("_proposal", {}).get("parameters", {}).get("to_version")
+
+    # The external side effect executes outside the lock so other incidents/reads are not blocked.
+    execution_exc = None
+    result = None
+    try:
+        result = execute_remediation(action, approved=True, replicas=replicas, service=service,
+                                     expected_state=expected_state,
+                                     rollback_target=rollback_target)
+        if not result.success:
+            execution_exc = ValueError("Remediation reported failure")
+    except Exception as exc:
+        execution_exc = exc
+
+    with lock_for(incident_id):
+        incident = find_incident(incident_id)
+        if incident is None:
+            raise ValueError("Incident not found")
+        completed_at = datetime.now(timezone.utc)
+        if execution_exc is not None:
+            if isinstance(execution_exc, remediation_backend.RolloutUnconfirmed):
                 incident["action_completed_at"] = completed_at.isoformat()
                 incident["_action_result"] = ActionResult(
                     action_id=action_id, incident_id=incident_id,
                     action=action.value, status="SUCCESS", started_at=started_at, completed_at=completed_at
                 ).model_dump(mode="json")
                 incident["_execution_result"] = {
-                    "action": action.value, "success": True, "message": str(exc), "rollout_unconfirmed": True
+                    "action": action.value, "success": True, "message": str(execution_exc), "rollout_unconfirmed": True
                 }
                 incident["recovery_deadline_at"] = (completed_at + timedelta(seconds=RECOVERY_TIMEOUT_SECONDS)).isoformat()
                 incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.VALIDATING).value
                 _pending_executions[incident_id] = {
                     "snapshot": deepcopy(incident), "committed": False,
                     "event_type": "ACTION_APPLIED_ROLLOUT_UNCONFIRMED",
-                    "details": {"action": action.value, "message": str(exc)}
+                    "details": {"action": action.value, "message": str(execution_exc)}
                 }
                 _finish_pending_execution(incident_id)
-                return RemediationResult(action=action, success=True, message=str(exc))
+                return RemediationResult(action=action, success=True, message=str(execution_exc))
 
             incident["_action_result"] = ActionResult(action_id=action_id, incident_id=incident_id,
                 action=action.value, status="FAILED", started_at=started_at, completed_at=completed_at).model_dump(mode="json")
             incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.FAILED_REMEDIATION).value
             incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.ESCALATED).value
             _pending_executions[incident_id] = {"snapshot": deepcopy(incident), "committed": False,
-                "event_type": "ACTION_EXECUTION_FAILED", "details": {"action": action.value, "message": str(exc)},
-                "failure": f"Remediation failed: {exc}"}
+                "event_type": "ACTION_EXECUTION_FAILED", "details": {"action": action.value, "message": str(execution_exc)},
+                "failure": f"Remediation failed: {execution_exc}"}
             _finish_pending_execution(incident_id)
-            raise ValueError("Remediation failed; see the audit trail for this incident") from exc
-        completed_at = datetime.now(timezone.utc)
+            raise ValueError("Remediation failed; see the audit trail for this incident") from execution_exc
+
         incident["action_completed_at"] = completed_at.isoformat()
         incident["_execution_result"] = result.model_dump(mode="json")
         incident["_action_result"] = ActionResult(action_id=action_id, incident_id=incident_id,
@@ -269,6 +282,7 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
             "event_type": "ACTION_EXECUTED", "details": deepcopy(incident["_action_result"])}
         _finish_pending_execution(incident_id)
         return result
+
 
 
 def recovery_now():
