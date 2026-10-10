@@ -230,3 +230,10 @@ are missing and print instructions for supplying traffic. Use `-SkipGrafana` or
 `--skip-grafana` for the Kubernetes stack above.
 Add `-RequireKubernetes` or `--require-kubernetes` for cluster validation so an
 unavailable Kubernetes evidence provider fails the smoke check.
+
+## M5 Incident Memory & Copilot
+
+The M5 service and shared UI are implemented in `services/incident-memory/` and `ui/`.
+See [setup and behavior](services/incident-memory/README.md), [team integration protocol](docs/M5_INTEGRATION.md), and [verification / pending gates](docs/M5_EVALUATION.md).
+M5 uses port 8005; PostgreSQL is supported for integration, with SQLite for local development.
+Mock previews are explicitly labeled. The shared frozen contracts are unchanged.
