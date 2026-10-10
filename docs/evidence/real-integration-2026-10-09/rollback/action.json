@@ -1,0 +1,8 @@
+{
+  "action_id": "ACT-ab78a04e1a1b4b37bac0328aa78769fb",
+  "incident_id": "INC-K8S-ROLLBACK-20261009",
+  "action": "ROLLBACK",
+  "status": "SUCCESS",
+  "started_at": "2026-10-09T09:40:34.677414Z",
+  "completed_at": "2026-10-09T09:40:41.58202Z"
+}

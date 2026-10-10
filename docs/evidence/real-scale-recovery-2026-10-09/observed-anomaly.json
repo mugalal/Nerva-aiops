@@ -1,0 +1,14 @@
+{
+  "score": 1.0,
+  "timestamp": "2026-10-09T10:37:07.782Z",
+  "anomaly_id": "ANOM-K8S-SCALE-RECOVERY-20261009",
+  "features": {
+    "request_rate": 61.55965953285775,
+    "latency_p95_ms": 4875.0,
+    "http_5xx_rate": 0.0,
+    "cpu": 0.9951774562748622
+  },
+  "service": "payment-service",
+  "severity": "high",
+  "model": "manual-m1-observation"
+}

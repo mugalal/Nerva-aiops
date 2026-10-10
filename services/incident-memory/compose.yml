@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nexus
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: ${M5_DB_PASSWORD:?Set M5_DB_PASSWORD for the local database}
+    volumes:
+      - memory-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U nexus -d nexus"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  memory:
+    build:
+      context: ../..
+      dockerfile: services/incident-memory/Dockerfile
+    ports:
+      - "127.0.0.1:${M5_HOST_PORT:-8005}:8005"
+    environment:
+      DATABASE_URL: postgresql://nexus:${M5_DB_PASSWORD}@postgres:5432/nexus
+      M5_UI_MODE: ${M5_UI_MODE:-live}
+      SHARED_NEXUS_API_BASE_URL: ${SHARED_NEXUS_API_BASE_URL:-http://host.docker.internal:8004}
+      M5_INCIDENTS_PATH: ${M5_INCIDENTS_PATH:-/api/incidents/}
+      M5_INCIDENT_DETAIL_PATH: ${M5_INCIDENT_DETAIL_PATH:-}
+      M5_APPROVE_PATH: ${M5_APPROVE_PATH:-}
+      M5_REJECT_PATH: ${M5_REJECT_PATH:-}
+      M5_SHARED_API_TOKEN: ${M5_SHARED_API_TOKEN:-}
+      M5_OPERATOR_ID: ${M5_OPERATOR_ID:-}
+      M5_SERVICE_HEALTH_PATH: ${M5_SERVICE_HEALTH_PATH:-}
+      M5_ACTION_REQUEST_PATH: ${M5_ACTION_REQUEST_PATH:-}
+      M5_SERVICES_PATH: ${M5_SERVICES_PATH:-}
+      M5_TELEMETRY_PATH: ${M5_TELEMETRY_PATH:-}
+      M5_DEPLOYMENTS_PATH: ${M5_DEPLOYMENTS_PATH:-}
+      M5_FINOPS_PATH: ${M5_FINOPS_PATH:-}
+      M5_LOGS_PATH: ${M5_LOGS_PATH:-}
+      M5_ACTION_STATUS_PATH: ${M5_ACTION_STATUS_PATH:-}
+      M5_LLM_BASE_URL: ${M5_LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      M5_LLM_MODEL: ${M5_LLM_MODEL:-gemini-1.5-flash}
+      M5_LLM_API_KEY: ${M5_LLM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8005/ready', timeout=5)"]
+      interval: 10s
+      timeout: 8s
+      retries: 10
+volumes:
+  memory-postgres:

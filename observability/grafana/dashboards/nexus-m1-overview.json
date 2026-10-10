@@ -1,0 +1,71 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 1,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "sum(rate(nexus_http_requests_total{service_name=\"payment-service\",route=\"/pay\"}[1m]))", "legendFormat": "requests", "refId": "A"}],
+      "title": "Request rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "histogram_quantile(0.95, sum by (le) (rate(nexus_http_request_duration_seconds_bucket{service_name=\"payment-service\",route=\"/pay\"}[1m]))) * 1000", "legendFormat": "p95", "refId": "A"}],
+      "title": "P95 latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "id": 3,
+      "targets": [{"expr": "100 * ((sum(rate(nexus_http_requests_total{service_name=\"payment-service\",route=\"/pay\",status_code=~\"5..\"}[1m])) or vector(0)) / clamp_min(sum(rate(nexus_http_requests_total{service_name=\"payment-service\",route=\"/pay\"}[1m])), 0.000001))", "legendFormat": "5xx", "refId": "A"}],
+      "title": "HTTP 5xx rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "id": 4,
+      "targets": [{"expr": "100 * sum(rate(process_cpu_seconds_total{service_name=\"payment-service\"}[1m])) / clamp_min(sum(nexus_resource_limit_cpu_cores{service_name=\"payment-service\"}), 0.001)", "legendFormat": "CPU", "refId": "A"}],
+      "title": "CPU utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "id": 5,
+      "targets": [{"expr": "100 * sum(process_resident_memory_bytes{service_name=\"payment-service\"}) / clamp_min(sum(nexus_resource_limit_memory_bytes{service_name=\"payment-service\"}), 1)", "legendFormat": "memory", "refId": "A"}],
+      "title": "Memory utilization",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"decimals": 0, "min": 0, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "id": 6,
+      "options": {"colorMode": "value", "graphMode": "area", "justifyMode": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "auto"},
+      "targets": [{"expr": "count(nexus_service_info{service_name=\"payment-service\"})", "legendFormat": "replicas", "refId": "A"}],
+      "title": "Replica count",
+      "type": "stat"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["nexus", "m1", "p0"],
+  "templating": {"list": []},
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "browser",
+  "title": "NEXUS M1 Service Overview",
+  "uid": "nexus-m1-overview",
+  "version": 1
+}

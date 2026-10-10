@@ -1,0 +1,35 @@
+﻿{
+    "status":  "success",
+    "data":  {
+                 "resultType":  "vector",
+                 "result":  [
+                                {
+                                    "metric":  {
+                                                   "pod":  "payment-service-5d9466d7dd-6p6f7"
+                                               },
+                                    "value":  [
+                                                  1791545996.281,
+                                                  "30.001333392595225"
+                                              ]
+                                },
+                                {
+                                    "metric":  {
+                                                   "pod":  "payment-service-5d9466d7dd-68qs7"
+                                               },
+                                    "value":  [
+                                                  1791545996.281,
+                                                  "29.97977642953975"
+                                              ]
+                                },
+                                {
+                                    "metric":  {
+                                                   "pod":  "payment-service-5d9466d7dd-4jrgz"
+                                               },
+                                    "value":  [
+                                                  1791545996.281,
+                                                  "30.06800302235655"
+                                              ]
+                                }
+                            ]
+             }
+}

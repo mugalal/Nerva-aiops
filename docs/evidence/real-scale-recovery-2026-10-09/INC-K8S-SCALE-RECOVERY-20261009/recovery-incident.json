@@ -1,0 +1,12 @@
+{
+  "incident_id": "INC-K8S-SCALE-RECOVERY-20261009",
+  "started_at": "2026-10-09T10:37:07.782Z",
+  "status": "RESOLVED",
+  "severity": "high",
+  "affected_services": [
+    "payment-service"
+  ],
+  "anomaly_ids": [
+    "ANOM-K8S-SCALE-RECOVERY-20261009"
+  ]
+}

@@ -1,0 +1,460 @@
+[
+  {
+    "timestamp": "2026-10-09T13:52:46.293158+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "DECISION_PROPOSED",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "recommended_action": "SCALE",
+      "target": "payment-service",
+      "parameters": {
+        "replicas": 10
+      },
+      "confidence": 1.0,
+      "risk": "LOW",
+      "reason": "Traffic spike detected and a safe scale option is available",
+      "approval_required": true
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:52:46.410885+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "ACTION_APPROVED",
+    "details": {
+      "action": "SCALE",
+      "replicas": 10,
+      "target": "payment-service"
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:52:55.734249+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "ACTION_EXECUTED",
+    "details": {
+      "action_id": "ACT-f9d96b355553494e9aab6a09e07bf0c9",
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "action": "SCALE",
+      "status": "SUCCESS",
+      "started_at": "2026-10-09T10:52:46.410835Z",
+      "completed_at": "2026-10-09T10:52:55.73415Z"
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:54:33.936571+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 24.88253861601102,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 98.189922,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:54:50.288262+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 39.94419605633498,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 114.550588,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:55:06.292469+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 33.37479386589992,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 130.545588,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:55:23.492377+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 22.434967788341226,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 147.720077,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:55:40.080094+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 20.498729130457075,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 164.343479,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:55:57.667814+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 20.890572286853565,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 181.928795,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:56:17.299999+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 23.586844311450047,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 201.556086,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:56:35.290643+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 24.58391629507411,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 219.505305,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:56:56.784603+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 30.189120699772428,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 240.937221,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:57:14.250427+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 44.24153840545761,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 258.513109,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:57:31.286135+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 41.1043734371422,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 275.547093,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:57:47.569846+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 32.80653414762105,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 291.828536,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:58:04.605204+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 24.744644115936943,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 308.867017,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:58:20.366999+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 24.3834822911478,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 324.628605,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:58:36.583981+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 20.91061674555331,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 340.846387,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:58:52.35078+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_STABILIZING",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 18.949505505071595,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 356.614133,
+        "slo_restored": false
+      }
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:59:07.371907+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_TIMEOUT",
+    "details": {
+      "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+      "success": false,
+      "source": "m1",
+      "details": {
+        "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+        "recovered": false,
+        "before": {
+          "latency_p95_ms": 4888.039897510981,
+          "http_5xx_rate": 0.0
+        },
+        "after": {
+          "latency_p95_ms": 18.949505505071595,
+          "http_5xx_rate": 0.0
+        },
+        "recovery_time_seconds": 356.614133,
+        "slo_restored": false
+      },
+      "timed_out": true,
+      "deadline_at": "2026-10-09T13:58:55.73415+03:00"
+    }
+  },
+  {
+    "timestamp": "2026-10-09T13:59:07.371923+03:00",
+    "incident_id": "INC-K8S-SCALE-AUTO-20261009",
+    "event_type": "RECOVERY_VALIDATION",
+    "details": {
+      "success": false
+    }
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "incident_id": "INC-K8S-SCALE-20261009",
+  "root_cause": "traffic_spike",
+  "affected_component": "payment-service:v1",
+  "confidence": 1.0,
+  "evidence": [
+    "Request rate increased significantly",
+    "Request rate exceeds measured healthy baseline 10.00 requests/sec by at least 1.5x",
+    "CPU utilization increased significantly"
+  ]
+}

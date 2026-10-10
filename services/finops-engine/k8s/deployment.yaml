@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: finops-engine
+  namespace: nexus-demo
+  labels:
+    app: finops-engine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: finops-engine
+  template:
+    metadata:
+      labels:
+        app: finops-engine
+        service_name: finops-engine
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: finops-engine
+          image: nexus/finops-engine:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8006
+          env:
+            - name: SERVICE_NAME
+              value: finops-engine
+            - name: ENVIRONMENT
+              value: development
+            - name: M1_TELEMETRY_BASE_URL
+              value: http://telemetry-intelligence:8001
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: DATABASE_URL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: finops-engine
+  namespace: nexus-demo
+spec:
+  selector:
+    app: finops-engine
+  ports:
+    - name: http
+      port: 8006
+      targetPort: http

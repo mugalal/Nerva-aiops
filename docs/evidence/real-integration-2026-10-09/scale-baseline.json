@@ -1,0 +1,48 @@
+{
+  "service": "payment-service",
+  "version": "v1",
+  "measured_at": "2026-10-09T09:51:57.330227Z",
+  "window_start": "2026-10-09T09:50:21.935354Z",
+  "window_end": "2026-10-09T09:51:36.935354Z",
+  "sample_count": 6,
+  "request_rate": {
+    "minimum": 9.978664770201796,
+    "maximum": 10.022444943220961,
+    "average": 10.000481264995353,
+    "p95": 10.01700038519424
+  },
+  "latency_p95_ms": {
+    "minimum": 9.521111111111113,
+    "maximum": 9.542410714285715,
+    "average": 9.528242359196215,
+    "p95": 9.542410714285715
+  },
+  "http_5xx_rate": {
+    "minimum": 0.0,
+    "maximum": 0.0,
+    "average": 0.0,
+    "p95": 0.0
+  },
+  "cpu": {
+    "minimum": 0.13467564504300278,
+    "maximum": 0.14623197102029026,
+    "average": 0.14059929424782192,
+    "p95": 0.14578589186329766
+  },
+  "memory": {
+    "minimum": 0.0879364013671875,
+    "maximum": 0.0889129638671875,
+    "average": 0.08822123209635417,
+    "p95": 0.0887908935546875
+  },
+  "replica_count": {
+    "minimum": 1.0,
+    "maximum": 1.0,
+    "average": 1.0,
+    "p95": 1.0
+  },
+  "thresholds": {
+    "latency_p95_ms_max": 11.928013392857144,
+    "http_5xx_rate_max": 0.01
+  }
+}

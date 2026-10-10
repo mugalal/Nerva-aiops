@@ -1,0 +1,29 @@
+﻿{
+    "service":  "telemetry-intelligence",
+    "status":  "ok",
+    "version":  "0.1.0",
+    "environment":  "development",
+    "provider_mode":  "real",
+    "dependencies":  {
+                         "telemetry_provider":  {
+                                                    "status":  "ok",
+                                                    "detail":  "Prometheus Server is Ready."
+                                                },
+                         "loki":  {
+                                      "status":  "ok",
+                                      "detail":  "ready"
+                                  },
+                         "kubernetes":  {
+                                            "status":  "ok",
+                                            "detail":  "Kubernetes API reachable with the pod service account"
+                                        },
+                         "payment_service":  {
+                                                 "status":  "ok",
+                                                 "detail":  "status=ok"
+                                             },
+                         "telemetry_data":  {
+                                                "status":  "ok",
+                                                "detail":  "Fresh payment telemetry is available"
+                                            }
+                     }
+}

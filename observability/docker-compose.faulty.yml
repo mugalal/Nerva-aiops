@@ -1,0 +1,11 @@
+services:
+  payment-service:
+    build:
+      context: ../apps/demo-microservices/payment-service
+      args:
+        VERSION: v2
+    image: nexus/payment-service:v2
+    environment:
+      VERSION: v2
+      FAULT_LATENCY_MS: "600"
+      FAULT_5XX_RATE: "0.14"

@@ -1,0 +1,8 @@
+{
+  "action_id": "ACT-55aefa38a245491987536040fb14600e",
+  "incident_id": "INC-K8S-SCALE-20261009",
+  "action": "SCALE",
+  "status": "SUCCESS",
+  "started_at": "2026-10-09T09:56:22.900081Z",
+  "completed_at": "2026-10-09T09:56:34.966029Z"
+}

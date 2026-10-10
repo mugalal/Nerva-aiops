@@ -1,0 +1,122 @@
+[
+  {
+    "pod": "payment-service-5d9466d7dd-2spbg",
+    "uid": "8b0acfae-68fb-42d4-9251-b693a1112fd7",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-6p6f7",
+    "uid": "3eca47c9-1ab8-4e54-aa71-a9b04936c032",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-bskmw",
+    "uid": "f7b32fce-02bb-46a7-931d-86defa4a6197",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-dlrft",
+    "uid": "510abb8a-905f-4cba-97db-aa04d1d2ca0e",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-jsfvg",
+    "uid": "bc84bf7e-cf35-4be9-9cab-57f3a0a7b7af",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-nw2cj",
+    "uid": "782f8030-8e9e-4e93-b61c-ae97bcc3e772",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-r2dcd",
+    "uid": "8d9c5a51-c6f9-40be-ab42-cf1db1babb09",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-v9nf7",
+    "uid": "2f597e3c-b347-415c-b914-979b9fe901e1",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-vj6dw",
+    "uid": "9e8bc27c-5eb6-4490-a0c0-bbe62a75727a",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "pod": "payment-service-5d9466d7dd-wbvbw",
+    "uid": "41e3cca1-ee87-43d9-9b04-ccba4a46b85a",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:45c1185b7dde5e902b487e8907ed74f621cb9ecd6b246ecf603c9d484ff99f93",
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  }
+]

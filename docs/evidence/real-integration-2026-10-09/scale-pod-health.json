@@ -1,0 +1,152 @@
+[
+  {
+    "name": "payment-service-5dd84d4cf5-4clbn",
+    "uid": "1ab335fa-0d17-40e0-b8cb-4629aa6b8f6c",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-5wg9r",
+    "uid": "68bdbaea-1813-45ce-a3bc-33219b205667",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-5zck6",
+    "uid": "ac1ddd3f-0efe-4e66-a77d-715bfdd839f9",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-9vdtf",
+    "uid": "e38ade82-c238-4de5-848b-b23c701c4468",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-gv6xp",
+    "uid": "33e21bbd-9b01-4405-9398-a449c9e5547d",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-hfgxd",
+    "uid": "5b65f13c-55be-4232-8b5b-5dcae2ce3036",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-n9zbn",
+    "uid": "5db5e1f7-107f-4a99-987a-8e97350e77d0",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-wzzfl",
+    "uid": "40024f3f-e97b-4d61-b5cc-1ea1187ddd2e",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-zghfl",
+    "uid": "bdcdd755-9cda-44e6-a729-c24dc1a0a814",
+    "created_at": "2026-10-09T09:56:23Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  },
+  {
+    "name": "payment-service-5dd84d4cf5-zhmrt",
+    "uid": "d0c3b2c9-4de8-4846-9d7f-ac837f3e116a",
+    "created_at": "2026-10-09T09:48:31Z",
+    "image": "nexus/payment-service:v1-probe-safe",
+    "image_id": "docker.io/library/import-2026-10-09@sha256:070149ed1911fd0a819d6555c604506a1519c2976bf2a47ee4c48aba3d473bf0",
+    "restarts": 0,
+    "health": {
+      "status": "ok",
+      "service": "payment-service",
+      "version": "v1",
+      "environment": "development",
+      "payment_work_iterations": 20000
+    }
+  }
+]

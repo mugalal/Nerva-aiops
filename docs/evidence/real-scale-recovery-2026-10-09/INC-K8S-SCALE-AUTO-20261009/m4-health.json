@@ -1,0 +1,13 @@
+{
+  "service": "shared-nexus-api",
+  "status": "ok",
+  "version": "0.1.0",
+  "environment": "development",
+  "provider_modes": {
+    "rca": "real",
+    "finops": "real",
+    "evidence": "real",
+    "recovery": "real"
+  },
+  "remediation_backend": "kubernetes"
+}
