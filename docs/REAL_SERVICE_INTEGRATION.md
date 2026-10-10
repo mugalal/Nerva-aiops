@@ -1,13 +1,15 @@
-# M1, M3, M4 and M6 integration
+# M1, M2, M3, M4 and M6 integration
 
-The integration branch connects the actual service APIs. M3 diagnoses an incident
-from its linked anomaly and M1's read-only evidence preview. M4 asks M6 for scale
-options only when RCA identifies a traffic spike. M4 captures incident evidence
+The integration branch connects the actual service APIs. M2 can poll M1,
+correlate alerts into an incident and hand the incident and anomaly to M4.
+M3 diagnoses an incident from its linked anomaly and M1's read-only evidence
+preview. M4 asks M6 for scale options only when RCA identifies a traffic spike.
+M4 captures incident evidence
 before presenting an executable proposal, executes the approved action, and polls
 M1's measured recovery before marking the incident RESOLVED.
 
 ```text
-Observed anomaly -> M4 incident + linked anomaly
+M1 snapshot -> M2 detection + correlation -> M4 incident + linked anomaly
                          |
                          v
                        M3 RCA -> M1 preview (metrics, deployment, logs, baseline)
@@ -84,10 +86,52 @@ in-cluster Service traffic, and preserving offered load through recovery.
 Use a healthy rate appropriate to the host; a failed baseline is rejected.
 Never weaken the quality ceiling to make an unhealthy baseline pass.
 
-## Send an observed incident
+## Run M2 detection and handoff
 
-M2/detector or an operator must supply a fresh actual-shaped `AnomalyEvent`.
-Automatic trained M2 detection is not established by this integration. For a
+M2 is included from `m2/anomaly-correlation` at `f35a5eb`. Its polling and
+shared-API handoff are disabled by default. Run it in a separate terminal after
+M1 and M4 are reachable. From the repository root, using a Python environment
+with the M2 requirements installed:
+
+```powershell
+python -m pip install -r services/anomaly-engine/requirements.txt
+$env:M1_TELEMETRY_BASE_URL = 'http://127.0.0.1:18001'
+$env:M2_HANDOFF_URL = 'http://127.0.0.1:18004'
+$env:M2_POLL_ENABLED = 'true'
+$env:M2_HANDOFF_ENABLED = 'true'
+$env:M2_POLL_SERVICES = 'payment-service'
+python -m uvicorn app.main:app --app-dir services/anomaly-engine --host 127.0.0.1 --port 8002
+```
+
+These URLs target the explicit Kubernetes port forwards above. Change them
+when running M1/M4 elsewhere. M2 does not yet have a Dockerfile or Kubernetes
+deployment in this branch, so Compose's integration profile alone does not
+start it.
+
+M2's first alert creates one correlated incident and links its actual
+`AnomalyEvent` to M4. After four alerts, it ensures the strongest alert is linked.
+Find the incident through `GET http://127.0.0.1:8002/internal/correlation/incidents`
+and read its handoff details with `GET /internal/correlation/incidents/{incident_id}`.
+Then call `POST http://127.0.0.1:18004/internal/decisions/build/{incident_id}`
+and inspect the proposal. M3 reads the linked anomaly through M4's existing
+provider; no provider URL change is needed. Handoff does not approve or execute
+a remediation.
+
+The committed trained reference uses earlier payment-service captures. A new
+environment still needs measured detection and healthy-period evaluation.
+Setting `M2_REFERENCE_PATH=none` explicitly selects the threshold baseline;
+that mode is used by the controlled HTTP integration tests to verify the API
+chain independently of the reference's training traffic.
+
+M2's optional `app.realdata drill` history collector currently asks for one
+window spanning version changes and an extra end interval. Current M1 rejects
+mixed-version and future windows. That collector needs segmented history or
+snapshot recording before using it with this M1; its historical capture files
+do not prove a fresh integrated drill.
+
+## Send an observed incident manually
+
+An operator can also supply a fresh actual-shaped `AnomalyEvent`. For a
 manual demo, observe an actual failure in M1's snapshot and explicitly label
 the event `model: manual-m1-observation`; copy its timestamp and metric values.
 The score is the operator's flag, not a measured ML confidence.
@@ -203,6 +247,28 @@ M1's server histogram and pinned baseline determine SLO recovery.
   separately.
 
 ## Verification
+
+The M2 merge was checked on 2026-10-10:
+
+| Check | Result |
+|---|---|
+| M2 and shared contracts | 376 passed across the full run and the two repaired subprocess tests |
+| M1/payment and traffic reporting | 75 passed, plus 70 subtests |
+| M3 | 45 passed |
+| M4 | 103 passed |
+| M6 | 83 passed, one database test skipped because `DATABASE_URL` was unset |
+| Existing four-process HTTP rollback/scale flows | 2 passed |
+| New five-process M2 handoff/diagnosis/proposal flows | 2 passed |
+
+The two repaired M2 tests now invoke `sys.executable` instead of assuming
+`python3` exists on Windows. The five-process tests allow 60 seconds for M2's
+initial scientific-library imports; all correlation, evidence and decision
+assertions retain their original requirements. They explicitly select the
+threshold baseline, send raw controlled M1 snapshots to M2, and verify actual
+automatic handoff into M4 followed by M3/M6 processing. Polling, trained-model
+accuracy and live Kubernetes execution are outside these checks.
+
+Earlier live and integration checks, before the M2 merge:
 
 The latest affected local checks passed 176 tests: 68 M1/payment, 103 M4,
 three traffic-reporting and both controlled four-process HTTP flows. The two

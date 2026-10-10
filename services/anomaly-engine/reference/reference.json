@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "detector": "z_score_per_service",
+  "created": "2026-10-09T17:24:59Z",
+  "trained_on": [
+    "capture1.json",
+    "capture2.json"
+  ],
+  "feature_order": [
+    "request_rate",
+    "request_rate_change",
+    "latency_p95_ms",
+    "latency_change",
+    "http_5xx_rate",
+    "cpu",
+    "memory",
+    "replica_count"
+  ],
+  "alert": {
+    "wobbles": 48.886821493066485,
+    "normal_max_wobbles": 6.301965424286383,
+    "fault_min_wobbles": 379.2342792749574
+  },
+  "services": {
+    "payment-service": {
+      "n": 128,
+      "mean": [
+        85.43086128871091,
+        0.0009301224778797702,
+        10.048195208279664,
+        0.0015699111531257612,
+        0.0,
+        0.23659099646195458,
+        0.09237980842590332,
+        1.0
+      ],
+      "spread": [
+        1.1525373579124922,
+        0.007198859729608863,
+        0.5199468218628956,
+        0.03990909319389736,
+        0.001,
+        0.02121356634769613,
+        0.001,
+        0.01
+      ]
+    }
+  }
+}
