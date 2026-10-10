@@ -13,7 +13,9 @@ sys.path.insert(0, str(ROOT))
 from shared.config import get_runtime_settings
 from shared.logging import configure_json_logging
 
-from .models import StoreRequest, SearchRequest, CopilotRequest, ApprovalRequest
+from .models import StoreRequest, SearchRequest, CopilotRequest, ApprovalRequest, ChatRequest, ActionConfirmation
+from .actions import ActionDrafts
+from .chat import chat, chat_config
 from .storage import Repository, StorageUnavailable, MemoryConflict
 from .retrieval import search
 from .copilot import answer
@@ -27,6 +29,7 @@ logger = logging.getLogger(__name__)
 def create_app(repository=None, provider=None):
     repo = repository or Repository()
     upstream = provider or Provider()
+    drafts = ActionDrafts()
 
     @asynccontextmanager
     async def lifespan(app):
@@ -39,6 +42,14 @@ def create_app(repository=None, provider=None):
     app = FastAPI(title="NEXUS Incident Memory & Copilot", version=settings.service_version, lifespan=lifespan)
     app.state.repository = repo
     app.state.provider = upstream
+    app.state.action_drafts = drafts
+
+    @app.middleware("http")
+    async def refresh_ui_assets(request, call_next):
+        response = await call_next(request)
+        if request.url.path == "/" or request.url.path.startswith("/assets/"):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
 
     @app.exception_handler(StorageUnavailable)
     async def storage_error(request, exc):
@@ -95,7 +106,26 @@ def create_app(repository=None, provider=None):
     @app.get("/internal/ui/config")
     def config():
         return {"source": "mock" if upstream.mode == "mock" else "real", "ui_mode": upstream.mode,
-                "approval_enabled": upstream.mode == "live" and bool(os.getenv("M5_APPROVAL_PATH"))}
+                "approval_enabled": upstream.mode == "live" and bool(os.getenv("M5_APPROVAL_PATH")),
+                "chat": chat_config()}
+
+    @app.post("/internal/copilot/chat")
+    def copilot_chat(request: ChatRequest):
+        return chat(repo, request, provider=upstream, drafts=drafts)
+
+    @app.post("/internal/copilot/actions/{draft_id}/submit")
+    def submit_action(draft_id: str, confirmation: ActionConfirmation, raw: Request):
+        origin = raw.headers.get("origin")
+        if origin and origin != str(raw.base_url).rstrip("/"):
+            raise HTTPException(403, "Cross-origin action requests are not accepted")
+        return drafts.submit(draft_id, upstream)
+
+    @app.post("/internal/copilot/actions/{draft_id}/decline")
+    def decline_action(draft_id: str, raw: Request):
+        origin = raw.headers.get("origin")
+        if origin and origin != str(raw.base_url).rstrip("/"):
+            raise HTTPException(403, "Cross-origin action decisions are not accepted")
+        return drafts.decline(draft_id)
 
     @app.get("/internal/ui/overview")
     def overview():

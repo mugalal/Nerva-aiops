@@ -26,6 +26,19 @@ services:
       M5_INCIDENT_DETAIL_PATH: ${M5_INCIDENT_DETAIL_PATH:-}
       M5_APPROVAL_PATH: ${M5_APPROVAL_PATH:-}
       M5_SHARED_API_TOKEN: ${M5_SHARED_API_TOKEN:-}
+      M5_SERVICE_HEALTH_PATH: ${M5_SERVICE_HEALTH_PATH:-}
+      M5_ACTION_REQUEST_PATH: ${M5_ACTION_REQUEST_PATH:-}
+      M5_SERVICES_PATH: ${M5_SERVICES_PATH:-}
+      M5_TELEMETRY_PATH: ${M5_TELEMETRY_PATH:-}
+      M5_DEPLOYMENTS_PATH: ${M5_DEPLOYMENTS_PATH:-}
+      M5_FINOPS_PATH: ${M5_FINOPS_PATH:-}
+      M5_LOGS_PATH: ${M5_LOGS_PATH:-}
+      M5_ACTION_STATUS_PATH: ${M5_ACTION_STATUS_PATH:-}
+      M5_LLM_BASE_URL: ${M5_LLM_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      M5_LLM_MODEL: ${M5_LLM_MODEL:-gemini-3.8-flash}
+      M5_LLM_API_KEY: ${M5_LLM_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy

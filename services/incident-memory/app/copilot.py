@@ -10,6 +10,10 @@ QUESTIONS = ["What happened?", "What changed before the incident?", "What is the
 
 def intent(question):
     q = re.sub(r"[^a-z0-9 ]", "", question.casefold())
+    if any(phrase in q for phrase in ("solve the incident", "resolve the incident", "fix the incident",
+                                     "solve this incident", "resolve this incident", "fix this incident",
+                                     "what can i do", "how can i fix", "how do i fix")):
+        return "resolution"
     if any(word in q for word in ("seen this", "similar", "before like", "previous incident")):
         return "similar"
     if any(word in q for word in ("what changed", "change before", "deployment before")):
@@ -74,6 +78,10 @@ def answer(repository, request):
         text.append(f"Recorded action: {cite('memory.action', memory['action'])}.")
         if context.get("action_result"):
             text.append(f"Execution status: {cite('context.action_result.status', context['action_result'].get('status'))}.")
+    elif kind == "resolution":
+        text.append(f"Recorded resolution for {cite('memory.incident_id', memory['incident_id'])} on {cite('memory.service', memory['service'])}: cause {cite('memory.root_cause', memory['root_cause'])}; action {cite('memory.action', memory['action'])}.")
+        text.append(f"Recorded action success: {str(cite('memory.action_success', memory['action_success'])).lower()}; recorded recovery: {str(cite('memory.recovered', memory['recovered'])).lower()}.")
+        text.append("This is historical evidence, not a check of current service health. Compare the current symptoms with this record before choosing a response. Any new service action requires review and M4 approval; no action was executed by this chat.")
     elif kind == "outcome":
         succeeded = cite("memory.action_success", memory["action_success"])
         recovered = cite("memory.recovered", memory["recovered"])

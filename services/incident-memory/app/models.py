@@ -136,3 +136,16 @@ class CopilotRequest(Model):
 
 class ApprovalRequest(Model):
     decision: Literal["approve", "reject"]
+
+
+class ChatMessage(Model):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=6000)
+
+
+class ChatRequest(CopilotRequest):
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
+
+
+class ActionConfirmation(Model):
+    confirmed: Literal[True]

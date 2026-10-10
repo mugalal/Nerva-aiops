@@ -23,8 +23,8 @@ export function fields(data, labels = {}) {
   }
   return table;
 }
-export async function api(path, payload) {
-  const response = await fetch(path, {method: payload ? 'POST' : 'GET', headers: payload ? {'Content-Type':'application/json'} : {}, body: payload ? JSON.stringify(payload) : undefined, signal: AbortSignal.timeout(10000)});
+export async function api(path, payload, timeout=10000) {
+  const response = await fetch(path, {method: payload ? 'POST' : 'GET', headers: payload ? {'Content-Type':'application/json'} : {}, body: payload ? JSON.stringify(payload) : undefined, signal: AbortSignal.timeout(timeout)});
   const data = await response.json();
   if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `Request failed (${response.status})`);
   return data;

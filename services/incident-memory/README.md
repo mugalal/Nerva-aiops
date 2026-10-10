@@ -4,6 +4,8 @@ Implements the M5 **P0** runbook: persistent resolved-incident storage, structur
 
 ## Architecture
 
+Open-ended AI chat and follow-up conversation are now available in the Copilot UI. See `docs/M5_AI_CHAT.md` at repository root for model setup, conversation behavior and verification. The deterministic six-question API remains available as an offline fallback.
+
 ```text
 Shared core / resolved incident aggregator
   └─ POST /internal/memory/store → validated immutable snapshot → database
