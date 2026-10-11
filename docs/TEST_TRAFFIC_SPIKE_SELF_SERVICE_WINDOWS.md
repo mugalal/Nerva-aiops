@@ -115,7 +115,8 @@ for ($taskMinute = 1; $taskMinute -le 4; $taskMinute++) {
     Start-Sleep -Seconds 60
 }
 K logs $taskBaselinePod --tail=2
-$taskBaseline = @(D baseline)
+$taskBaseline = D baseline
+if ($taskBaseline.Count -eq 1 -and $taskBaseline[0] -is [System.Array]) { $taskBaseline = $taskBaseline[0] }
 if ($taskBaseline[0] -ne 200 -or $taskBaseline[1].version -ne 'v1') { $taskBaseline | ConvertTo-Json -Depth 10; throw 'Healthy baseline failed; do not start the spike.' }
 $taskBaseline[1] | ConvertTo-Json -Depth 20 | Set-Content "$taskDirectory/baseline.json" -Encoding utf8
 $taskBaseline[1] | ConvertTo-Json -Depth 10
@@ -126,7 +127,8 @@ Expect about 10 RPS, zero errors, one replica and a successful measured baseline
 Verify evidence and quiet correlation before continuing:
 
 ```powershell
-$taskSnapshot = @(D snapshot)
+$taskSnapshot = D snapshot
+if ($taskSnapshot.Count -eq 1 -and $taskSnapshot[0] -is [System.Array]) { $taskSnapshot = $taskSnapshot[0] }
 if ($taskSnapshot[0] -ne 200 -or $taskSnapshot[1].version -ne 'v1' -or $taskSnapshot[1].metrics.replica_count -ne 1 -or $taskSnapshot[1].metrics.http_5xx_rate -gt 0.01) { throw 'Healthy telemetry gate failed.' }
 $taskStatus = D status
 if ($taskStatus.m2.Count) {
