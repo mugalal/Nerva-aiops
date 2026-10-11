@@ -41,22 +41,24 @@ foreach ($name in 'NEXUS_APPROVAL_TOKEN', 'NEXUS_INGEST_TOKEN', 'M5_UI_OPERATOR_
 if ($taskRuntime.NEXUS_INGEST_TOKEN -eq $taskRuntime.NEXUS_APPROVAL_TOKEN) {
     throw 'NEXUS_INGEST_TOKEN must differ from NEXUS_APPROVAL_TOKEN.'
 }
-New-Item -ItemType Directory -Path (Split-Path -Parent $taskRuntimePath) -Force | Out-Null
-$taskRuntime | ConvertTo-Json | Set-Content -LiteralPath $taskRuntimePath -Encoding utf8
 $env:NEXUS_DB_PASSWORD = $taskRuntime.NEXUS_DB_PASSWORD
 $env:NEXUS_APPROVAL_TOKEN = $taskRuntime.NEXUS_APPROVAL_TOKEN
 $env:M5_OPERATOR_ID = $taskRuntime.M5_OPERATOR_ID
 $env:NEXUS_INGEST_TOKEN = $taskRuntime.NEXUS_INGEST_TOKEN
 $env:M5_UI_OPERATOR_TOKEN = $taskRuntime.M5_UI_OPERATOR_TOKEN
-if ($env:GEMINI_API_KEY) { $taskRuntime.GEMINI_API_KEY = $env:GEMINI_API_KEY }
-if (-not $taskRuntime.GEMINI_API_KEY -and (Test-Path env:GEMINI_API_KEY)) { $taskRuntime | Add-Member -NotePropertyName GEMINI_API_KEY -NotePropertyValue $env:GEMINI_API_KEY -Force }
+if ($env:GEMINI_API_KEY) {
+    $taskRuntime | Add-Member -NotePropertyName GEMINI_API_KEY -NotePropertyValue $env:GEMINI_API_KEY -Force
+}
 if ($taskRuntime.GEMINI_API_KEY) { $env:GEMINI_API_KEY = $taskRuntime.GEMINI_API_KEY }
-$env:M5_LLM_MODEL = if ($env:M5_LLM_MODEL) { $env:M5_LLM_MODEL } else { 'gemini-3.5-flash-lite' }
+$env:M5_LLM_MODEL = if ($env:M5_LLM_MODEL) { $env:M5_LLM_MODEL } elseif ($taskRuntime.M5_LLM_MODEL) { $taskRuntime.M5_LLM_MODEL } else { 'gemini-3.5-flash-lite' }
 
 $taskRuntime | Add-Member `
     -NotePropertyName M5_LLM_MODEL `
     -NotePropertyValue $env:M5_LLM_MODEL `
     -Force
+
+New-Item -ItemType Directory -Path (Split-Path -Parent $taskRuntimePath) -Force | Out-Null
+$taskRuntime | ConvertTo-Json | Set-Content -LiteralPath $taskRuntimePath -Encoding utf8
 
 $taskArgs = @('compose', '-f', $taskCompose, '--profile', 'integration', 'up', '--detach', '--wait', '--wait-timeout', '300')
 if (-not $NoBuild) { $taskArgs += '--build' }
