@@ -1,5 +1,13 @@
 import {api, element, panel, fields} from '../components/render.js';
-export const questions=['Show me all incidents','Show unresolved incidents','Which services are unhealthy?','What is the root cause?','Have we seen this before?','Did it work?'];
+export const questions=[
+  'What is the root cause?',
+  'Why did FinOps scale to 8 replicas?',
+  'What is the financial cost delta?',
+  'Which services are unhealthy?',
+  'Have we seen this before?',
+  'Did it work?',
+  'Show me all incidents'
+];
 let operatorAuth='disabled';
 export function setOperatorAuth(mode){operatorAuth=mode||'disabled';}
 export function answerLabel(result){
