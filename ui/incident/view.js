@@ -136,7 +136,67 @@ export function renderIncident(bundle, config, onApproval, onStore, onAsk) {
   return similar;
 }
 export function renderFinops(bundle) {
-  const root=document.querySelector('#finops-body');root.replaceChildren();
-  const observed=panel('Resource context');observed.append(fields(bundle.finops_context));root.append(observed);
-  const impact=panel('Cost / SLO impact');impact.append(fields({cost_impact:bundle.cost_impact,slo_impact:bundle.slo_impact}));impact.append(element('p','Estimated cost options are not measured financial savings.','muted'));root.append(impact);
+  const root = document.querySelector('#finops-body');
+  root.replaceChildren();
+
+  const ctx = bundle.finops_context;
+  const observed = panel('Resource context');
+
+  if (ctx) {
+    const basicInfo = {
+      service: ctx.service,
+      current_replicas: ctx.current_replicas,
+      current_cpu_request_m: ctx.current_cpu_request_m,
+      observed_cpu_pct: ctx.observed_cpu_pct,
+    };
+    observed.append(fields(basicInfo));
+    root.append(observed);
+
+    if (Array.isArray(ctx.temporary_scale_options) && ctx.temporary_scale_options.length) {
+      const optionsPanel = panel('Scaling & Cost Options (FinOps Analysis)');
+      const table = element('table', undefined, 'incident-table');
+      const thead = element('thead');
+      const headerRow = element('tr');
+      headerRow.append(
+        element('th', 'Target Replicas'),
+        element('th', 'Est. Cost Delta / hr'),
+        element('th', 'Risk Assessment'),
+        element('th', 'Evaluation')
+      );
+      thead.append(headerRow);
+      table.append(thead);
+
+      const tbody = element('tbody');
+      for (const opt of ctx.temporary_scale_options) {
+        const row = element('tr');
+        const isChosen = bundle.decision?.parameters?.replicas === opt.replicas;
+
+        const repCell = element('td', `${opt.replicas} pods`, 'strong');
+        const costVal = typeof opt.estimated_cost_delta === 'number' ? `+$${opt.estimated_cost_delta.toFixed(4)}` : String(opt.estimated_cost_delta);
+        const costCell = element('td', costVal);
+
+        const riskClass = opt.risk === 'LOW' ? 'ok' : opt.risk === 'MEDIUM' ? 'action' : 'bad';
+        const riskCell = element('td');
+        riskCell.append(element('span', opt.risk, `pill ${riskClass}`));
+
+        const evalCell = element('td', isChosen ? '✓ Selected by NEXUS' : (opt.risk === 'HIGH' ? 'Overload risk (insufficient headroom)' : 'Alternative option'));
+
+        row.append(repCell, costCell, riskCell, evalCell);
+        tbody.append(row);
+      }
+      table.append(tbody);
+      optionsPanel.append(table);
+      optionsPanel.append(element('p', 'Evaluated against Service Registry guardrails (max step: 7) and CPU headroom targets.', 'muted'));
+      root.append(optionsPanel);
+    }
+  } else {
+    observed.append(fields(null));
+    root.append(observed);
+  }
+
+  const impact = panel('Cost / SLO impact');
+  impact.append(fields({cost_impact: bundle.cost_impact, slo_impact: bundle.slo_impact}));
+  impact.append(element('p', 'Estimated cost options are not measured financial savings.', 'muted'));
+  root.append(impact);
 }
+
