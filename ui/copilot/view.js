@@ -15,7 +15,7 @@ export function answerLabel(result){
   if(result.mode==='tool_results')return 'Deterministic tool results';
   return 'Deterministic recorded answer';
 }
-export function renderAnswer(result,onActionChange=()=>{}){const box=panel('NEXUS');box.classList.add('chat-assistant');box.append(element('span',answerLabel(result),'badge'),element('p',result.answer,'answer-text'));
+export function renderAnswer(result,onActionChange=()=>{}){const box=panel('NERVA');box.classList.add('chat-assistant');box.append(element('span',answerLabel(result),'badge'),element('p',result.answer,'answer-text'));
 if(result.status==='insufficient_evidence')box.append(element('p','Insufficient recorded evidence: nothing was inferred.','muted'));if(result.warning)box.append(element('p',result.warning,'muted'));
 for(const item of result.tool_results||[]){if(item.tool==='list_incidents'&&item.result.incidents){const list=panel('Incidents');list.append(element('p',`${item.result.total_matches} matching incidents · ${item.result.source}`,'muted'));for(const row of item.result.incidents)list.append(fields(row));for(const note of item.result.notices||[])list.append(element('p',note,'muted'));if(item.result.next_offset!==null)list.append(element('p',`More results available. Ask for the next page at offset ${item.result.next_offset}.`,'muted'));box.append(list);}}
 const toolTitles={get_system_overview:'System access',list_services:'Services',get_telemetry:'Metric snapshots',get_deployments:'Deployment history',get_finops:'Cost and resource evidence',get_logs:'Log sample',get_action_status:'Action request status',get_service_health:'Service health'};

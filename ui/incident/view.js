@@ -38,7 +38,7 @@ function nextStep(bundle, blocked) {
   if (status === 'RESOLVED' && bundle.recovery_result?.recovered !== true) return ['warn', 'Marked resolved, but no successful recovery measurement is recorded.'];
   if (status === 'RESOLVED') return ['ok', 'Resolved with measured recovery. Check the similar incidents below to confirm the pattern.'];
   if (status === 'EXECUTING' || status === 'VALIDATING') return ['info', 'The action is in progress. Refresh to check the measured recovery.'];
-  return ['info', 'NEXUS is still collecting evidence for this incident. Refresh to check for a proposal.'];
+  return ['info', 'NERVA is still collecting evidence for this incident. Refresh to check for a proposal.'];
 }
 
 function summary(bundle, blocked, onAsk) {
@@ -235,7 +235,7 @@ export function renderFinops(bundle) {
         const riskCell = element('td');
         riskCell.append(element('span', opt.risk, `pill ${riskClass}`));
 
-        const evalCell = element('td', isChosen ? '✓ Selected by NEXUS' : (opt.risk === 'HIGH' ? 'Overload risk (insufficient headroom)' : 'Alternative option'));
+        const evalCell = element('td', isChosen ? '✓ Selected by NERVA' : (opt.risk === 'HIGH' ? 'Overload risk (insufficient headroom)' : 'Alternative option'));
 
         row.append(repCell, costCell, riskCell, evalCell);
         tbody.append(row);

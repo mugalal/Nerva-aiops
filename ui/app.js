@@ -18,7 +18,7 @@ function view(name){
   for(const section of document.querySelectorAll('.view'))section.hidden=section.id!==name;
   for(const button of document.querySelectorAll('nav button[data-view]')){const active=button.dataset.view===name;button.classList.toggle('active',active);button.setAttribute('aria-current',active?'page':'false');}
   $('#incident-picker').hidden=!(name==='incident'||name==='finops');
-  $('#title').textContent=VIEWS[name];document.title=`NEXUS | ${VIEWS[name]}`;
+  $('#title').textContent=VIEWS[name];document.title=`NERVA | ${VIEWS[name]}`;
   uiState.view=name;saveUI(browserStorage,uiState);
   if(location.hash!==hashFor(name))history.replaceState(null,'',hashFor(name));
 }
@@ -51,7 +51,7 @@ function renderChatList(){
 }
 function renderChat(scroll=false){
   const root=$('#answer');root.replaceChildren();const chat=chats?.active;if(!chat)return;
-  for(const turn of chat.turns){const user=panel('You');user.classList.add('chat-user');user.append(element('p',turn.question,'answer-text'));root.append(user);if(turn.result)root.append(renderAnswer(turn.result,()=>chats.save()));else root.append(empty(turn.error|| (busyChats.has(chat.id)?'NEXUS is looking up records and preparing an answer...':'The response was interrupted. Send your question again to continue.')));}
+  for(const turn of chat.turns){const user=panel('You');user.classList.add('chat-user');user.append(element('p',turn.question,'answer-text'));root.append(user);if(turn.result)root.append(renderAnswer(turn.result,()=>chats.save()));else root.append(empty(turn.error|| (busyChats.has(chat.id)?'NERVA is looking up records and preparing an answer...':'The response was interrupted. Send your question again to continue.')));}
   if(!chat.turns.length)root.append(empty('Start a conversation. Ask for an explanation, compare outcomes, or discuss next steps.'));
   const busy=busyChats.has(chat.id),send=$('#send-chat');
   $('#question').value=chat.draft||'';send.disabled=busy;send.textContent=busy?'Sending...':'Send';
