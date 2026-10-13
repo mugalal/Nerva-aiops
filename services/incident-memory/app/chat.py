@@ -14,7 +14,7 @@ from .copilot import answer, INSUFFICIENT
 from .models import Model, SearchRequest
 from .retrieval import search
 from .providers import Provider
-from .tools import CopilotTools, TOOL_DEFINITIONS, bounded_result
+from .tools import CopilotTools, bounded_result, tool_definitions
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,13 @@ Use get_system_overview to discover access when asked about the whole system.
 Use list_services for service inventory, get_telemetry for metrics, get_logs for
 logs, get_deployments for changes, get_finops for cost/resource evidence, and
 get_action_status for M4 request state. A configured route is not proof it works.
+Tools that are not connected are not offered; get_system_overview lists them.
+For any question about an incident (cause, action, cost, recovery, SLO) call
+get_incident first: it holds the recorded RCA, decision, M6 scale options with the
+chosen option, captured before-metrics, recovery before/after latency, recovery time
+and SLO restoration. For cost questions use get_finops, passing incident_id when an
+incident is named or selected. Cost deltas are M6 estimates in abstract cost units,
+never money, prices or measured savings; say so when you report them.
 Answer all parts of a multi-part question using the relevant tools. Explain any
 unavailable parts. A historical metric snapshot never proves current health.
 For a service-only restart request, use the exact service name with no incident ID
@@ -195,13 +202,14 @@ def chat(repository, request, client=None, provider=None, drafts=None):
     result = {"status": "ok", "source": request.source, "mode": "ai_chat", "answer": "",
               "citations": [], "similar_incidents": matches, "tool_results": [], "action_requests": []}
     runner = CopilotTools(repository, provider or Provider("mock" if request.source == "mock" else "live"), request.source, drafts)
+    tools = tool_definitions(request.source, runner.provider.mode)
     try:
         def generate(connection):
             deadline = time.monotonic() + 120
             def complete(use_tools):
                 payload = {"model": model, "messages": messages}
                 if use_tools:
-                    payload.update(tools=TOOL_DEFINITIONS, tool_choice="auto")
+                    payload.update(tools=tools, tool_choice="auto")
                 else:
                     payload["response_format"] = {"type": "json_object"}
                 if urlparse(base).hostname == "generativelanguage.googleapis.com":
