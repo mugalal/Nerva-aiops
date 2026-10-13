@@ -49,7 +49,9 @@ Write-Note 'Expected: detection within about a minute, then a SCALE proposal aft
 $result = Watch-NewIncident -KnownIds $known -ExpectedCause 'traffic_spike' -ExpectedAction 'SCALE'
 K get deployment payment-service | Out-Host
 
-$answer = Read-Host 'Stop the spike load now? (Y/n)'
-if ($answer -notmatch '^[nN]') { Stop-TrafficGenerator 'payment-spike-load' }
-else { Write-Note 'Spike still running. It stops by itself after 30 minutes, or the next demo run stops it first.' }
-Write-Note 'The 10 requests/s baseline generator keeps running for the next demo.'
+[void](Read-Host 'Show the result on camera, then press Enter to reset for the next run')
+Stop-TrafficGenerator 'payment-spike-load'
+Assert-NoActiveWork
+Reset-PaymentService -Replicas 1
+Write-Host ''
+Write-Host 'DONE. Back to 1 healthy v1 replica with the 10 requests/s baseline running. Ready for the next run.' -ForegroundColor Green

@@ -71,7 +71,8 @@ $result = Watch-NewIncident -KnownIds $known -ExpectedCause 'faulty_deployment' 
 $deployment = Get-PaymentDeployment
 Write-Host ("payment-service now: version {0}, {1}/{2} ready" -f $deployment.spec.template.metadata.labels.version,
     $deployment.status.readyReplicas, $deployment.spec.replicas)
-if ($deployment.spec.template.metadata.labels.version -ne 'v1') {
-    Write-Note 'payment-service is still on v2 (rejected, escalated or not yet rolled back). The next run of either demo script restores healthy v1 automatically.'
-}
-Write-Note 'The 10 requests/s baseline generator keeps running for the next demo.'
+[void](Read-Host 'Show the result on camera, then press Enter to reset for the next run')
+Assert-NoActiveWork
+Reset-PaymentService -Replicas $Replicas
+Write-Host ''
+Write-Host "DONE. Back to healthy v1 with $Replicas replica(s) and the 10 requests/s baseline running. Ready for the next run." -ForegroundColor Green
