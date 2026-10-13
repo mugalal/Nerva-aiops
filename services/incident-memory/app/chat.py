@@ -57,6 +57,10 @@ chosen option, captured before-metrics, recovery before/after latency, recovery 
 and SLO restoration. For cost questions use get_finops, passing incident_id when an
 incident is named or selected. Cost deltas are M6 estimates in abstract cost units,
 never money, prices or measured savings; say so when you report them.
+Incidents named in this conversation and the selected incident are re-read from the
+server every turn and appear in the evidence catalog with field tool.get_incident.
+For follow-up questions, answer from those catalog entries and cite their E IDs;
+the earlier answers in the conversation are not evidence and cannot be cited.
 Answer all parts of a multi-part question using the relevant tools. Explain any
 unavailable parts. A historical metric snapshot never proves current health.
 For a service-only restart request, use the exact service name with no incident ID
@@ -142,6 +146,41 @@ def catalog(records):
     return evidence
 
 
+INCIDENT_REFERENCE = re.compile(r"\bINC-[A-Za-z0-9][A-Za-z0-9._:-]{2,118}")
+MAX_REFERENCED_INCIDENTS = 3
+REFERENCED_EVIDENCE_BUDGET = 30000
+
+
+def referenced_incidents(request):
+    """Incident IDs named in the question, then recent history, then the selected incident."""
+    texts = [request.question, *[message.content for message in reversed(request.history)]]
+    found = []
+    for text in texts:
+        for match in INCIDENT_REFERENCE.findall(text):
+            incident_id = match.rstrip(".:-")
+            if incident_id not in found:
+                found.append(incident_id)
+    if request.incident_id and request.incident_id not in found:
+        found.append(request.incident_id)
+    return found[:MAX_REFERENCED_INCIDENTS]
+
+
+def add_referenced_incidents(runner, request, evidence):
+    """Re-read incidents from the server each turn. History text is never evidence, so a
+    follow-up ("what was the cost?") needs the incident record itself to cite."""
+    size = 0
+    for incident_id in referenced_incidents(request):
+        output = bounded_result(runner.run("get_incident", {"incident_id": incident_id}))
+        if output.get("status") != "ok":
+            continue
+        item = {"incident_id": incident_id, "source": request.source, "field": "tool.get_incident", "value": output}
+        item_size = len(json.dumps(item, ensure_ascii=False))
+        if size + item_size > REFERENCED_EVIDENCE_BUDGET:
+            continue
+        evidence["E" + str(len(evidence) + 1)] = item
+        size += item_size
+
+
 def direct_incident_listing(repository, request, provider, drafts):
     """Answer an unambiguous severity listing directly; complex requests use AI."""
     question = re.sub(r"\s+", " ", request.question.strip()).rstrip(".?!")
@@ -194,6 +233,9 @@ def chat(repository, request, client=None, provider=None, drafts=None):
         if result["status"] == "unsupported_question":
             result.update(status="ai_unavailable", answer="AI chat needs a model connection. Configure the server's AI settings to ask open-ended questions.")
         return result
+    runner = CopilotTools(repository, provider or Provider("mock" if request.source == "mock" else "live"), request.source, drafts)
+    tools = tool_definitions(request.source, runner.provider.mode)
+    add_referenced_incidents(runner, request, evidence)
     messages = [{"role": "system", "content": SYSTEM},
                 {"role": "system", "content": "Selected incident: " + str(request.incident_id) +
                  "; provenance: " + request.source + ". Evidence catalog (JSON): " + json.dumps(evidence, ensure_ascii=False)}]
@@ -201,8 +243,6 @@ def chat(repository, request, client=None, provider=None, drafts=None):
     messages.append({"role": "user", "content": request.question})
     result = {"status": "ok", "source": request.source, "mode": "ai_chat", "answer": "",
               "citations": [], "similar_incidents": matches, "tool_results": [], "action_requests": []}
-    runner = CopilotTools(repository, provider or Provider("mock" if request.source == "mock" else "live"), request.source, drafts)
-    tools = tool_definitions(request.source, runner.provider.mode)
     try:
         def generate(connection):
             deadline = time.monotonic() + 120

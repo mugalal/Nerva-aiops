@@ -170,6 +170,40 @@ class IncidentSummaryTests(unittest.TestCase):
         self.assertIn("recovery_time_seconds", forwarded[0])
         self.assertIn("chosen_option", forwarded[0])
 
+    def test_follow_up_without_an_id_can_cite_the_incident_named_earlier(self):
+        catalogs = []
+        def model(request):
+            payload = json.loads(request.content)
+            catalogs.append(payload["messages"][1]["content"])
+            catalog = json.loads(payload["messages"][1]["content"].split("Evidence catalog (JSON): ", 1)[1])
+            cited = [key for key, item in catalog.items() if item["incident_id"] == INCIDENT and item["field"] == "tool.get_incident"]
+            return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": json.dumps(
+                {"answer": "The selected 8-replica option has an estimated cost delta of 0.4594 abstract cost units.",
+                 "kind": "incident_answer", "evidence_ids": cited})}}]})
+        history = [{"role": "user", "content": f"Explain the recorded FinOps analysis for incident {INCIDENT}."},
+                   {"role": "assistant", "content": "Two options were considered; 8 replicas were selected."}]
+        with patch.dict(os.environ, {"M5_LLM_API_KEY": "test-only", "M5_LLM_BASE_URL": "https://api.openai.com/v1"}):
+            with shared_api({INCIDENT: spike_context()}) as shared, httpx.Client(transport=httpx.MockTransport(model)) as llm:
+                result = chat(self.repo, ChatRequest(question="What is the financial cost delta?", source="real", history=history),
+                              llm, Provider("live", shared))
+        self.assertEqual(result["mode"], "ai_chat")
+        self.assertEqual(result["kind"], "incident_answer")
+        self.assertEqual(result["citations"][0]["field"], "tool.get_incident")
+        self.assertEqual(result["citations"][0]["value"]["current"]["finops"]["chosen_option"], OPTIONS[1])
+        self.assertIn("0.4594", catalogs[0])
+
+    def test_unknown_incident_reference_adds_no_evidence(self):
+        with patch.dict(os.environ, {"M5_LLM_API_KEY": "test-only", "M5_LLM_BASE_URL": "https://api.openai.com/v1"}):
+            def model(request):
+                catalog = json.loads(json.loads(request.content)["messages"][1]["content"].split("Evidence catalog (JSON): ", 1)[1])
+                self.assertEqual(catalog, {})
+                return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": json.dumps(
+                    {"answer": "No record exists for that incident.", "kind": "insufficient_evidence", "evidence_ids": []})}}]})
+            with shared_api({INCIDENT: spike_context()}) as shared, httpx.Client(transport=httpx.MockTransport(model)) as llm:
+                result = chat(self.repo, ChatRequest(question="What did INC-DOES-NOT-EXIST cost?", source="real"), llm, Provider("live", shared))
+        self.assertEqual(result["status"], "insufficient_evidence")
+        self.assertEqual(result["citations"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
