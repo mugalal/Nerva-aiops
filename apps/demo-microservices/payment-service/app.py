@@ -16,6 +16,7 @@ import random
 import socket
 import time
 
+import anyio
 from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
@@ -33,6 +34,12 @@ MEMORY_LIMIT_BYTES = float(os.getenv("MEMORY_LIMIT_BYTES", "536870912"))
 PAYMENT_WORK_ITERATIONS = int(os.getenv("PAYMENT_WORK_ITERATIONS", "0"))
 if not 0 <= PAYMENT_WORK_ITERATIONS <= 1_000_000:
     raise ValueError("PAYMENT_WORK_ITERATIONS must be between 0 and 1000000")
+PAYMENT_MAX_CONCURRENCY = int(os.getenv("PAYMENT_MAX_CONCURRENCY", "2"))
+if not 1 <= PAYMENT_MAX_CONCURRENCY <= 40:
+    raise ValueError("PAYMENT_MAX_CONCURRENCY must be between 1 and 40")
+# Queue CPU work asynchronously instead of competing with probes in the
+# default 40-worker pool. Waiting remains part of measured payment latency.
+payment_cpu_limiter = anyio.CapacityLimiter(PAYMENT_MAX_CONCURRENCY)
 LOG_QUEUE_MAX_RECORDS = int(os.getenv("LOG_QUEUE_MAX_RECORDS", "1024"))
 if not 1 <= LOG_QUEUE_MAX_RECORDS <= 100_000:
     raise ValueError("LOG_QUEUE_MAX_RECORDS must be between 1 and 100000")
@@ -245,16 +252,18 @@ async def metrics() -> Response:
 
 
 @app.post("/pay")
-def pay(response: Response) -> dict:
+async def pay(response: Response) -> dict:
     # Optional, constant payment processing work makes CPU capacity measurable.
     # Keep this setting unchanged before, during, and after a scaling drill.
     if PAYMENT_WORK_ITERATIONS:
-        hashlib.pbkdf2_hmac(
+        await anyio.to_thread.run_sync(
+            hashlib.pbkdf2_hmac,
             "sha256", b"nexus-demo-payment", b"nexus-demo-fixed-salt",
             PAYMENT_WORK_ITERATIONS,
+            limiter=payment_cpu_limiter,
         )
     if FAULT_LATENCY_MS:
-        time.sleep(FAULT_LATENCY_MS / 1000.0)
+        await asyncio.sleep(FAULT_LATENCY_MS / 1000.0)
 
     if random.random() < FAULT_5XX_RATE:
         response.status_code = 500

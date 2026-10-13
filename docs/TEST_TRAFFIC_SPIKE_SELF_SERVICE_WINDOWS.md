@@ -40,7 +40,8 @@ function K {
 }
 function D {
     $taskOutput = Get-Content 'scripts/live-drill.py' -Raw | K exec -i deployment/shared-nexus-api '--' python - @args
-    ($taskOutput -join "`n") | ConvertFrom-Json
+    $taskParsed = ConvertFrom-Json -InputObject ($taskOutput -join "`n")
+    foreach ($taskItem in $taskParsed) { $taskItem }
 }
 K wait --for=condition=Ready nodes --all --timeout=180s
 K get deployments

@@ -10,7 +10,6 @@ import time
 import unittest
 from unittest.mock import patch
 
-import anyio
 import httpx
 import prometheus_client
 from prometheus_client.parser import text_string_to_metric_families
@@ -24,6 +23,7 @@ def load_payment(**overrides):
     environment = {
         "SERVICE_NAME": "payment-probe-test", "VERSION": "v1", "ENVIRONMENT": "test",
         "FAULT_LATENCY_MS": "500", "FAULT_5XX_RATE": "0", "PAYMENT_WORK_ITERATIONS": "0",
+        "PAYMENT_MAX_CONCURRENCY": "2",
         "LOG_LEVEL": "CRITICAL", "LOG_QUEUE_MAX_RECORDS": "1024", "LOG_SHUTDOWN_TIMEOUT_SECONDS": "5",
     }
     environment.update(overrides)
@@ -55,21 +55,20 @@ class BlockingLogStream:
 
 class PaymentProbeConcurrencyTests(unittest.IsolatedAsyncioTestCase):
     async def test_probes_respond_while_the_only_payment_worker_is_busy(self):
-        payment = load_payment()
+        payment = load_payment(PAYMENT_WORK_ITERATIONS="1", FAULT_LATENCY_MS="0", PAYMENT_MAX_CONCURRENCY="1")
 
-        limiter = anyio.to_thread.current_default_thread_limiter()
-        original_tokens = limiter.total_tokens
-        limiter.total_tokens = 1
+        limiter = payment.payment_cpu_limiter
         payment_started = asyncio.Event()
         loop = asyncio.get_running_loop()
         original_sleep = time.sleep
 
-        def blocking_payment(seconds):
+        def blocking_payment(*args):
             loop.call_soon_threadsafe(payment_started.set)
-            original_sleep(seconds)
+            original_sleep(0.5)
+            return b"test-payment"
 
-        sleep_patch = patch.object(payment.time, "sleep", side_effect=blocking_payment)
-        sleep_patch.start()
+        work_patch = patch.object(payment.hashlib, "pbkdf2_hmac", side_effect=blocking_payment)
+        work_patch.start()
         try:
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app=payment.app), base_url="http://payment"
@@ -89,7 +88,7 @@ class PaymentProbeConcurrencyTests(unittest.IsolatedAsyncioTestCase):
                     health, ready, metrics_response, version = responses
                     self.assertEqual(health.json(), {
                         "status": "ok", "service": "payment-probe-test", "version": "v1",
-                        "environment": "test", "payment_work_iterations": 0,
+                        "environment": "test", "payment_work_iterations": 1,
                     })
                     self.assertEqual(ready.json(), health.json())
                     self.assertIn("nexus_service_info", metrics_response.text)
@@ -100,8 +99,89 @@ class PaymentProbeConcurrencyTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(paid.status_code, 200)
                 self.assertEqual(paid.json(), {"ok": True, "version": "v1"})
         finally:
-            sleep_patch.stop()
-            limiter.total_tokens = original_tokens
+            work_patch.stop()
+
+    async def test_queued_cpu_work_keeps_probes_responsive_and_measures_queue_latency(self):
+        payment = load_payment(PAYMENT_WORK_ITERATIONS="1", FAULT_LATENCY_MS="0")
+        loop = asyncio.get_running_loop()
+        workers_started = asyncio.Event()
+        release = threading.Event()
+        lock = threading.Lock()
+        active = peak = entered = 0
+
+        def blocked_cpu(*args):
+            nonlocal active, peak, entered
+            with lock:
+                active += 1
+                entered += 1
+                peak = max(peak, active)
+                if active == 2:
+                    loop.call_soon_threadsafe(workers_started.set)
+            try:
+                if not release.wait(timeout=5):
+                    raise TimeoutError("Test did not release CPU workers")
+                return b"test-payment"
+            finally:
+                with lock:
+                    active -= 1
+
+        with patch.object(payment.hashlib, "pbkdf2_hmac", side_effect=blocked_cpu):
+            async with httpx.AsyncClient(
+                transport=httpx.ASGITransport(app=payment.app), base_url="http://payment"
+            ) as client:
+                payments = [asyncio.create_task(client.post("/pay")) for _ in range(12)]
+                try:
+                    await asyncio.wait_for(workers_started.wait(), timeout=1)
+                    await asyncio.sleep(0.05)
+                    self.assertEqual(entered, 2, "Queued payments must not start extra CPU jobs")
+                    self.assertEqual(payment.payment_cpu_limiter.borrowed_tokens, 2)
+                    probes = await asyncio.wait_for(
+                        asyncio.gather(*(client.get(route) for route in ("/health", "/ready", "/metrics", "/version"))),
+                        timeout=1,
+                    )
+                    self.assertTrue(all(response.status_code == 200 for response in probes))
+                    self.assertTrue(all(not task.done() for task in payments))
+                    # Cancel a queued request, then prove it does not consume a worker or leak capacity.
+                    payments[-1].cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await payments[-1]
+                    self.assertEqual(entered, 2)
+                finally:
+                    release.set()
+                    results = await asyncio.wait_for(
+                        asyncio.gather(*payments, return_exceptions=True), timeout=3
+                    )
+
+                self.assertEqual(peak, 2)
+                self.assertEqual(entered, 11)
+                self.assertEqual(payment.payment_cpu_limiter.borrowed_tokens, 0)
+                self.assertTrue(all(result.status_code == 200 for result in results[:-1]))
+                self.assertEqual((await client.post("/pay")).status_code, 200)
+                metrics = (await client.get("/metrics")).text
+                latency = [sample.value for family in text_string_to_metric_families(metrics)
+                           for sample in family.samples
+                           if sample.name == "nexus_http_request_duration_seconds_sum"
+                           and sample.labels["route"] == "/pay"]
+                self.assertGreater(sum(latency), 0.5, "Payment latency must include waiting for CPU capacity")
+
+    async def test_fault_delay_does_not_serialize_requests_or_block_probes(self):
+        payment = load_payment(FAULT_LATENCY_MS="200", FAULT_5XX_RATE="1")
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=payment.app), base_url="http://payment"
+        ) as client:
+            started = time.perf_counter()
+            payments = [asyncio.create_task(client.post("/pay")) for _ in range(6)]
+            try:
+                await asyncio.sleep(0.05)
+                self.assertTrue(all(not task.done() for task in payments), "Fault delay must still be applied")
+                self.assertEqual((await client.get("/health")).status_code, 200)
+                self.assertTrue(all(not task.done() for task in payments))
+            finally:
+                responses = await asyncio.wait_for(asyncio.gather(*payments), timeout=2)
+            self.assertLess(time.perf_counter() - started, 1.0, "Fault sleeps must run concurrently")
+            self.assertTrue(all(response.status_code == 500 for response in responses))
+            self.assertTrue(all(response.json() == {"ok": False, "error": "simulated v2 failure", "version": "v1"}
+                                for response in responses))
 
     async def test_blocked_log_sink_does_not_block_probes_and_shutdown_preserves_fields(self):
         payment = load_payment(LOG_LEVEL="INFO", FAULT_LATENCY_MS="0")

@@ -11,7 +11,7 @@ metadata:
     service_name: payment-traffic
 spec:
   automountServiceAccountToken: false
-  restartPolicy: Never
+  restartPolicy: Always
   terminationGracePeriodSeconds: 45
   containers:
     - name: traffic
@@ -24,7 +24,7 @@ spec:
         - name: RPS
           value: "10"
         - name: DURATION_SECONDS
-          value: "3600"
+          value: "86400"
         - name: MAX_IN_FLIGHT
           value: "300"
         - name: REQUEST_TIMEOUT_SECONDS
