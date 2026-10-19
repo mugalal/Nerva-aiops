@@ -151,7 +151,10 @@ REQUEST_DURATION = Histogram(
     "nexus_http_request_duration_seconds",
     "HTTP request duration for a NEXUS service.",
     METRIC_LABELS + ("method", "route"),
-    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0),
+    # Upper buckets keep a saturated p95 measurable: with 5 s as the top bucket
+    # every overload read as exactly 5000 ms. The lower buckets are unchanged
+    # because M2's frozen reference was calibrated on them.
+    buckets=(0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0, 2.5, 5.0, 10.0, 30.0),
 )
 SERVICE_INFO = Gauge(
     "nexus_service_info",
