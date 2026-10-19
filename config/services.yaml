@@ -13,7 +13,7 @@ services:
       kind: Deployment
       name: payment-service
     tier: critical          # informational only
-    depends_on: []          # informational only
+    depends_on: []          # M4 will not scale this service while a dependency has an open incident
     remediation:
       actions: [ROLLBACK, SCALE]
       min_replicas: 1

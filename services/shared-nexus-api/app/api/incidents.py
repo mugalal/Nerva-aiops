@@ -36,6 +36,11 @@ def _committed_index():
     return {item["incident_id"]: item for item in _committed_incidents}
 
 
+def committed_incidents():
+    """Every incident's last durable state (an immutable snapshot list)."""
+    return _committed_incidents
+
+
 def committed_incident(incident_id):
     """The last durable state; never a half-finished mutation."""
     return next((item for item in _committed_incidents if item["incident_id"] == incident_id), None)

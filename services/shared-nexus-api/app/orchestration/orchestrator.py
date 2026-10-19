@@ -42,6 +42,7 @@ from app.state_machine.machine import transition
 from app.orchestration.archive import enqueue_archive
 from app.orchestration.proposals import proposal_digest, proposal_expired
 from app.orchestration.provenance import configured_modes, record_provider_use
+from shared.registry import get_registry
 
 logger = logging.getLogger(__name__)
 _pending_executions = {}
@@ -258,6 +259,13 @@ def _gather_diagnosis(attempt):
                 validate_scale_step(finops["current_replicas"], replicas, service=service)
         except ValueError as exc:
             result = _escalation(rca, f"Proposed action is outside the service registry guardrails: {exc}")
+    if result.action == DecisionAction.SCALE:
+        blocked = degraded_dependencies(service, incident_id)
+        if blocked:
+            dependency, other = blocked[0]
+            result = _escalation(rca, f"{service} depends on {dependency}, which has open incident {other}. "
+                                      f"Adding {service} replicas would add load to the struggling dependency; "
+                                      f"fix {dependency} first.")
     hpa = None
     if result.action == DecisionAction.SCALE:
         try:
@@ -313,6 +321,17 @@ def _gather_diagnosis(attempt):
                 parameters["via_hpa"] = hpa["name"]
     return {"rca": rca, "result": result, "finops": finops, "finops_error": finops_error, "evidence": evidence,
             "expected_state": expected_state, "scenario": scenario, "parameters": parameters}
+
+
+def degraded_dependencies(service, incident_id):
+    """(dependency, incident) pairs for registry dependencies of `service` that have an open incident."""
+    from app.api.incidents import TERMINAL_STATUSES, committed_incidents
+    spec = get_registry().get(service)
+    if spec is None or not spec.depends_on:
+        return []
+    return [(dependency, item["incident_id"]) for dependency in spec.depends_on for item in committed_incidents()
+            if item["incident_id"] != incident_id and dependency in item.get("affected_services", [])
+            and item.get("status") not in TERMINAL_STATUSES]
 
 
 def _current_attempt(incident, attempt):

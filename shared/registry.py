@@ -12,10 +12,12 @@ Loading rules
 Field semantics
 ---------------
 Enforced:  name, namespace, workload, remediation.actions, min_replicas,
-           max_replicas, max_scale_step, approval ("always" is the only policy).
+           max_replicas, max_scale_step, approval ("always" is the only policy),
+           depends_on: M4 will not SCALE a service while a service it depends on
+           has an open incident (it escalates instead: more callers would only
+           add load to the struggling dependency).
 Informational only (validated, shown to operators, not used for decisions):
-           tier, depends_on. NEXUS has no topology-aware correlation yet; these
-           fields do not change diagnosis, ranking or blast-radius checks.
+           tier.
 
 A registry entry grants remediation guardrails. It does not create telemetry:
 only services that M1 actually scrapes and that run as a Kubernetes
@@ -94,7 +96,7 @@ class ServiceSpec(_Strict):
     namespace: str = "nexus-demo"
     workload: WorkloadSpec
     tier: Literal["critical", "standard", "best_effort"] = "critical"  # informational
-    depends_on: list[str] = Field(default_factory=list)              # informational
+    depends_on: list[str] = Field(default_factory=list)              # blocks scaling while a dependency is degraded
     remediation: RemediationConfig = Field(default_factory=RemediationConfig)
 
     @field_validator("name", "namespace")
