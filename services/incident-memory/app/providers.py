@@ -87,6 +87,12 @@ class Provider:
             raise ProviderUnavailable("Shared detail must explicitly identify evidence provenance")
         return {**result, "connection_source": "shared_api"}
 
+    def audit_export(self, incident_id):
+        if self.mode == "mock":
+            raise ProviderUnavailable("Mock data has no audit trail", 404)
+        return self.request("GET", "/internal/remediation/audit/export?format=json&incident_id="
+                            + quote(incident_id, safe=""))
+
     def approval_enabled(self):
         return self.mode == "live" and bool(os.getenv("M5_SHARED_API_TOKEN")) and bool(os.getenv("M5_OPERATOR_ID"))
 

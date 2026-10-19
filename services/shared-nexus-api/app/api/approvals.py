@@ -3,7 +3,7 @@ from typing import Literal
 from fastapi import APIRouter, Header, Response
 from pydantic import BaseModel, Field, field_validator
 from app.api.incidents import committed_incident, find_incident, lock_for, persist_incidents, public_incident
-from app.api.auth import verify_approver_auth, require_explicit_identity
+from app.api.auth import named_approver_identity, verify_approver_auth, require_explicit_identity
 from app.contracts import ActionResult, DecisionProposal, IncidentView
 from app.state_machine.states import IncidentStatus
 from app.state_machine.machine import transition
@@ -149,7 +149,9 @@ def reconcile_incident(
     x_nexus_approver: str | None = Header(default=None),
 ):
     verify_approver_auth(authorization, x_nexus_approver_token, x_nexus_approver or "operator")
-    operator = require_explicit_identity(x_nexus_approver)
+    # A personal approver token names the operator itself; a shared token must be told who observed.
+    operator = (named_approver_identity(authorization, x_nexus_approver_token)
+                or require_explicit_identity(x_nexus_approver))
     if find_incident(incident_id) is None:
         raise _not_found()
     try:

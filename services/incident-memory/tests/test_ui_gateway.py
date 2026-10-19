@@ -45,6 +45,25 @@ class GatewayTests(unittest.TestCase):
             "remediation_backend": "mock", "action_result": None, "recovery_result": None,
             "finops_context": None, "workflow": {"archive_status": "not_eligible"}, "audit": []})
 
+    def test_audit_export_is_proxied_read_only_with_the_service_token(self):
+        seen = []
+
+        def upstream(request):
+            seen.append(request)
+            return httpx.Response(200, json={"incident_id": "INC-001", "records": [],
+                                             "verification": {"valid": True}})
+
+        with patch.dict(os.environ, {"M5_SHARED_API_TOKEN": "service-token"}),                 httpx.Client(transport=httpx.MockTransport(upstream)) as transport,                 TestClient(create_app(self.repo, Provider("live", transport))) as client:
+            response = client.get("/internal/ui/incidents/INC 001/audit")
+            self.assertEqual(response.status_code, 200)
+            self.assertTrue(response.json()["verification"]["valid"])
+        self.assertEqual(seen[0].method, "GET")
+        self.assertEqual(seen[0].url.path, "/internal/remediation/audit/export")
+        self.assertEqual(seen[0].url.params["incident_id"], "INC 001")
+        self.assertEqual(seen[0].headers["authorization"], "Bearer service-token")
+        with TestClient(create_app(self.repo, Provider("mock"))) as client:
+            self.assertEqual(client.get("/internal/ui/incidents/INC-001/audit").status_code, 404)
+
     def test_m4_array_listing_and_aggregate_preserve_unknown_outcomes(self):
         with httpx.Client(transport=httpx.MockTransport(self.upstream)) as transport:
             with TestClient(create_app(self.repo, Provider("live", transport))) as client:

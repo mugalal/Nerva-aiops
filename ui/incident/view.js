@@ -1,4 +1,4 @@
-import {element, panel, fields, empty, statusPill, formatTime} from '../components/render.js';
+import {api, element, panel, fields, empty, statusPill, formatTime} from '../components/render.js';
 
 const LABELS = {rca:'Root cause analysis', anomaly:'Linked anomaly', evidence:'Captured evidence', decision:'Proposal',
   action_result:'Actuator result', recovery_result:'Measured recovery'};
@@ -172,6 +172,18 @@ export function renderIncident(bundle, config, onApproval, onStore, onAsk) {
     ?'Mixed provenance: at least one mock input or effect was used. This incident is never stored as real history.'
     :'Mock or unverified provenance: not evidence of real remediation.','provenance-warning'));
   root.append(details);
+  if(config.source!=='mock'&&bundle.incident?.incident_id){
+    // Hash-chained audit export: who proposed, approved and observed what, with the chain check attached.
+    const download=element('button','Download audit trail (JSON)');
+    const note=element('span','','muted');
+    download.addEventListener('click',async()=>{download.disabled=true;try{
+      const id=bundle.incident.incident_id;const data=await api(`/internal/ui/incidents/${encodeURIComponent(id)}/audit`);
+      const link=element('a');link.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+      link.download=`nerva-audit-${id}.json`;link.click();URL.revokeObjectURL(link.href);
+      note.textContent=data.verification?.valid?` Chain verified (${data.records.length} records).`:' Audit chain check FAILED: see the file.';
+    }catch(error){note.textContent=` ${error.message}`;}finally{download.disabled=false;}});
+    const audit=panel('Audit trail');audit.append(download,note);root.append(audit);
+  }
   return similar;
 }
 export function renderFinops(bundle) {

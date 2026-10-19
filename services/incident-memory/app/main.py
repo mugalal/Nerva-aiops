@@ -183,6 +183,10 @@ def create_app(repository=None, provider=None):
                 "source": archived["source"], "stored_at": archived["stored_at"], "resolved": archived["resolved"]}}
         return result
 
+    @app.get("/internal/ui/incidents/{incident_id}/audit")
+    def audit_export(incident_id: str):
+        return upstream.audit_export(incident_id)
+
     @app.post("/internal/ui/incidents/{incident_id}/approval")
     def approval(incident_id: str, request: ApprovalRequest, raw: Request):
         # Same-origin, operator-authenticated requests only. M4 still owns approval policy.

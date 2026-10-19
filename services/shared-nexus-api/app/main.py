@@ -5,7 +5,7 @@ load_dotenv()
 
 import logging
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from app.api.incidents import router as incidents_router
 from app.api.approvals import router as approvals_router
@@ -14,7 +14,8 @@ from app.api.remediation import router as remediation_router
 from app.api.recovery import router as recovery_router
 from app.api.anomalies import router as anomalies_router
 from app.api.experiments import router as experiments_router
-from app.api.auth import approval_token, ingest_token
+from app.api.auth import (approval_token, ingest_token, named_approver_tokens, read_auth_required,
+                          verify_reader_auth)
 from app.db import workflow_store
 from app.orchestration.lifecycle import restore_state, validate_settings, Worker
 from app.orchestration.provenance import configured_modes
@@ -35,6 +36,9 @@ def validate_startup():
         raise RuntimeError("Real providers require NEXUS_INGEST_TOKEN for incident ingest and diagnosis")
     if ingest_token() and approval_token() and ingest_token() == approval_token():
         raise RuntimeError("NEXUS_INGEST_TOKEN must differ from the operator approval token")
+    named = named_approver_tokens()  # RuntimeError on a malformed personal-token list.
+    if any(secret in {ingest_token(), approval_token()} for secret in named):
+        raise RuntimeError("A personal approver token must differ from the shared ingest and operator tokens")
     get_registry()  # RegistryError: an explicitly configured registry must load.
     validate_settings()
     return real
@@ -72,6 +76,20 @@ app.include_router(remediation_router)
 app.include_router(recovery_router)
 app.include_router(anomalies_router)
 app.include_router(experiments_router)
+
+
+_OPEN_PATHS = {"/live", "/health", "/ready", "/metrics", "/docs", "/openapi.json", "/redoc"}
+
+
+@app.middleware("http")
+async def read_authentication(request, call_next):
+    """NEXUS_REQUIRE_READ_AUTH: incident, anomaly and audit reads need a NEXUS token too."""
+    if request.method in {"GET", "HEAD"} and request.url.path not in _OPEN_PATHS:
+        try:
+            verify_reader_auth(request.headers.get("authorization"), request.headers.get("x-nexus-read-token"))
+        except HTTPException as exc:
+            return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail}, headers=exc.headers)
+    return await call_next(request)
 
 
 @app.exception_handler(workflow_store.StorageError)
@@ -129,7 +147,9 @@ def health():
         "workflow_storage": storage,
         "dependency_breakers": breakers,
         "service_registry": registry_info(),
-        "auth": {"operator_token_configured": bool(approval_token()), "ingest_token_configured": bool(ingest_token())},
+        "auth": {"operator_token_configured": bool(approval_token()), "ingest_token_configured": bool(ingest_token()),
+                 "personal_approvers": len(named_approver_tokens()),
+                 "read_auth_required": read_auth_required()},
     }
 
 

@@ -1,5 +1,6 @@
 """Read real, incident-linked evidence without creating scenario-bound records."""
 
+import os
 from urllib.parse import quote, urlsplit
 
 import httpx
@@ -20,10 +21,15 @@ class HttpEvidenceProviders:
         self.timeout = timeout
         self.transport = transport
 
+    def _headers(self, url):
+        """The shared API may require a token on reads (NEXUS_REQUIRE_READ_AUTH); M1 never gets it."""
+        token = os.getenv("NEXUS_READ_TOKEN") or os.getenv("NEXUS_INGEST_TOKEN")
+        return {"Authorization": f"Bearer {token}"} if token and url.startswith(self.shared_url + "/") else {}
+
     async def _get(self, url, model, provider, params=None):
         try:
             async with httpx.AsyncClient(timeout=self.timeout, transport=self.transport) as client:
-                response = await client.get(url, params=params)
+                response = await client.get(url, params=params, headers=self._headers(url))
                 response.raise_for_status()
                 raw = response.json()
                 return model.model_validate(raw) if model is not None else raw
