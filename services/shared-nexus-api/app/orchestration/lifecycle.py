@@ -60,6 +60,7 @@ def validate_settings():
     diagnosis_delay_seconds()
     _setting("M4_RECOVERY_POLL_INTERVAL_SECONDS", 5, 1, 300)
     _setting("M4_DIAGNOSIS_RETRY_SECONDS", 15, 1, 600)
+    _setting("M4_DIAGNOSIS_MAX_ATTEMPTS", 20, 1, 1000)
     _setting("M4_WORKER_CONCURRENCY", 4, 1, 32)
     _setting("M4_LEASE_CHECK_SECONDS", 5, 1, 60)
 
@@ -94,17 +95,42 @@ def _diagnose(identity):
             if incident is not None and incident.get("_diagnosis_pending"):
                 incident["_diagnosis_last_error"] = str(exc)
                 incident.pop("_diagnosis_attempt", None)
+                failures = int(incident.get("_diagnosis_failures") or 0) + 1
+                incident["_diagnosis_failures"] = failures
 
-                if retryable:
+                if retryable and failures < int(_setting("M4_DIAGNOSIS_MAX_ATTEMPTS", 20, 1, 1000)):
                     incident["_diagnosis_retry_at"] = (
                         datetime.now(timezone.utc)
                         + timedelta(seconds=retry)
                     ).isoformat()
+                    persist_incidents()
                 else:
-                    incident["_diagnosis_pending"] = False
-                    incident.pop("_diagnosis_retry_at", None)
+                    _escalate_failed_diagnosis(incident, str(exc), failures, retryable)
 
-                persist_incidents()
+
+def _escalate_failed_diagnosis(incident, error, failures, retryable):
+    """A diagnosis that cannot succeed hands the incident to a human.
+
+    Without this an incident stayed in DIAGNOSING with nothing scheduled to
+    move it: not resolved, not escalated, invisible to the escalation queue.
+    """
+    from app.api.incidents import persist_incidents
+    from app.orchestration.archive import enqueue_archive
+    from app.remediation.audit import add_audit_record
+    from app.state_machine.machine import transition
+    from app.state_machine.states import IncidentStatus
+    incident["_diagnosis_pending"] = False
+    incident.pop("_diagnosis_retry_at", None)
+    incident["_diagnosis_failed"] = True
+    if incident["status"] in {"DETECTED", "CORRELATING", "DIAGNOSING", "DIAGNOSED"}:
+        incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.ESCALATED,
+                                        diagnosis_failed=True).value
+    persist_incidents()
+    add_audit_record(incident["incident_id"], "DIAGNOSIS_FAILED",
+                     {"message": error, "attempts": failures,
+                      "reason": "retry limit reached" if retryable else "non-retryable error"})
+    if incident["status"] == "ESCALATED":
+        enqueue_archive(incident)
 
 def _measure(identity):
     from app.api.incidents import find_incident, lock_for, persist_incidents

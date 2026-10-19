@@ -1,17 +1,23 @@
 from .states import IncidentStatus
 
 ALLOWED_TRANSITIONS = {
+    # Every pre-decision state may escalate, but only when diagnosis has failed
+    # for good: the incident is handed to a human instead of waiting forever.
     IncidentStatus.DETECTED: {
         IncidentStatus.CORRELATING,
+        IncidentStatus.ESCALATED,
     },
     IncidentStatus.CORRELATING: {
         IncidentStatus.DIAGNOSING,
+        IncidentStatus.ESCALATED,
     },
     IncidentStatus.DIAGNOSING: {
         IncidentStatus.DIAGNOSED,
+        IncidentStatus.ESCALATED,
     },
     IncidentStatus.DIAGNOSED: {
         IncidentStatus.ACTION_PROPOSED,
+        IncidentStatus.ESCALATED,
     },
     IncidentStatus.ACTION_PROPOSED: {
         IncidentStatus.AWAITING_APPROVAL,
@@ -40,6 +46,10 @@ ALLOWED_TRANSITIONS = {
     },
 }
 
+_PRE_DECISION = {IncidentStatus.DETECTED, IncidentStatus.CORRELATING,
+                 IncidentStatus.DIAGNOSING, IncidentStatus.DIAGNOSED}
+
+
 def can_transition(current_status: IncidentStatus, next_status: IncidentStatus) -> bool:
     return next_status in ALLOWED_TRANSITIONS[current_status]
 
@@ -50,6 +60,7 @@ def transition(
     recovery_validated: bool = False,
     reconciled: bool = False,
     outcome_unknown: bool = False,
+    diagnosis_failed: bool = False,
 ) -> IncidentStatus:
 
     if not can_transition(current_status, next_status):
@@ -91,6 +102,15 @@ def transition(
     ):
         raise ValueError(
             "EXECUTING escalates directly only when the action outcome is unknown"
+        )
+
+    if (
+        current_status in _PRE_DECISION
+        and next_status == IncidentStatus.ESCALATED
+        and not diagnosis_failed
+    ):
+        raise ValueError(
+            "An undiagnosed incident escalates only when diagnosis has failed"
         )
 
     return next_status

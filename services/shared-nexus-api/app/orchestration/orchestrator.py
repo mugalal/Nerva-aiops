@@ -345,7 +345,7 @@ def _commit_diagnosis(attempt, gathered):
                         scale_option=result.scale_option, _proposal=proposal.model_dump(mode="json"),
                         _decision=result.model_dump(mode="json"),
                         _proposal_created_at=datetime.now(timezone.utc).isoformat())
-        for key in ("_diagnosis_attempt", "_diagnosis_last_error", "_diagnosis_retry_at"):
+        for key in ("_diagnosis_attempt", "_diagnosis_last_error", "_diagnosis_retry_at", "_diagnosis_failures"):
             incident.pop(key, None)
         incident["_diagnosis_pending"] = False
         incident["status"] = transition(IncidentStatus(incident["status"]), IncidentStatus.ACTION_PROPOSED).value
