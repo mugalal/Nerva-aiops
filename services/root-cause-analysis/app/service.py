@@ -15,6 +15,10 @@ from .providers.mock import (
 from .scoring import determine_root_cause
 
 
+# The service whose live evidence the readiness check previews.
+HEALTH_SERVICE = os.getenv("M3_HEALTH_SERVICE", "payment-service")
+
+
 class RCAService:
     def __init__(self, mocks_dir: Path | None = None, mode: str | None = None,
                  providers: HttpEvidenceProviders | None = None, clock=None):
@@ -110,7 +114,7 @@ class RCAService:
             return {**runtime, "status": "degraded", "dependencies": {
                 "evidence": {"status": "degraded", "detail": "Explicit mock mode"}}}
         results = await asyncio.gather(self.providers.incident_list(),
-                                       self.providers.preview("payment-service"), return_exceptions=True)
+                                       self.providers.preview(HEALTH_SERVICE), return_exceptions=True)
         dependencies = {}
         for name, result in zip(("incident", "telemetry"), results):
             if isinstance(result, Exception):
@@ -118,7 +122,7 @@ class RCAService:
             else:
                 try:
                     if name == "telemetry":
-                        self.validate_preview(result, "payment-service")
+                        self.validate_preview(result, HEALTH_SERVICE)
                     source_errors = list(result.provider_errors) if name == "telemetry" else []
                     if name == "telemetry" and result.baseline is None:
                         source_errors.append("Measured healthy baseline is missing")

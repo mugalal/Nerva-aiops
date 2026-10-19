@@ -110,7 +110,7 @@ def build_default_service(settings: M1Settings) -> M1Service:
         ),
         kubernetes=kubernetes,
         service_health=ServiceHealthClient(
-            {"payment-service": settings.payment_service_base_url},
+            {"payment-service": settings.payment_service_base_url, **settings.service_health_urls},
             timeout=settings.provider_timeout_seconds,
         ),
         store=EvidenceStore(settings.data_dir),

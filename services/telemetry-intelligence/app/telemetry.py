@@ -39,24 +39,31 @@ class PrometheusTelemetryProvider:
     async def ready(self) -> tuple[bool, str]:
         return await self.client.ready()
 
+    def route(self, service: str) -> str:
+        route = self.settings.service_routes.get(service)
+        if not route:
+            raise TelemetryMissing(f"No business route is configured for {service}; set M1_SERVICE_ROUTES")
+        return _escape_label(route)
+
     def queries(self, service: str) -> dict[str, str]:
         selector = f'service_name="{_escape_label(service)}"'
+        route = self.route(service)
         rate_window = self.settings.request_rate_window
         latency_window = self.settings.latency_window
         return {
             "request_rate": (
-                f'sum(rate(nexus_http_requests_total{{{selector},route="/pay"}}'
+                f'sum(rate(nexus_http_requests_total{{{selector},route="{route}"}}'
                 f'[{rate_window}]))'
             ),
             "latency_p95_ms": (
                 "histogram_quantile(0.95, sum by (le) "
-                f'(rate(nexus_http_request_duration_seconds_bucket{{{selector},route="/pay"}}'
+                f'(rate(nexus_http_request_duration_seconds_bucket{{{selector},route="{route}"}}'
                 f'[{latency_window}]))) * 1000'
             ),
             "http_5xx_rate": (
-                f'((sum(rate(nexus_http_requests_total{{{selector},route="/pay",'
+                f'((sum(rate(nexus_http_requests_total{{{selector},route="{route}",'
                 f'status_code=~"5.."}}[{latency_window}])) or vector(0)) / '
-                f'clamp_min(sum(rate(nexus_http_requests_total{{{selector},route="/pay"}}'
+                f'clamp_min(sum(rate(nexus_http_requests_total{{{selector},route="{route}"}}'
                 f'[{latency_window}])), 0.000001))'
             ),
             "cpu": (
@@ -88,11 +95,12 @@ class PrometheusTelemetryProvider:
 
     def source_queries(self, service: str) -> dict[str, str]:
         selector = f'service_name="{_escape_label(service)}"'
+        route = self.route(service)
         # Aggregate-result timestamps are evaluation times. timestamp(raw_selector)
         # exposes the actual scrape time as the sample VALUE, even in range queries.
         sources = {
-            "requests": f'nexus_http_requests_total{{{selector},route="/pay"}}',
-            "latency": f'nexus_http_request_duration_seconds_bucket{{{selector},route="/pay"}}',
+            "requests": f'nexus_http_requests_total{{{selector},route="{route}"}}',
+            "latency": f'nexus_http_request_duration_seconds_bucket{{{selector},route="{route}"}}',
             "cpu": f'process_cpu_seconds_total{{{selector}}}',
             "memory": f'process_resident_memory_bytes{{{selector}}}',
             "cpu_limit": f'nexus_resource_limit_cpu_cores{{{selector}}}',

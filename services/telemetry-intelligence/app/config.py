@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 import math
 from pathlib import Path
@@ -56,6 +56,11 @@ class M1Settings:
     # baseline is ~2 ms: smaller than the 10 ms -> 25 ms histogram bucket the
     # p95 is interpolated in, so healthy noise alone could fail recovery.
     baseline_latency_floor_ms: float = 25
+    # Per-service business route measured for rate, latency and errors (probes
+    # such as /health are excluded). A service without a route is not measured.
+    service_routes: dict = field(default_factory=lambda: {"payment-service": "/pay"})
+    # Extra service health URLs (payment-service keeps PAYMENT_SERVICE_BASE_URL).
+    service_health_urls: dict = field(default_factory=dict)
 
     def __post_init__(self):
         numeric_settings = (
@@ -92,6 +97,19 @@ class M1Settings:
             raise ValueError("Traffic continuity must be in (0, 1] and provider timeout positive")
         if self.recovery_hold_seconds < self.history_step_seconds * (self.recovery_min_samples - 1):
             raise ValueError("Recovery hold must fit the minimum number of samples")
+
+
+def parse_pairs(raw: str, name: str) -> dict:
+    """`service=value,service=value` (for M1_SERVICE_ROUTES and M1_SERVICE_HEALTH_URLS)."""
+    pairs = {}
+    for entry in (raw or "").split(","):
+        if not entry.strip():
+            continue
+        key, separator, value = entry.partition("=")
+        if not separator or not key.strip() or not value.strip():
+            raise ValueError(f"{name} entries must look like service=value")
+        pairs[key.strip()] = value.strip()
+    return pairs
 
 
 def load_m1_settings() -> M1Settings:
@@ -156,4 +174,6 @@ def load_m1_settings() -> M1Settings:
         baseline_max_latency_ms=float(os.getenv("M1_BASELINE_MAX_LATENCY_MS", "500")),
         baseline_max_utilization_ratio=float(os.getenv("M1_BASELINE_MAX_UTILIZATION_RATIO", "0.85")),
         baseline_latency_floor_ms=float(os.getenv("M1_BASELINE_LATENCY_FLOOR_MS", "25")),
+        service_routes={"payment-service": "/pay", **parse_pairs(os.getenv("M1_SERVICE_ROUTES", ""), "M1_SERVICE_ROUTES")},
+        service_health_urls=parse_pairs(os.getenv("M1_SERVICE_HEALTH_URLS", ""), "M1_SERVICE_HEALTH_URLS"),
     )
