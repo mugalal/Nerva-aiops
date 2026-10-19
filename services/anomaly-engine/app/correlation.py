@@ -167,6 +167,15 @@ class Correlator:
         candidate.events.append(record)
         return candidate
 
+    def restore(self, candidates: list[Candidate]) -> None:
+        """Load saved candidates (oldest first); each service's newest one is open again."""
+        self._all = list(candidates)[-self.max_candidates:]
+        self._open = {}
+        for candidate in self._all:
+            current = self._open.get(candidate.service)
+            if current is None or candidate.last_alert_at >= current.last_alert_at:
+                self._open[candidate.service] = candidate
+
     def candidates(self, service: str | None = None, limit: int = 50) -> list[Candidate]:
         """Newest first."""
         found = [c for c in self._all if service is None or c.service == service]

@@ -39,6 +39,9 @@ spec:
               value: http://telemetry-intelligence:8001
             - name: M2_EVIDENCE_PATH
               value: /data/evidence.jsonl
+            # Incident candidates and handoff progress, restored after a restart.
+            - name: M2_STATE_PATH
+              value: /data/candidates.json
             - name: NEXUS_INGEST_TOKEN
               valueFrom:
                 secretKeyRef:

@@ -64,6 +64,7 @@ from .pipeline import Pipeline
 from .poller import Poller
 from .realdata.m1_client import M1Client
 from .reference import Reference, load_reference
+from .state import CandidateStore
 
 SERVICE_NAME_DEFAULT = "anomaly-engine"
 
@@ -113,9 +114,20 @@ def build_state() -> State:
     if _truthy(os.getenv("M2_HANDOFF_ENABLED")):
         handoff = SharedApiHandoff(os.getenv("M2_HANDOFF_URL") or settings.shared_nexus_api_base_url)
 
+    # Candidates and handoff progress survive restarts next to the evidence log.
+    state_setting = os.getenv("M2_STATE_PATH")
+    if state_setting is not None:
+        state_path = None if state_setting.strip().lower() in _OFF else state_setting
+    else:
+        state_path = str(Path(evidence_path).with_name("candidates.json")) if evidence_path else None
+    state = CandidateStore(state_path)
+    correlator = Correlator(gap_s=float(os.getenv("M2_CORRELATION_GAP_S", "120")))
+    state.load(correlator)
+
     pipeline = Pipeline(
         reference=reference,
-        correlator=Correlator(gap_s=float(os.getenv("M2_CORRELATION_GAP_S", "120"))),
+        correlator=correlator,
+        state=state,
         evidence=EvidenceStore(evidence_path),
         handoff=handoff,
         handoff_settle_alerts=int(os.getenv("M2_HANDOFF_SETTLE_ALERTS", "4")),

@@ -7,8 +7,8 @@
   logged, never dropped. The pending work itself lives in the pipeline's
   incident candidates, and a periodic sweep re-submits every incident that
   still has undelivered steps (this is also how failed deliveries are retried,
-  with the pipeline's exponential backoff). Durability is the process lifetime:
-  M2 keeps candidates in memory, so a restart forgets undelivered handoffs.
+  with the pipeline's exponential backoff). Candidates and their handoff
+  progress are saved to M2_STATE_PATH (state.py), so a restart resumes them.
 * Graceful shutdown: close() stops intake, drains what is queued within the
   timeout, and reports anything left undelivered.
 """

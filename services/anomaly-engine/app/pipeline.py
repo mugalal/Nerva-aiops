@@ -70,6 +70,7 @@ from .correlation import Candidate, Correlator
 from .evidence import EvidenceStore
 from .features import FEATURE_ORDER, extract_features
 from .handoff import HandoffError, SharedApiHandoff
+from .state import CandidateStore
 from .model import ZScoreDetector
 from .reference import DETECTOR_NAME as RULER_MODEL_NAME
 from .reference import Reference
@@ -125,6 +126,7 @@ class Pipeline:
         handoff_settle_alerts: int = 4,
         handoff_retry_s: float = 10.0,
         now: Callable[[], datetime] = _utc_now,
+        state: CandidateStore | None = None,
     ) -> None:
         self.reference = reference
         self.config = config
@@ -136,6 +138,7 @@ class Pipeline:
         self.handoff_settle_alerts = handoff_settle_alerts
         self.handoff_retry_s = handoff_retry_s
         self.now = now
+        self.state = state or CandidateStore(None)
         self._previous: dict[str, TelemetrySnapshot] = {}
         self._version_change: dict[str, dict] = {}
         self._recent: deque[AnomalyEvent] = deque(maxlen=recent_limit)
@@ -219,9 +222,18 @@ class Pipeline:
 
     # -- the work ----------------------------------------------------------
 
+    def _persist(self) -> None:
+        """Save candidates and handoff progress (caller holds the lock). Never breaks scoring."""
+        try:
+            self.state.save(self.correlator)
+        except (OSError, ValueError):
+            log.exception("could not save M2 candidate state; it stays in memory")
+
     def process(self, snapshot: TelemetrySnapshot) -> Reading:
         with self._lock:
             reading, opened = self._score(snapshot)
+            if reading.alert:
+                self._persist()
         if reading.alert and self.handoff is not None:
             if self._dispatcher is not None:
                 self._dispatcher.submit(reading.incident.incident_id)
@@ -402,6 +414,7 @@ class Pipeline:
                 state.error = error
                 state.in_flight = False
                 self._handoff_error = error
+                self._persist()
 
         extra = {"incident_id": incident_id, "service_name": service, "provider": "shared-api"}
         if error:
