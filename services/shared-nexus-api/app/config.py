@@ -29,3 +29,25 @@ def load_proposal_ttl_seconds(value=None):
 
 PROPOSAL_TTL_SECONDS = load_proposal_ttl_seconds()
 
+
+
+
+def load_recovery_seconds_per_replica(value=None):
+    """Extra recovery time per replica a scale action adds (each pod must start and warm up)."""
+    raw = os.getenv("RECOVERY_SECONDS_PER_ADDED_REPLICA", "15") if value is None else value
+    try:
+        seconds = float(raw)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("RECOVERY_SECONDS_PER_ADDED_REPLICA must be a finite number in [0, 300]") from exc
+    if not math.isfinite(seconds) or not 0 <= seconds <= 300:
+        raise ValueError("RECOVERY_SECONDS_PER_ADDED_REPLICA must be a finite number in [0, 300]")
+    return seconds
+
+
+RECOVERY_SECONDS_PER_ADDED_REPLICA = load_recovery_seconds_per_replica()
+
+
+def recovery_timeout_seconds(added_replicas=0):
+    """The recovery deadline grows with the size of a scale-out, capped at one hour."""
+    added = max(0, int(added_replicas or 0))
+    return min(3600.0, RECOVERY_TIMEOUT_SECONDS + added * RECOVERY_SECONDS_PER_ADDED_REPLICA)

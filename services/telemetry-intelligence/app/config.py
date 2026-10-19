@@ -52,6 +52,10 @@ class M1Settings:
     recovery_min_samples: int = 3
     baseline_max_latency_ms: float = 500
     baseline_max_utilization_ratio: float = 0.85
+    # Recovery latency limit never goes below this. A 1.25x margin on a ~10 ms
+    # baseline is ~2 ms: smaller than the 10 ms -> 25 ms histogram bucket the
+    # p95 is interpolated in, so healthy noise alone could fail recovery.
+    baseline_latency_floor_ms: float = 25
 
     def __post_init__(self):
         numeric_settings = (
@@ -61,7 +65,7 @@ class M1Settings:
             self.baseline_min_duration_seconds, self.baseline_min_coverage_ratio,
             self.baseline_min_request_rate, self.baseline_max_error_rate,
             self.recovery_hold_seconds, self.baseline_max_latency_ms,
-            self.baseline_max_utilization_ratio,
+            self.baseline_max_utilization_ratio, self.baseline_latency_floor_ms,
         )
         if not all(math.isfinite(value) for value in numeric_settings):
             raise ValueError("Measurement settings must be finite")
@@ -80,6 +84,8 @@ class M1Settings:
         if min(self.baseline_min_duration_seconds, self.baseline_min_request_rate,
                self.recovery_hold_seconds, self.stale_after_seconds, self.baseline_max_latency_ms) <= 0:
             raise ValueError("Measurement durations, live traffic floor, and freshness limit must be positive")
+        if not 0 <= self.baseline_latency_floor_ms <= self.baseline_max_latency_ms:
+            raise ValueError("Recovery latency floor must be in [0, baseline max latency]")
         if not 0 < self.baseline_max_utilization_ratio <= 1:
             raise ValueError("Healthy baseline utilization ceiling must be in (0, 1]")
         if not 0 < self.traffic_continuity_ratio <= 1 or self.provider_timeout_seconds <= 0:
@@ -149,4 +155,5 @@ def load_m1_settings() -> M1Settings:
         recovery_min_samples=int(os.getenv("M1_RECOVERY_MIN_SAMPLES", "3")),
         baseline_max_latency_ms=float(os.getenv("M1_BASELINE_MAX_LATENCY_MS", "500")),
         baseline_max_utilization_ratio=float(os.getenv("M1_BASELINE_MAX_UTILIZATION_RATIO", "0.85")),
+        baseline_latency_floor_ms=float(os.getenv("M1_BASELINE_LATENCY_FLOOR_MS", "25")),
     )

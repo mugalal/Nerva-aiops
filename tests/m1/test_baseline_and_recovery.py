@@ -82,6 +82,18 @@ class BaselineTests(unittest.TestCase):
         )
         self.assertEqual(baseline.thresholds.http_5xx_rate_max, 0.01)
 
+    def test_latency_limit_never_drops_below_the_histogram_noise_floor(self):
+        # A ~10 ms baseline times 1.25 is ~12 ms: inside one histogram bucket.
+        window = make_window(make_snapshot(latency=9.5))
+        with TemporaryDirectory() as directory:
+            settings = make_settings(Path(directory))
+            baseline = build_healthy_baseline(window, settings)
+            self.assertEqual(baseline.thresholds.latency_p95_ms_max, settings.baseline_latency_floor_ms)
+            unfloored = build_healthy_baseline(window, replace(settings, baseline_latency_floor_ms=0))
+            self.assertAlmostEqual(unfloored.thresholds.latency_p95_ms_max, 9.5 * 1.25)
+            with self.assertRaises(ValueError):
+                replace(settings, baseline_latency_floor_ms=settings.baseline_max_latency_ms + 1)
+
     def test_incident_log_selection_keeps_errors_and_stays_compact(self):
         now = datetime.now(timezone.utc)
         entries = [
@@ -161,6 +173,25 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(M1Error) as caught:
                 await service.validate_recovery(request.model_copy(update={"scenario": "traffic_spike"}))
             self.assertEqual(caught.exception.category, "evidence_scenario_mismatch")
+
+    async def test_noise_inside_the_latency_floor_does_not_fail_recovery(self):
+        with TemporaryDirectory() as directory:
+            service, telemetry, _ = make_service(Path(directory), make_snapshot(latency=9.5))
+            # A baseline pinned before the floor existed carries a ~12 ms limit.
+            legacy = replace(service.settings, baseline_latency_floor_ms=0)
+            service.store.save_baseline(build_healthy_baseline(telemetry.history, legacy))
+            telemetry.current = make_snapshot(version="v2", latency=820, error_rate=0.14)
+            await service.capture_evidence(CaptureEvidenceRequest(
+                incident_id="INC-FLOOR", service="payment-service", scenario="bad_deployment"))
+            self.mark_capture_in_past(service, "INC-FLOOR")
+            telemetry.current = make_snapshot(version="v1", latency=14)
+            for point in telemetry.history.points:
+                point.metrics.latency_p95_ms = 14
+            result = await service.validate_recovery(RecoveryValidationRequest(
+                incident_id="INC-FLOOR", service="payment-service", scenario="bad_deployment",
+                action_completed_at=datetime.now(timezone.utc) - timedelta(minutes=2)))
+            self.assertTrue(result.slo_restored)
+            self.assertTrue(result.recovered)
 
     async def test_recovery_requires_every_sample_to_be_healthy(self):
         with TemporaryDirectory() as directory:

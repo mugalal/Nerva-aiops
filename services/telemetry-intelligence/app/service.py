@@ -312,9 +312,11 @@ class M1Service:
         service_ok, service_detail = await self.service_health.check(request.service)
 
         thresholds = baseline.thresholds
+        # Baselines pinned before the floor existed get it applied here too.
+        latency_limit = max(thresholds.latency_p95_ms_max, self.settings.baseline_latency_floor_ms)
         measurements = [point.metrics for point in window.points] + [after.metrics]
         slo_restored = all(
-            metrics.latency_p95_ms <= thresholds.latency_p95_ms_max
+            metrics.latency_p95_ms <= latency_limit
             and metrics.http_5xx_rate <= thresholds.http_5xx_rate_max
             for metrics in measurements
         )

@@ -476,6 +476,15 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
         _release("execution", incident_id)
 
 
+def _recovery_budget(incident):
+    intent = incident.get("_execution_intent") or {}
+    before = (incident.get("_expected_state") or {}).get("replicas")
+    added = 0
+    if intent.get("action") == DecisionAction.SCALE.value and isinstance(before, int)             and isinstance(intent.get("replicas"), int):
+        added = intent["replicas"] - before
+    return config.recovery_timeout_seconds(added)
+
+
 def _record_execution(incident_id, action, action_id, started_at, result, execution_exc):
     with lock_for(incident_id):
         incident = _require(incident_id)
@@ -483,7 +492,7 @@ def _record_execution(incident_id, action, action_id, started_at, result, execut
             # Never happens without a competing writer; never overwrite its state.
             raise ConflictError("Execution intent changed while the action ran; operator reconciliation required")
         completed_at = datetime.now(timezone.utc)
-        deadline = (completed_at + timedelta(seconds=config.RECOVERY_TIMEOUT_SECONDS)).isoformat()
+        deadline = (completed_at + timedelta(seconds=_recovery_budget(incident))).isoformat()
         if execution_exc is not None:
             if isinstance(execution_exc, remediation_backend.RolloutUnconfirmed):
                 incident["action_completed_at"] = completed_at.isoformat()

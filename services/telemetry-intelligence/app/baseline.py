@@ -83,7 +83,8 @@ def build_healthy_baseline(window: TelemetryWindow, settings: M1Settings) -> Hea
         )
     }
     stats = {name: _statistics(values) for name, values in fields.items()}
-    latency_limit = stats["latency_p95_ms"].p95 * settings.baseline_latency_multiplier
+    latency_limit = max(settings.baseline_latency_floor_ms,
+                        stats["latency_p95_ms"].p95 * settings.baseline_latency_multiplier)
     error_limit = max(
         settings.baseline_error_floor,
         stats["http_5xx_rate"].p95 * settings.baseline_error_multiplier,
