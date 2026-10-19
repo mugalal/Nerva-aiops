@@ -18,7 +18,8 @@ import time
 
 import anyio
 from fastapi import FastAPI, Request, Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST, REGISTRY, Counter, Gauge, Histogram, generate_latest
+from prometheus_client.core import CounterMetricFamily
 
 
 SERVICE_NAME = os.getenv("SERVICE_NAME", "payment-service")
@@ -181,6 +182,44 @@ COMMON_LABEL_VALUES = (SERVICE_NAME, NAMESPACE, POD, VERSION, ENVIRONMENT)
 SERVICE_INFO.labels(*COMMON_LABEL_VALUES).set(1)
 CPU_LIMIT.labels(*COMMON_LABEL_VALUES).set(CPU_LIMIT_CORES)
 MEMORY_LIMIT.labels(*COMMON_LABEL_VALUES).set(MEMORY_LIMIT_BYTES)
+
+# cgroup v2 cpu.stat, then cgroup v1; the throttled-time field and its unit differ.
+CGROUP_CPU_STAT = ((os.getenv("CGROUP_CPU_STAT_PATH", "/sys/fs/cgroup/cpu.stat"), "throttled_usec", 1e-6),
+                   ("/sys/fs/cgroup/cpu/cpu.stat", "throttled_time", 1e-9))
+
+
+def read_cpu_throttling(paths=None):
+    """(periods, throttled periods, throttled seconds) from this container's cgroup, or None."""
+    for path, time_field, scale in paths or CGROUP_CPU_STAT:
+        try:
+            with open(path, encoding="ascii") as handle:
+                stats = dict(line.split() for line in handle if line.strip())
+            return int(stats["nr_periods"]), int(stats["nr_throttled"]), int(stats[time_field]) * scale
+        except (OSError, KeyError, ValueError):
+            continue
+    return None
+
+
+class CpuThrottlingCollector:
+    """CFS throttling: a CPU limit can starve a pod while its average CPU still looks moderate."""
+
+    def describe(self):
+        return []  # Read at scrape time; nothing to pre-register (and nothing to collide on reload).
+
+    def collect(self):
+        stats = read_cpu_throttling()
+        if stats is None:
+            return  # No CFS quota (e.g. no CPU limit, or not in a container): nothing is exported.
+        families = (("nexus_cpu_cfs_periods", "Enforced CFS periods for this container.", stats[0]),
+                    ("nexus_cpu_cfs_throttled_periods", "CFS periods in which this container was throttled.", stats[1]),
+                    ("nexus_cpu_cfs_throttled_seconds", "Total time this container was throttled.", stats[2]))
+        for name, documentation, value in families:
+            family = CounterMetricFamily(name, documentation, labels=METRIC_LABELS)
+            family.add_metric(COMMON_LABEL_VALUES, value)
+            yield family
+
+
+REGISTRY.register(CpuThrottlingCollector())
 
 
 @asynccontextmanager

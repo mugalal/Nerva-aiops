@@ -6,7 +6,7 @@ from typing import Protocol
 
 from .config import M1Settings, duration_seconds
 from .errors import TelemetryMissing, TelemetryStale
-from .models import TelemetryMetrics, TelemetrySnapshot, TelemetryWindow, TelemetryWindowPoint
+from .models import CpuThrottling, TelemetryMetrics, TelemetrySnapshot, TelemetryWindow, TelemetryWindowPoint
 from .providers.prometheus import PrometheusClient, PrometheusSample
 
 
@@ -70,6 +70,21 @@ class PrometheusTelemetryProvider:
             "replica_count": f'count(nexus_service_info{{{selector}}})',
             "version": f'count by (version) (nexus_service_info{{{selector}}})',
         }
+
+    async def cpu_throttling(self, service: str) -> CpuThrottling:
+        """Throttled share of CFS periods over the rate window; TelemetryMissing without a CPU limit."""
+        selector = f'service_name="{_escape_label(service)}"'
+        window = self.settings.request_rate_window
+        periods = await self.client.query_scalar(
+            f'sum(rate(nexus_cpu_cfs_periods_total{{{selector}}}[{window}]))')
+        if periods.value <= 0:
+            raise TelemetryMissing(f"{service} has no enforced CFS periods (no CPU limit)")
+        throttled = await self.client.query_scalar(
+            f'sum(rate(nexus_cpu_cfs_throttled_periods_total{{{selector}}}[{window}]))')
+        seconds = await self.client.query_scalar(
+            f'sum(rate(nexus_cpu_cfs_throttled_seconds_total{{{selector}}}[{window}]))')
+        return CpuThrottling(throttled_period_ratio=min(1.0, max(0.0, throttled.value / periods.value)),
+                             throttled_seconds_per_second=max(0.0, seconds.value))
 
     def source_queries(self, service: str) -> dict[str, str]:
         selector = f'service_name="{_escape_label(service)}"'

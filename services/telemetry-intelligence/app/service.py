@@ -166,13 +166,19 @@ class M1Service:
                 raise ProviderUnavailable("kubernetes", "Resource configuration is not available")
             return await self.kubernetes.resource_config(service, self.settings.namespace)
 
-        telemetry, logs, context, deployment, configuration = await asyncio.gather(
+        async def throttling():
+            if not hasattr(self.telemetry, "cpu_throttling"):
+                raise ProviderUnavailable("prometheus", "CPU throttling is not available from this provider")
+            return await self.telemetry.cpu_throttling(service)
+
+        telemetry, logs, context, deployment, configuration, throttled = await asyncio.gather(
             self.snapshot(service),
             optional(lambda: self.loki.query_logs(service, start=now - timedelta(minutes=5),
                                                   end=now, limit=self.settings.log_limit)),
             optional(lambda: self.kubernetes.context(service, self.settings.namespace)),
             optional(lambda: self.kubernetes.deployment_event(service, self.settings.namespace)),
             optional(resources),
+            optional(throttling),
         )
         try:
             baseline = self.store.get_baseline(service)
@@ -183,8 +189,9 @@ class M1Service:
             collected_at=datetime.now(timezone.utc), telemetry=telemetry,
             selected_logs=_select_incident_logs(logs[0]) if logs[0] is not None else [],
             kubernetes=context[0], deployment_event=deployment[0], resource_config=configuration[0],
+            # Throttling is supplementary: its absence (no CPU limit) is not a provider error.
             provider_errors=[error for _, error in (logs, context, deployment, configuration) if error],
-            baseline=baseline,
+            baseline=baseline, cpu_throttling=throttled[0],
         )
 
     async def capture_evidence(

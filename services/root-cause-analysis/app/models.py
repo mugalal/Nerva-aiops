@@ -99,6 +99,7 @@ class EvidencePreview(StrictModel):
     baseline: HealthyBaseline | None
     kubernetes: dict[str, Any] | None
     resource_config: dict[str, Any] | None = None
+    cpu_throttling: dict[str, float] | None = None
 
 
 class EvidenceBundle(StrictModel):
@@ -108,6 +109,7 @@ class EvidenceBundle(StrictModel):
     deployment: DeploymentEvent | None = None
     baseline: HealthyBaseline | None = None
     provider_errors: list[str] = Field(default_factory=list)
+    cpu_throttling: dict[str, float] | None = None
 
 
 class AnalyzeRequest(StrictModel):

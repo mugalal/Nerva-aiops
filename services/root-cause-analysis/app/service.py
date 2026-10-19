@@ -151,7 +151,7 @@ class RCAService:
                 errors.append("Measured healthy baseline is missing; collect it before incident diagnosis")
             bundle = EvidenceBundle(incident=incident, telemetry=preview.telemetry, anomaly=anomaly,
                                     deployment=preview.deployment_event, baseline=preview.baseline,
-                                    provider_errors=errors)
+                                    provider_errors=errors, cpu_throttling=preview.cpu_throttling)
         else:
             incident = (await self.incident_provider.fetch(request.incident_id)).data
             self.validate_incident(incident, request.incident_id)

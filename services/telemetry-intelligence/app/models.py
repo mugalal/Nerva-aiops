@@ -120,6 +120,12 @@ class ResourceConfiguration(StrictModel):
         return self
 
 
+class CpuThrottling(StrictModel):
+    """Share of CFS periods in which the service was throttled by its CPU limit."""
+    throttled_period_ratio: float = Field(ge=0, le=1)
+    throttled_seconds_per_second: float = Field(ge=0)
+
+
 class EvidencePreview(StrictModel):
     service: str
     provider_mode: Literal["real", "mock"]
@@ -131,6 +137,7 @@ class EvidencePreview(StrictModel):
     baseline: HealthyBaseline | None = None
     kubernetes: KubernetesContext | None = None
     resource_config: ResourceConfiguration | None = None
+    cpu_throttling: CpuThrottling | None = None
 
 
 class CaptureEvidenceRequest(StrictModel):

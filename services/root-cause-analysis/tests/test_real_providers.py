@@ -268,3 +268,17 @@ def test_real_faulty_deployment_without_baseline_is_unknown_and_health_degraded(
     health = client.get("/health").json()
     assert health["status"] == "degraded"
     assert "baseline is missing" in health["dependencies"]["telemetry"]["detail"]
+
+
+def test_cpu_throttling_is_cited_as_evidence_without_changing_the_cause(monkeypatch):
+    now, data = evidence()
+    data["preview"]["cpu_throttling"] = {"throttled_period_ratio": 0.4, "throttled_seconds_per_second": 0.3}
+    client, _ = client_for(monkeypatch, data, now)
+    result = client.post("/internal/rca/analyze", json={"incident_id": "INC-LIVE"}).json()
+    assert result["root_cause"] == "traffic_spike"
+    assert "CPU limit throttled the service in 40% of CFS periods" in result["evidence"]
+    data["preview"]["cpu_throttling"] = {"throttled_period_ratio": 0.1, "throttled_seconds_per_second": 0.01}
+    client, _ = client_for(monkeypatch, data, now)
+    quiet = client.post("/internal/rca/analyze", json={"incident_id": "INC-LIVE"}).json()
+    assert not any("throttled" in entry for entry in quiet["evidence"])
+    assert quiet["confidence"] == result["confidence"]

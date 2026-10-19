@@ -66,6 +66,9 @@ def _deployment_score(bundle: EvidenceBundle) -> tuple[float, list[str]]:
     return min(score, 1.0), evidence
 
 
+THROTTLING_EVIDENCE_RATIO = 0.25
+
+
 def _traffic_score(bundle: EvidenceBundle) -> tuple[float, list[str]]:
     anomaly, telemetry, baseline = bundle.anomaly, bundle.telemetry, bundle.baseline
     if anomaly is None or telemetry is None or anomaly.service != telemetry.service:
@@ -91,6 +94,10 @@ def _traffic_score(bundle: EvidenceBundle) -> tuple[float, list[str]]:
     if anomaly.features.cpu >= 0.85 and telemetry.metrics.cpu >= 0.85:
         score += 0.25
         evidence.append("CPU utilization increased significantly")
+    throttled = (bundle.cpu_throttling or {}).get("throttled_period_ratio")
+    if throttled is not None and throttled >= THROTTLING_EVIDENCE_RATIO:
+        # Corroborates saturation; it names the CPU limit as the constraint without changing the score.
+        evidence.append(f"CPU limit throttled the service in {throttled:.0%} of CFS periods")
     if not bundle.provider_errors:
         score += 0.10
     return min(score, 1.0), evidence
