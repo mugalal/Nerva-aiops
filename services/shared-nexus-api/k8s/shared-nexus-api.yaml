@@ -50,6 +50,9 @@ metadata:
   name: shared-nexus-api
   namespace: nexus-demo
 spec:
+  # Leader election (app/orchestration/leadership.py): extra replicas wait as
+  # standbys (live, not ready) and take over within M4_LEADER_RETRY_SECONDS of
+  # the leader's database session ending. 1 keeps the demo footprint small.
   replicas: 1
   strategy:
     type: Recreate

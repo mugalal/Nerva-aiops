@@ -17,6 +17,7 @@ from app.api.experiments import router as experiments_router
 from app.api.auth import (approval_token, ingest_token, named_approver_tokens, read_auth_required,
                           verify_reader_auth)
 from app.db import workflow_store
+from app.orchestration import leadership
 from app.orchestration.lifecycle import restore_state, validate_settings, Worker
 from app.orchestration.provenance import configured_modes
 from app.providers import rca_provider, finops_provider, evidence_provider, recovery_provider
@@ -42,6 +43,7 @@ def validate_startup():
     executor.hpa_policy()  # ValueError on an unknown autoscaler policy.
     get_registry()  # RegistryError: an explicitly configured registry must load.
     validate_settings()
+    leadership.retry_seconds()
     return real
 
 
@@ -49,21 +51,33 @@ def validate_startup():
 async def lifespan(app):
     real = validate_startup()
     workflow_store.initialize(real_execution=real)
-    lease = workflow_store.acquire_lease()
-    worker = None
+    runtime.reset()
+    if workflow_store.backend() == "postgres" and leadership.enabled():
+        runtime.current.start_election()   # serve now; lead once the lease is won
+    else:
+        runtime.current.run_single(workflow_store.acquire_lease())
     try:
-        restore_state()
-        worker = Worker(lease)
-        worker.start()
-        try:
-            yield
-        finally:
-            worker.close()
+        yield
     finally:
-        # A bounded in-flight read/notification may outlive shutdown. Keep the
-        # writer lease until it finishes, so another process cannot overlap it.
-        if worker is None or not worker.thread.is_alive():
-            workflow_store.close_lease(lease)
+        runtime.current.close()
+
+
+def _lead(lease):
+    restore_state()
+    worker = Worker(lease)
+    worker.start()
+    return worker
+
+
+class _RuntimeHolder:
+    def __init__(self):
+        self.current = leadership.Runtime(_lead)
+
+    def reset(self):
+        self.current = leadership.Runtime(_lead)
+
+
+runtime = _RuntimeHolder()
 
 
 app = FastAPI(
@@ -156,6 +170,10 @@ def health():
 
 @app.get("/ready")
 def ready():
+    if workflow_store.is_standby():
+        # Alive, but not the leader: the Service must not route traffic here.
+        return JSONResponse(status_code=503, content={"service": "shared-nexus-api", "status": "standby",
+                                                      "detail": "Standby replica; another M4 replica is the leader"})
     result = health()
     if isinstance(result, JSONResponse):
         return result

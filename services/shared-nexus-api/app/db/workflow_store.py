@@ -38,6 +38,20 @@ _last_error = None
 _lease_lost = False
 _writer_lease = None
 _lease_generation = None
+_standby = False
+
+
+class Standby(StorageError):
+    """This replica is a standby: the elected leader handles every write."""
+
+
+def set_standby(value: bool) -> None:
+    global _standby
+    _standby = bool(value)
+
+
+def is_standby() -> bool:
+    return _standby
 
 
 def lease_lost() -> bool:
@@ -50,7 +64,7 @@ def backend():
 
 def health():
     return {"backend": backend(), "durable": backend() == "postgres", "error": _last_error,
-            "lease_lost": _lease_lost, "lease_generation": _lease_generation}
+            "lease_lost": _lease_lost, "lease_generation": _lease_generation, "standby": _standby}
 
 
 def _sqlite():
@@ -104,6 +118,8 @@ def _guard(operation):
 
 def _fence(conn):
     """Reject the transaction unless this process still holds the newest lease."""
+    if _standby:
+        raise Standby("This M4 replica is a standby; the elected leader handles writes")
     if _lease_generation is None:
         return
     row = conn.execute("SELECT generation FROM m4_writer_lease WHERE id = 1 FOR SHARE").fetchone()
@@ -311,13 +327,24 @@ def acquire_lease():
     """One M4 writer per database, fenced by a generation counter."""
     if backend() != "postgres":
         return None
+    lease = try_acquire_lease()
+    if lease is None:
+        raise StorageError("Another M4 writer already owns this workflow database")
+    return lease
+
+
+def try_acquire_lease():
+    """The writer lease, or None while another process holds it (leader election)."""
+    if backend() != "postgres":
+        return None
     def operation():
         global _writer_lease, _lease_generation, _lease_lost
         from .connection import connect
         conn = connect()
         try:
             if not conn.execute("SELECT pg_try_advisory_lock(%s)", [LEASE_KEY]).fetchone()[0]:
-                raise StorageError("Another M4 writer already owns this workflow database")
+                conn.close()
+                return None
             # Taking the row lock waits for any older owner's in-flight fenced
             # transaction; once incremented, those writers can no longer commit.
             generation = conn.execute(
