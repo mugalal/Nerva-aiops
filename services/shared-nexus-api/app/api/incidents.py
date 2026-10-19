@@ -1,3 +1,5 @@
+import math
+import os
 from datetime import datetime, timezone
 from contextlib import contextmanager
 from copy import deepcopy
@@ -96,7 +98,21 @@ def _prepare(items):
     return prepared
 
 
+TERMINAL_STATUSES = {IncidentStatus.RESOLVED.value, IncidentStatus.ESCALATED.value}
+
+
+def _stamp_closed(items):
+    """Record when an incident reached a terminal state (the cooldown clock)."""
+    now = datetime.now(timezone.utc).isoformat()
+    for item in items:
+        if item.get("status") in TERMINAL_STATUSES:
+            item.setdefault("_closed_at", now)
+        else:
+            item.pop("_closed_at", None)
+
+
 def _commit(items, write):
+    _stamp_closed(items)
     prepared = _prepare(items)
     try:
         write(prepared)
@@ -222,6 +238,102 @@ def update_incident_status(
         return incident
 
 
+# -- coalescing (anti-flapping) -------------------------------------------------
+#
+# M2 opens a new incident id whenever a service alerts again after a quiet gap.
+# Without coalescing, a service that flaps gets one incident (and one proposed
+# action) per flap. Instead a new id for a service that already has an open
+# incident, or whose last incident closed less than the cooldown ago, becomes
+# an ALIAS of that incident: its anomalies are linked there and no second
+# diagnosis starts. If alerts under an alias continue after the cooldown has
+# elapsed, the alias becomes a real incident of its own (see resolve_for_ingest).
+
+def coalescing_enabled():
+    return os.getenv("M4_COALESCE_INCIDENTS", "true").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def cooldown_seconds():
+    raw = os.getenv("M4_INCIDENT_COOLDOWN_SECONDS", "300")
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError("M4_INCIDENT_COOLDOWN_SECONDS must be a number in [0, 86400]") from exc
+    if not math.isfinite(value) or not 0 <= value <= 86400:
+        raise ValueError("M4_INCIDENT_COOLDOWN_SECONDS must be a number in [0, 86400]")
+    return value
+
+
+def _parse_time(value):
+    try:
+        moment = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo is not None else None
+
+
+def in_cooldown(incident, now=None):
+    """True while a closed incident still absorbs new alerts for its service."""
+    if incident.get("status") not in TERMINAL_STATUSES:
+        return False
+    closed = _parse_time(incident.get("_closed_at") or "")
+    now = now or datetime.now(timezone.utc)
+    return closed is not None and (now - closed).total_seconds() < cooldown_seconds()
+
+
+def alias_target(incident_id):
+    """The incident an alias id was coalesced into, or None."""
+    for item in _committed_incidents:
+        if incident_id in (item.get("_aliases") or {}):
+            return item["incident_id"]
+    return None
+
+
+def coalesce_target(services, now=None):
+    """The incident a new detection for `services` joins: an open one first, else one in cooldown."""
+    wanted = set(services)
+    same = [item for item in list(incidents) if set(item.get("affected_services", [])) == wanted]
+    active = [item for item in same if item.get("status") not in TERMINAL_STATUSES]
+    if active:
+        return max(active, key=lambda item: item.get("detected_at", "")), "active"
+    cooling = [item for item in same if in_cooldown(item, now)]
+    if cooling:
+        return max(cooling, key=lambda item: item.get("_closed_at", "")), "cooldown"
+    return None, None
+
+
+def _new_incident(data):
+    data["status"] = IncidentStatus.DETECTED.value
+    data["detected_at"] = datetime.now(timezone.utc).isoformat()
+    with _registry_lock:
+        incidents.append(data)
+    return data
+
+
+def resolve_for_ingest(incident_id, started_at):
+    """The incident an anomaly for `incident_id` is linked to (caller holds lock_for(incident_id)).
+
+    An alias whose target is still open or cooling down resolves to the
+    target. An alias whose target closed longer ago than the cooldown is a
+    new problem: it becomes a real DETECTED incident under its own id.
+    """
+    from app.remediation.audit import add_audit_record
+    if find_incident(incident_id) is not None:
+        return incident_id
+    target_id = alias_target(incident_id)
+    if target_id is None:
+        return None
+    target = find_incident(target_id)
+    if target is None or target.get("status") not in TERMINAL_STATUSES or in_cooldown(target):
+        return target_id
+    alias = (target.get("_aliases") or {}).get(incident_id) or {}
+    _new_incident({"incident_id": incident_id, "severity": alias.get("severity", target["severity"]),
+                   "affected_services": list(target["affected_services"]),
+                   "started_at": started_at, "anomaly_ids": []})
+    persist_incidents()
+    add_audit_record(incident_id, "INCIDENT_OPENED_AFTER_COOLDOWN", {"previous_incident_id": target_id})
+    return incident_id
+
+
 @router.post("/", response_model=IncidentView)
 def create_incident(
     incident: IncidentCreate,
@@ -229,15 +341,29 @@ def create_incident(
     x_nexus_ingest_token: str | None = Header(default=None),
     x_nexus_sender: str | None = Header(default=None),
 ):
+    from app.remediation.audit import add_audit_record
     verify_ingest_auth(authorization, x_nexus_ingest_token, x_nexus_sender)
     with lock_for(incident.incident_id):
         if find_incident(incident.incident_id) is not None:
             raise api_error(409, "conflict", "Incident already exists")
-        incident_data = incident.model_dump(mode="json")
-        incident_data["status"] = IncidentStatus.DETECTED.value
-        incident_data["detected_at"] = datetime.now(timezone.utc).isoformat()
-        with _registry_lock:
-            incidents.append(incident_data)
+        existing = alias_target(incident.incident_id)
+        if existing is not None:
+            return public_incident(committed_incident(existing))  # Idempotent repeat of a coalesced create.
+        if coalescing_enabled():
+            target, reason = coalesce_target(incident.affected_services)
+            if target is not None:
+                with lock_for(target["incident_id"]):
+                    # Re-check under the target's lock: its state may have moved on.
+                    if target.get("status") not in TERMINAL_STATUSES or in_cooldown(target):
+                        target.setdefault("_aliases", {})[incident.incident_id] = {
+                            "coalesced_at": datetime.now(timezone.utc).isoformat(), "reason": reason,
+                            "severity": incident.severity}
+                        persist_incidents()
+                        add_audit_record(target["incident_id"], "INCIDENT_COALESCED",
+                                         {"duplicate_incident_id": incident.incident_id, "reason": reason,
+                                          "cooldown_seconds": cooldown_seconds()})
+                        return public_incident(target)
+        incident_data = _new_incident(incident.model_dump(mode="json"))
         persist_incidents()
         return public_incident(incident_data)
 
@@ -250,7 +376,7 @@ def list_incidents():
 
 @router.get("/{incident_id}", response_model=IncidentView)
 def get_incident(incident_id: str):
-    incident = committed_incident(incident_id)
+    incident = committed_incident(incident_id) or committed_incident(alias_target(incident_id) or "")
     if incident is None:
         raise api_error(404, "not_found", "Incident not found")
     return public_incident(incident)
@@ -306,5 +432,8 @@ def get_incident_context(incident_id: str):
             "recovery_error": incident.get("_recovery_last_error"),
             "archive_status": outbox.get("status"),
             "archive_attempts": outbox.get("attempts"),
-            "archive_error": outbox.get("last_error") or incident.get("_archive_blocked_reason")},
+            "archive_error": outbox.get("last_error") or incident.get("_archive_blocked_reason"),
+            "coalesced_incident_ids": sorted(incident.get("_aliases") or {}),
+            "recurrences_in_cooldown": int(incident.get("_recurrences") or 0),
+            "diagnosis_failed": bool(incident.get("_diagnosis_failed"))},
         "audit": [record for record in list(audit_records) if record["incident_id"] == incident_id]}

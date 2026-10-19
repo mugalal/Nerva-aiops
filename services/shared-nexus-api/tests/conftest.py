@@ -13,6 +13,9 @@ for name in ("REMEDIATION_BACKEND", "RCA_PROVIDER", "FINOPS_PROVIDER", "RECOVERY
 os.environ["M4_STATE_BACKEND"] = "memory"
 os.environ["M4_AUTO_BUILD_DECISIONS"] = "false"
 os.environ["M4_AUTO_VALIDATE_RECOVERY"] = "false"
+# Most tests drive several independent incidents for one service; coalescing
+# is exercised explicitly in test_incident_coalescing.py.
+os.environ["M4_COALESCE_INCIDENTS"] = "false"
 for name in ("NEXUS_SERVICES_CONFIG", "NEXUS_INGEST_TOKEN", "NEXUS_SERVICE_TOKEN", "NEXUS_APPROVAL_TOKEN",
              "M5_SHARED_API_TOKEN"):
     os.environ.pop(name, None)
