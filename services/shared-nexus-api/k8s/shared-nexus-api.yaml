@@ -24,6 +24,11 @@ rules:
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
+  # M4 checks whether an HPA owns the workload before scaling (M4_HPA_POLICY);
+  # patch is used only by M4_HPA_POLICY=raise-min.
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

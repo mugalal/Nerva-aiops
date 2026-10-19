@@ -39,6 +39,7 @@ def validate_startup():
     named = named_approver_tokens()  # RuntimeError on a malformed personal-token list.
     if any(secret in {ingest_token(), approval_token()} for secret in named):
         raise RuntimeError("A personal approver token must differ from the shared ingest and operator tokens")
+    executor.hpa_policy()  # ValueError on an unknown autoscaler policy.
     get_registry()  # RegistryError: an explicitly configured registry must load.
     validate_settings()
     return real

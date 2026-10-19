@@ -16,6 +16,9 @@ os.environ["M4_AUTO_VALIDATE_RECOVERY"] = "false"
 # Most tests drive several independent incidents for one service; coalescing
 # is exercised explicitly in test_incident_coalescing.py.
 os.environ["M4_COALESCE_INCIDENTS"] = "false"
+# The kubectl fakes assert exact command sequences; the HPA lookup is covered
+# in test_hpa_guard.py.
+os.environ["M4_HPA_POLICY"] = "ignore"
 for name in ("NEXUS_SERVICES_CONFIG", "NEXUS_INGEST_TOKEN", "NEXUS_SERVICE_TOKEN", "NEXUS_APPROVAL_TOKEN",
              "M5_SHARED_API_TOKEN"):
     os.environ.pop(name, None)

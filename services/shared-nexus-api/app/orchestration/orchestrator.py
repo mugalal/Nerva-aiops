@@ -258,6 +258,18 @@ def _gather_diagnosis(attempt):
                 validate_scale_step(finops["current_replicas"], replicas, service=service)
         except ValueError as exc:
             result = _escalation(rca, f"Proposed action is outside the service registry guardrails: {exc}")
+    hpa = None
+    if result.action == DecisionAction.SCALE:
+        try:
+            hpa = remediation_backend.find_hpa(service)
+        except Exception as exc:
+            # Fail closed: scaling a workload whose autoscaler cannot be checked may fight it.
+            raise _Invalidate(ConflictError(f"Autoscaler ownership could not be checked: {exc}")) from exc
+        if hpa is not None and remediation_backend.hpa_policy() == "refuse":
+            result = _escalation(rca, f"{service} is scaled by HorizontalPodAutoscaler {hpa['name']} "
+                                      f"(min {hpa['min_replicas']}, max {hpa['max_replicas']}); NERVA does not "
+                                      "override an autoscaler. Raise its minReplicas, or set M4_HPA_POLICY=raise-min.")
+            hpa = None
     evidence, expected_state, scenario, parameters = attempt.evidence, None, None, {}
     if result.action != DecisionAction.ESCALATE:
         if not (rca["affected_component"] == service or rca["affected_component"].startswith(service + ":")):
@@ -296,6 +308,9 @@ def _gather_diagnosis(attempt):
                     rollback_target=parameters.get("to_version"))
             except Exception as exc:
                 raise _Invalidate(ConflictError(f"Live remediation preconditions could not be captured: {exc}")) from exc
+            if hpa is not None:
+                expected_state["hpa"] = hpa
+                parameters["via_hpa"] = hpa["name"]
     return {"rca": rca, "result": result, "finops": finops, "finops_error": finops_error, "evidence": evidence,
             "expected_state": expected_state, "scenario": scenario, "parameters": parameters}
 

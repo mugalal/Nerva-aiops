@@ -69,10 +69,17 @@ def execute_remediation(action: DecisionAction, approved: bool, replicas: int | 
             current_replicas = deployment["spec"]["replicas"]
             if replicas <= current_replicas:
                 raise ValueError("Scaling must increase the current live replica count")
-            result = _run(["scale", f"{workload_kind}/{workload_name}", f"--replicas={replicas}",
-                           f"--current-replicas={current_replicas}", f"--resource-version={resource_version}",
-                           "-n", target_namespace], timeout=120)
-            message = result.stdout.strip()
+            bound_hpa = (expected_state or {}).get("hpa")
+            live_hpa = find_hpa(service)
+            if bound_hpa is None and live_hpa is not None:
+                raise ValueError(f"HorizontalPodAutoscaler {live_hpa['name']} now manages {service}; diagnose again")
+            if bound_hpa is not None:
+                message = _raise_hpa_minimum(bound_hpa, live_hpa, replicas, target_namespace)
+            else:
+                result = _run(["scale", f"{workload_kind}/{workload_name}", f"--replicas={replicas}",
+                               f"--current-replicas={current_replicas}", f"--resource-version={resource_version}",
+                               "-n", target_namespace], timeout=120)
+                message = result.stdout.strip()
         else:
             revision, template = _rollback_template(service, deployment, rollback_target, target_namespace=target_namespace)
             if (revision != expected_state.get("rollback_revision")
@@ -88,6 +95,57 @@ def execute_remediation(action: DecisionAction, approved: bool, replicas: int | 
                           workload_kind=workload_kind, workload_name=workload_name)
         return RemediationResult(action=action, success=True, message=message)
 
+
+
+# -- autoscaler ownership -------------------------------------------------------
+#
+# If a HorizontalPodAutoscaler targets the workload, `kubectl scale` is undone
+# by the HPA on its next sync: two controllers fight over spec.replicas.
+# M4_HPA_POLICY decides what NERVA does instead:
+#   refuse     (default) escalate; a human changes the HPA
+#   raise-min  raise the HPA minReplicas (and maxReplicas if needed); the HPA scales
+#   ignore     do not look (only for clusters without autoscaling RBAC)
+
+HPA_POLICIES = {"refuse", "raise-min", "ignore"}
+
+
+def hpa_policy():
+    policy = os.getenv("M4_HPA_POLICY", "refuse").strip().lower()
+    if policy not in HPA_POLICIES:
+        raise ValueError(f"M4_HPA_POLICY must be one of {sorted(HPA_POLICIES)}")
+    return policy
+
+
+def find_hpa(service):
+    """The HPA that scales this service's workload, or None. Raises if it cannot be checked."""
+    if REMEDIATION_BACKEND != "kubernetes" or hpa_policy() == "ignore":
+        return None
+    target_namespace, workload_kind, workload_name = _resolve_target(service)
+    items = _get_json(["get", "horizontalpodautoscalers.autoscaling", "-n", target_namespace,
+                       "-o", "json"]).get("items", [])
+    owners = [item for item in items
+              if (item.get("spec", {}).get("scaleTargetRef") or {}).get("kind", "").lower() == workload_kind
+              and (item.get("spec", {}).get("scaleTargetRef") or {}).get("name") == workload_name]
+    if not owners:
+        return None
+    if len(owners) > 1:
+        raise ValueError(f"{len(owners)} HorizontalPodAutoscalers target {workload_name}; refusing to guess")
+    spec, metadata = owners[0]["spec"], owners[0]["metadata"]
+    return {"name": metadata["name"], "resource_version": metadata.get("resourceVersion"),
+            "min_replicas": spec.get("minReplicas", 1), "max_replicas": spec.get("maxReplicas")}
+
+
+def _raise_hpa_minimum(bound, live, replicas, target_namespace):
+    if live is None or live["name"] != bound["name"] or live["resource_version"] != bound["resource_version"]:
+        raise ValueError("The HorizontalPodAutoscaler changed since the approved proposal; diagnose again")
+    operations = [{"op": "test", "path": "/metadata/resourceVersion", "value": bound["resource_version"]},
+                  {"op": "replace", "path": "/spec/minReplicas", "value": replicas}]
+    if live["max_replicas"] is not None and live["max_replicas"] < replicas:
+        operations.append({"op": "replace", "path": "/spec/maxReplicas", "value": replicas})
+    result = _run(["patch", f"horizontalpodautoscalers.autoscaling/{bound['name']}", "--type=json",
+                   "--patch", json.dumps(operations), "-n", target_namespace], timeout=60)
+    return (f"Raised HorizontalPodAutoscaler {bound['name']} minReplicas {live['min_replicas']} -> {replicas}; "
+            f"the autoscaler applies it: {result.stdout.strip()}")
 
 
 def bind_live_preconditions(service, expected_state, cpu_request_m=None, rollback_target=None):
