@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 
-Scenario = Literal["bad_deployment", "traffic_spike"]
+Scenario = Literal["bad_deployment", "traffic_spike", "scale_down"]
 
 
 class StrictModel(BaseModel):

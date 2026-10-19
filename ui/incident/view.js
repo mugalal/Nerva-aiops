@@ -94,14 +94,21 @@ export function renderIncident(bundle, config, onApproval, onStore, onAsk) {
     rca.append(fields({captured_version:before.version,captured_at:bundle.evidence.captured_at,captured_metrics:before.metrics}));
     if(before.metrics) {
       const kpiGrid = element('div', undefined, 'kpi-grid');
-      const p95Val = before.metrics.latency_p95_ms !== undefined ? `${Math.round(before.metrics.latency_p95_ms)} ms` : '9.5 ms';
-      const c1 = element('div', undefined, 'kpi-card'); c1.append(element('span', 'P95 Latency', 'kpi-label'), element('strong', p95Val, 'kpi-val'), element('span', 'Target: < 50 ms (SLO Passed)', 'kpi-sub ok'));
-      const errVal = before.metrics.http_5xx_rate !== undefined ? `${(before.metrics.http_5xx_rate * 100).toFixed(1)}%` : '0.0%';
-      const c2 = element('div', undefined, 'kpi-card'); c2.append(element('span', '5xx Error Rate', 'kpi-label'), element('strong', errVal, 'kpi-val'), element('span', 'Target: < 1.0% (Zero Errors)', 'kpi-sub ok'));
-      const rpsVal = before.metrics.request_rate !== undefined ? `${Math.round(before.metrics.request_rate)} RPS` : '160 RPS';
-      const c3 = element('div', undefined, 'kpi-card'); c3.append(element('span', 'Request Rate', 'kpi-label'), element('strong', rpsVal, 'kpi-val'), element('span', 'Baseline: 10 RPS (Spike Active)', 'kpi-sub action'));
-      const cpuVal = before.metrics.cpu !== undefined ? `${Math.round(before.metrics.cpu * 100)}%` : '100%';
-      const c4 = element('div', undefined, 'kpi-card'); c4.append(element('span', 'CPU Load', 'kpi-label'), element('strong', cpuVal, 'kpi-val'), element('span', 'Limit: 100m cores', 'kpi-sub'));
+      // Captured values only; a status is shown only when a measured baseline limit exists.
+      const limits = bundle.evidence?.baseline?.thresholds || {};
+      const missing = 'not recorded';
+      const verdict = (value, limit, format) => typeof value === 'number' && typeof limit === 'number'
+        ? [`Healthy limit: ${format(limit)} (${value <= limit ? 'within' : 'breached'})`, value <= limit ? 'kpi-sub ok' : 'kpi-sub action']
+        : ['No measured baseline limit', 'kpi-sub'];
+      const m = before.metrics;
+      const msText = value => `${Math.round(value)} ms`, pctText = value => `${(value * 100).toFixed(1)}%`;
+      const [p95Sub, p95Class] = verdict(m.latency_p95_ms, limits.latency_p95_ms_max, msText);
+      const c1 = element('div', undefined, 'kpi-card'); c1.append(element('span', 'P95 Latency', 'kpi-label'), element('strong', typeof m.latency_p95_ms === 'number' ? msText(m.latency_p95_ms) : missing, 'kpi-val'), element('span', p95Sub, p95Class));
+      const [errSub, errClass] = verdict(m.http_5xx_rate, limits.http_5xx_rate_max, pctText);
+      const c2 = element('div', undefined, 'kpi-card'); c2.append(element('span', '5xx Error Rate', 'kpi-label'), element('strong', typeof m.http_5xx_rate === 'number' ? pctText(m.http_5xx_rate) : missing, 'kpi-val'), element('span', errSub, errClass));
+      const baselineRate = bundle.evidence?.baseline?.request_rate?.average;
+      const c3 = element('div', undefined, 'kpi-card'); c3.append(element('span', 'Request Rate', 'kpi-label'), element('strong', typeof m.request_rate === 'number' ? `${Math.round(m.request_rate)} RPS` : missing, 'kpi-val'), element('span', typeof baselineRate === 'number' ? `Healthy baseline: ${Math.round(baselineRate)} RPS` : 'No measured baseline', 'kpi-sub'));
+      const c4 = element('div', undefined, 'kpi-card'); c4.append(element('span', 'CPU (of limit)', 'kpi-label'), element('strong', typeof m.cpu === 'number' ? `${Math.round(m.cpu * 100)}%` : missing, 'kpi-val'), element('span', `Replicas: ${m.replica_count ?? missing}`, 'kpi-sub'));
       kpiGrid.append(c1, c2, c3, c4);
       rca.append(kpiGrid);
     }
@@ -136,16 +143,26 @@ export function renderIncident(bundle, config, onApproval, onStore, onAsk) {
     const proof = element('div', undefined, 'proof-of-fix-box');
     proof.append(element('h4', 'Recovery Verification · Proof of Fix'));
     const grid = element('div', undefined, 'recovery-diff-grid');
+    // Every value is a recorded measurement: M1's captured snapshot before the
+    // action and M1's measured recovery after it. Nothing here is illustrative.
+    const captured = bundle.evidence?.before?.metrics || {};
+    const measured = bundle.recovery_result;
+    const pct = value => typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : 'not recorded';
+    const ms = value => typeof value === 'number' ? `${value.toFixed(1)} ms` : 'not recorded';
+    const target = bundle.decision?.parameters?.replicas;
     const beforeCard = element('div', undefined, 'recovery-card before');
-    beforeCard.append(element('strong', 'Before Remediation', 'diff-title'));
+    beforeCard.append(element('strong', 'Before the action (M1 capture)', 'diff-title'));
     const beforeList = element('ul', undefined, 'diff-metrics');
-    beforeList.append(element('li', 'Replicas: 1 pod'), element('li', 'Observed Load: 160 RPS'), element('li', 'CPU: 100% (Overload)'), element('li', 'SLO State: Degraded ⚠️'));
+    beforeList.append(element('li', `Replicas: ${captured.replica_count ?? 'not recorded'}`),
+      element('li', `Request rate: ${typeof captured.request_rate === 'number' ? captured.request_rate.toFixed(1) + ' req/s' : 'not recorded'}`),
+      element('li', `P95 latency: ${ms(measured.before?.latency_p95_ms)}`), element('li', `5xx rate: ${pct(measured.before?.http_5xx_rate)}`));
     beforeCard.append(beforeList);
     const afterCard = element('div', undefined, 'recovery-card after');
-    afterCard.append(element('strong', 'After Autonomous Scale', 'diff-title'));
+    afterCard.append(element('strong', 'After the action (M1 measured recovery)', 'diff-title'));
     const afterList = element('ul', undefined, 'diff-metrics');
-    const recR = bundle.decision?.parameters?.replicas || 8;
-    afterList.append(element('li', `Replicas: ${recR} pods`), element('li', 'Throughput: 160 RPS Absorbed'), element('li', 'CPU: ~62% (Headroom Restored)'), element('li', 'SLO State: Restored ✅'));
+    afterList.append(element('li', `Replicas: ${target ?? 'unchanged'}`),
+      element('li', `P95 latency: ${ms(measured.after?.latency_p95_ms)}`), element('li', `5xx rate: ${pct(measured.after?.http_5xx_rate)}`),
+      element('li', `SLO restored: ${measured.slo_restored === true ? 'yes' : 'no'} after ${Math.round(measured.recovery_time_seconds ?? 0)} s`));
     afterCard.append(afterList);
     grid.append(beforeCard, afterCard); proof.append(grid);
     recovery.append(proof);
@@ -207,17 +224,21 @@ export function renderFinops(bundle) {
       const optionsPanel = panel('Scaling & Cost Options (FinOps Analysis)');
       const capBox = element('div', undefined, 'capacity-visualizer');
       const capLabel = element('div', undefined, 'capacity-header');
-      const targetPods = bundle.decision?.parameters?.replicas || 8;
-      capLabel.append(element('strong', 'Traffic Headroom & Pod Allocation'), element('span', `Baseline: ${ctx.current_replicas || 1} pod → Target: ${targetPods} pods`, 'muted'));
+      const targetPods = bundle.decision?.parameters?.replicas;
+      const currentPods = ctx.current_replicas;
+      // Projected utilization only from recorded numbers: the observed CPU re-spread over the target.
+      const projected = typeof ctx.observed_cpu_pct === 'number' && currentPods && targetPods
+        ? `~${Math.round(ctx.observed_cpu_pct * currentPods / targetPods * 100)}% CPU projected` : 'projection not available';
+      capLabel.append(element('strong', 'Traffic Headroom & Pod Allocation'), element('span', `Current: ${currentPods ?? 'not recorded'} → Target: ${targetPods ?? 'no scale proposal'}`, 'muted'));
       const capTrack = element('div', undefined, 'capacity-track');
       const capFill = element('div', undefined, 'capacity-fill');
-      const pct = Math.min(100, Math.round((targetPods / 10) * 100));
+      const pct = targetPods ? Math.min(100, Math.round((targetPods / 10) * 100)) : 0;
       capFill.style = `width: ${pct}%`;
       capTrack.append(capFill);
       const capFooter = element('div', undefined, 'capacity-footer');
       capFooter.append(
-        element('span', `Current: ${ctx.current_replicas || 1} pod (${Math.round((ctx.observed_cpu_pct || 1) * 100)}% CPU)`),
-        element('span', `Target: ${targetPods} pods (~62% CPU safe headroom)`)
+        element('span', `Current: ${currentPods ?? 'not recorded'} pods (${typeof ctx.observed_cpu_pct === 'number' ? Math.round(ctx.observed_cpu_pct * 100) + '% CPU' : 'CPU not recorded'})`),
+        element('span', targetPods ? `Target: ${targetPods} pods (${projected})` : 'No scale target proposed')
       );
       capBox.append(capLabel, capTrack, capFooter);
       optionsPanel.append(capBox);

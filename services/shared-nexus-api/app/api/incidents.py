@@ -296,7 +296,8 @@ def alias_target(incident_id):
 def coalesce_target(services, now=None):
     """The incident a new detection for `services` joins: an open one first, else one in cooldown."""
     wanted = set(services)
-    same = [item for item in list(incidents) if set(item.get("affected_services", [])) == wanted]
+    same = [item for item in list(incidents) if set(item.get("affected_services", [])) == wanted
+            and item.get("_kind") != "rightsizing"]
     active = [item for item in same if item.get("status") not in TERMINAL_STATUSES]
     if active:
         return max(active, key=lambda item: item.get("detected_at", "")), "active"

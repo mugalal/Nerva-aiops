@@ -26,6 +26,12 @@ def validate_scale_step(current: int, target: int, service: str):
         raise ValueError(f"Scale {current} -> {target} rejected: {reason}")
 
 
+def validate_scale_down_step(current: int, target: int, service: str):
+    reason = get_registry().scale_down_allowed(service, current, target)
+    if reason is not None:
+        raise ValueError(f"Scale-down {current} -> {target} rejected: {reason}")
+
+
 def validate_service_allowed(service: str):
     if service not in get_registry().allowed_services():
         raise ValueError(f"Service {service} is not allowed for remediation")

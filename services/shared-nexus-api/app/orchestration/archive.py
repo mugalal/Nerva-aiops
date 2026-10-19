@@ -93,6 +93,8 @@ def enqueue_archive(incident):
     from app.api.incidents import persist_incidents
     if incident["status"] not in {"RESOLVED", "ESCALATED"} or incident.get("_archive_outbox"):
         return
+    if incident.get("_kind") == "rightsizing" and not incident.get("_action_result"):
+        return  # A withdrawn or rejected scale-down changed nothing: nothing to learn from.
     try:
         payload = archive_payload(incident)
     except ValueError as exc:

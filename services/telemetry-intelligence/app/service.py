@@ -337,6 +337,18 @@ class M1Service:
                 for metrics in measurements
                 )
             )
+        elif scenario == "scale_down":
+            # Capacity was given back: the SLO must hold on FEWER replicas than
+            # before, with live traffic still flowing and the version unchanged.
+            scenario_checks_passed = (
+                after.version == evidence.before.version
+                and window.version == evidence.before.version
+                and all(
+                    0 < metrics.replica_count < evidence.before.metrics.replica_count
+                    and metrics.request_rate >= self.settings.baseline_min_request_rate
+                    for metrics in measurements
+                )
+            )
         else:
             scenario_checks_passed = (
                 after.version == rollback_version and window.version == rollback_version

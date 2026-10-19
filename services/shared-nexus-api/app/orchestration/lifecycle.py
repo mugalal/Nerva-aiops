@@ -63,6 +63,8 @@ def validate_settings():
     _setting("M4_DIAGNOSIS_MAX_ATTEMPTS", 20, 1, 1000)
     _setting("M4_WORKER_CONCURRENCY", 4, 1, 32)
     _setting("M4_LEASE_CHECK_SECONDS", 5, 1, 60)
+    from app.orchestration.rightsizing import settings as rightsizing_settings
+    rightsizing_settings()
 
 
 def _enabled(name, default="true"):
@@ -163,10 +165,18 @@ def work_once(pool=None, running=None):
     retry_pending_executions()
     auto_build = _enabled("M4_AUTO_BUILD_DECISIONS")
     auto_recovery = _enabled("M4_AUTO_VALIDATE_RECOVERY")
+    from app.orchestration import rightsizing
+    from app.orchestration.proposals import proposal_expired
     for incident in list(incidents):
         identity = incident["incident_id"]
         tasks = []
         with lock_for(identity):
+            if rightsizing.is_rightsizing(incident) and incident["status"] == "AWAITING_APPROVAL":
+                blocking = rightsizing.real_incident_open(incident["affected_services"][0], exclude=identity)
+                if blocking:
+                    rightsizing.withdraw(incident, f"incident {blocking} opened for the service")
+                elif proposal_expired(incident, now):
+                    rightsizing.withdraw(incident, "proposal expired before approval")
             if incident["status"] in {"RESOLVED", "ESCALATED"}:
                 enqueue_archive(incident)
             if (auto_build and incident.get("_diagnosis_pending")
@@ -177,14 +187,20 @@ def work_once(pool=None, running=None):
                 tasks.append(("measure", _measure))
             if (incident.get("_archive_outbox") or {}).get("status") == "PENDING":
                 tasks.append(("archive", lambda i: deliver_archive(i, now=now)))
-        for name, task in tasks:
-            key = (name, identity)
-            if pool is None:
-                task(identity)
-            elif key not in running:
-                running.add(key)
-                future = pool.submit(task, identity)
-                future.add_done_callback(lambda f, k=key: _finished(f, k, running))
+        _submit(tasks, identity, pool, running)
+    if rightsizing.enabled() and rightsizing.due(now):
+        _submit([("rightsize", lambda _: rightsizing.sweep())], "*", pool, running)
+
+
+def _submit(tasks, identity, pool, running):
+    for name, task in tasks:
+        key = (name, identity)
+        if pool is None:
+            task(identity)
+        elif key not in running:
+            running.add(key)
+            future = pool.submit(task, identity)
+            future.add_done_callback(lambda f, k=key: _finished(f, k, running))
 
 
 def _finished(future, key, running):

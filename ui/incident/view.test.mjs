@@ -121,3 +121,16 @@ test('overview puts incidents awaiting a decision first, then open, then resolve
     {incident_id:'A',status:'AWAITING_APPROVAL',started_at:'2026-10-10T06:00:00Z'},{incident_id:'O2',status:'DETECTED',started_at:'2026-10-10T08:00:00Z'}];
   assert.deepEqual(sortIncidents(rows).map(r=>r.incident_id),['A','O2','O','R']);
 });
+test('proof of fix and KPI cards show only recorded measurements, never illustrative numbers',()=>{
+  const recorded={...base,incident:{...base.incident,status:'RESOLVED'},decision:{recommended_action:'SCALE',parameters:{replicas:4,direction:'down'}},
+    evidence:{captured_at:'2026-10-10T08:01:00Z',before:{version:'v1',metrics:{replica_count:7,request_rate:11.2,latency_p95_ms:9.4,http_5xx_rate:0,cpu:0.05}},
+      baseline:{thresholds:{latency_p95_ms_max:25,http_5xx_rate_max:0.01},request_rate:{average:10}}},
+    recovery_result:{recovered:true,slo_restored:true,recovery_time_seconds:75,before:{latency_p95_ms:9.4,http_5xx_rate:0},after:{latency_p95_ms:10.2,http_5xx_rate:0}}};
+  renderIncident(recorded,{approval_enabled:false},()=>{},()=>{});
+  const shown=text(roots['#incident-body']);
+  assert.match(shown,/Replicas: 7/);assert.match(shown,/Replicas: 4/);assert.match(shown,/10\.2 ms/);assert.match(shown,/11\.2 req\/s/);
+  assert.match(shown,/Healthy limit: 25 ms \(within\)/);
+  assert.doesNotMatch(shown,/160 RPS|62%|SLO Passed|Zero Errors|Spike Active/);
+  renderIncident({...recorded,evidence:{before:{metrics:{}}}},{approval_enabled:false},()=>{},()=>{});
+  assert.match(text(roots['#incident-body']),/not recorded/);
+});

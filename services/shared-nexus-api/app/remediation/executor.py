@@ -67,10 +67,15 @@ def execute_remediation(action: DecisionAction, approved: bool, replicas: int | 
         resource_version = deployment["metadata"]["resourceVersion"]
         if action == DecisionAction.SCALE:
             current_replicas = deployment["spec"]["replicas"]
-            if replicas <= current_replicas:
+            scale_down = (expected_state or {}).get("direction") == "down"
+            if scale_down and replicas >= current_replicas:
+                raise ValueError("A scale-down must reduce the current live replica count")
+            if not scale_down and replicas <= current_replicas:
                 raise ValueError("Scaling must increase the current live replica count")
             bound_hpa = (expected_state or {}).get("hpa")
             live_hpa = find_hpa(service)
+            if scale_down and live_hpa is not None:
+                raise ValueError(f"HorizontalPodAutoscaler {live_hpa['name']} owns scale-down for {service}")
             if bound_hpa is None and live_hpa is not None:
                 raise ValueError(f"HorizontalPodAutoscaler {live_hpa['name']} now manages {service}; diagnose again")
             if bound_hpa is not None:

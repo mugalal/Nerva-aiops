@@ -69,6 +69,8 @@ class RemediationConfig(_Strict):
     min_replicas: int = Field(default=1, ge=1, strict=True)
     max_replicas: int = Field(default=10, ge=1, le=ABSOLUTE_MAX_REPLICAS, strict=True)
     max_scale_step: int = Field(default=7, ge=1, strict=True)
+    # Right-sizing removes at most this many replicas per approved step.
+    max_scale_down_step: int = Field(default=3, ge=1, strict=True)
     approval: Literal["always"] = "always"
 
     @field_validator("actions")
@@ -164,6 +166,25 @@ class ServiceRegistry(_Strict):
         if target - current > policy.max_scale_step:
             return f"a single scale step may add at most {policy.max_scale_step} replicas"
         return None
+
+    def scale_down_allowed(self, service_name: str, current: int, target: int) -> str | None:
+        """None when right-sizing `current -> target` is permitted; otherwise the reason it is not."""
+        return _scale_down_reason(self.get(service_name), service_name, current, target)
+
+
+def _scale_down_reason(spec, service_name, current, target):
+    if spec is None:
+        return f"service {service_name} is not registered"
+    policy = spec.remediation
+    if "SCALE" not in policy.actions:
+        return f"SCALE is not allowed for {service_name}"
+    if target < policy.min_replicas:
+        return f"replicas must stay at or above {policy.min_replicas}"
+    if target >= current:
+        return "a scale-down must reduce the current replica count"
+    if current - target > policy.max_scale_down_step:
+        return f"a single scale-down may remove at most {policy.max_scale_down_step} replicas"
+    return None
 
 
 def default_registry() -> ServiceRegistry:

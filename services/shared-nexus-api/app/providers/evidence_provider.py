@@ -16,7 +16,7 @@ _session = make_session(retry_post=True)
 
 def capture_incident_evidence(incident_id: str, service: str, scenario: str, incident_started_at: str | None = None):
     m1_scenario = "bad_deployment" if scenario == "faulty_deployment" else scenario
-    if m1_scenario not in {"bad_deployment", "traffic_spike"}:
+    if m1_scenario not in {"bad_deployment", "traffic_spike", "scale_down"}:
         raise ValueError("Unsupported remediation scenario")
     if EVIDENCE_PROVIDER == "mock":
         mocks = Path(__file__).resolve().parents[4] / "mocks"

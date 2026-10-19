@@ -193,6 +193,26 @@ class RecoveryTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(result.slo_restored)
             self.assertTrue(result.recovered)
 
+    async def test_scale_down_passes_only_on_fewer_replicas_with_the_slo_held(self):
+        with TemporaryDirectory() as directory:
+            service, telemetry, _ = make_service(Path(directory), make_snapshot(latency=9.5))
+            service.store.save_baseline(build_healthy_baseline(telemetry.history, service.settings))
+            telemetry.current = make_snapshot(latency=9.5, replicas=7)
+            await service.capture_evidence(CaptureEvidenceRequest(
+                incident_id="INC-DOWN", service="payment-service", scenario="scale_down"))
+            self.mark_capture_in_past(service, "INC-DOWN")
+            request = RecoveryValidationRequest(
+                incident_id="INC-DOWN", service="payment-service", scenario="scale_down",
+                action_completed_at=datetime.now(timezone.utc) - timedelta(minutes=2))
+            for replicas, latency, recovered in ((4, 10, True), (7, 10, False), (4, 400, False)):
+                with self.subTest(replicas=replicas, latency=latency):
+                    telemetry.current = make_snapshot(latency=latency, replicas=replicas)
+                    for point in telemetry.history.points:
+                        point.metrics.replica_count = replicas
+                        point.metrics.latency_p95_ms = latency
+                    result = await service.validate_recovery(request)
+                    self.assertEqual(result.recovered, recovered)
+
     async def test_recovery_requires_every_sample_to_be_healthy(self):
         with TemporaryDirectory() as directory:
             service, telemetry, request = await self.prepare_case(Path(directory))

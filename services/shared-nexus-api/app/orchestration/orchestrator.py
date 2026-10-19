@@ -34,8 +34,8 @@ from app.providers.errors import (ConflictError, IntegrationError, PreconditionR
 from app.remediation import executor as remediation_backend
 from app.remediation.executor import execute_remediation
 from app.remediation.models import RemediationResult
-from app.remediation.guardrails import (validate_action_allowed, validate_replica_count, validate_scale_step,
-                                        validate_service_allowed)
+from app.remediation.guardrails import (validate_action_allowed, validate_replica_count, validate_scale_down_step,
+                                        validate_scale_step, validate_service_allowed)
 from app.remediation.audit import add_audit_record
 from app.state_machine.states import IncidentStatus
 from app.state_machine.machine import transition
@@ -168,6 +168,8 @@ class _Invalidate(Exception):
 def _begin_diagnosis(incident_id):
     with lock_for(incident_id):
         incident = _require(incident_id)
+        if incident.get("_kind") == "rightsizing":
+            raise ConflictError("A right-sizing proposal is not diagnosed; the sweep proposes a fresh one")
         state = IncidentStatus(incident["status"])
         if incident.get("_decision") is not None:
             if state != IncidentStatus.AWAITING_APPROVAL or not proposal_expired(incident):
@@ -326,12 +328,13 @@ def _gather_diagnosis(attempt):
 def degraded_dependencies(service, incident_id):
     """(dependency, incident) pairs for registry dependencies of `service` that have an open incident."""
     from app.api.incidents import TERMINAL_STATUSES, committed_incidents
+    from app.orchestration.rightsizing import is_rightsizing
     spec = get_registry().get(service)
     if spec is None or not spec.depends_on:
         return []
     return [(dependency, item["incident_id"]) for dependency in spec.depends_on for item in committed_incidents()
             if item["incident_id"] != incident_id and dependency in item.get("affected_services", [])
-            and item.get("status") not in TERMINAL_STATUSES]
+            and not is_rightsizing(item) and item.get("status") not in TERMINAL_STATUSES]
 
 
 def _current_attempt(incident, attempt):
@@ -475,7 +478,13 @@ def execute_approved_action(incident_id: str, action, approved: bool, replicas: 
             raise ProposalExpired("Proposal has expired or has no valid timestamp; diagnose again to capture fresh state")
         if action == DecisionAction.SCALE:
             current = (incident.get("_expected_state") or {}).get("replicas")
-            if current is not None:
+            if incident.get("recovery_scenario") == "scale_down":
+                from app.orchestration.rightsizing import real_incident_open
+                blocking = real_incident_open(service, exclude=incident_id)
+                if blocking:
+                    raise ConflictError(f"Incident {blocking} is open for {service}; the scale-down will not run")
+                validate_scale_down_step(current, replicas, service=service)
+            elif current is not None:
                 validate_scale_step(current, replicas, service=service)
         started_at = datetime.now(timezone.utc)
         action_id = "ACT-" + uuid4().hex
@@ -638,7 +647,7 @@ def _recovery_window(incident):
     # Legacy scenario inference is allowed only for explicitly mock execution.
     if scenario is None and remediation_backend.REMEDIATION_BACKEND == "mock":
         scenario = {"faulty_deployment": "bad_deployment", "traffic_spike": "traffic_spike"}.get(incident.get("root_cause"))
-    if scenario not in {"bad_deployment", "traffic_spike"}:
+    if scenario not in {"bad_deployment", "traffic_spike", "scale_down"}:
         raise ValueError("Missing captured remediation scenario")
     completion = incident.get("action_completed_at")
     if not completion:
