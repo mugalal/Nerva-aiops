@@ -967,3 +967,10 @@ nav .chat-delete {
   color: #64748b;
 }
 
+
+/* The proposal stated in words, above its raw fields. */
+.change-summary {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+}

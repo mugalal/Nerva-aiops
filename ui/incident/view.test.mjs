@@ -134,3 +134,24 @@ test('proof of fix and KPI cards show only recorded measurements, never illustra
   renderIncident({...recorded,evidence:{before:{metrics:{}}}},{approval_enabled:false},()=>{},()=>{});
   assert.match(text(roots['#incident-body']),/not recorded/);
 });
+test('safety controls, the change in words, registry limits and the audit chain are visible',()=>{
+  const bundle={...base,incident:{...base.incident,status:'ESCALATED'},
+    decision:{recommended_action:'SCALE',target:'payment-service',parameters:{replicas:4,direction:'down'},reason:'Capacity right-sizing: measured'},
+    evidence:{before:{metrics:{replica_count:7}}},
+    workflow:{kind:'rightsizing',coalesced_incident_ids:['INC-B'],recurrences_in_cooldown:2,withdrawn:'proposal expired before approval'},
+    service_policy:{service:'payment-service',min_replicas:1,max_replicas:10,max_scale_step:7,max_scale_down_step:3,depends_on:[]},
+    audit_chain:{valid:true,chained:6,legacy_unchained:0,head_hash:'abcdef0123456789',problems:0},
+    audit:[{timestamp:'2026-10-10T08:00:30Z',event_type:'INCIDENT_COALESCED'}]};
+  renderIncident(bundle,{approval_enabled:false,source:'real'},()=>{},()=>{});
+  const shown=text(roots['#incident-body']);
+  assert.match(shown,/Scale down payment-service from 7 to 4 replicas/);
+  assert.match(shown,/Merged 1 repeat detection into this incident.*INC-B/);
+  assert.match(shown,/alerted 2 more times during the post-incident cooldown/);
+  assert.match(shown,/escalated: the proposal was withdrawn \(proposal expired before approval\)/);
+  assert.match(shown,/Registry limits for payment-service: 1-10 replicas/);
+  assert.match(shown,/Repeat detection merged into this incident \(INCIDENT_COALESCED\)/);
+  assert.match(shown,/T\+30s/);
+  assert.match(shown,/Hash chain verified: 6 chained records/);
+  renderIncident({...bundle,audit_chain:{valid:false,problems:1}},{approval_enabled:false,source:'real'},()=>{},()=>{});
+  assert.match(text(roots['#incident-body']),/Hash chain check FAILED: 1 problem/);
+});

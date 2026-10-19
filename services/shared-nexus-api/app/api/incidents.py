@@ -441,5 +441,27 @@ def get_incident_context(incident_id: str):
             "archive_error": outbox.get("last_error") or incident.get("_archive_blocked_reason"),
             "coalesced_incident_ids": sorted(incident.get("_aliases") or {}),
             "recurrences_in_cooldown": int(incident.get("_recurrences") or 0),
-            "diagnosis_failed": bool(incident.get("_diagnosis_failed"))},
+            "diagnosis_failed": bool(incident.get("_diagnosis_failed")),
+            "kind": incident.get("_kind") or "incident",
+            "withdrawn": incident.get("_withdrawn"),
+            "rejected_by": incident.get("_rejected_by"),
+            "rightsizing": incident.get("_rightsizing")},
+        "service_policy": _service_policy(incident),
+        "audit_chain": _chain_summary(),
         "audit": [record for record in list(audit_records) if record["incident_id"] == incident_id]}
+
+
+def _service_policy(incident):
+    """The registry limits the proposal was checked against (shown to the operator)."""
+    from shared.registry import get_registry
+    services = incident.get("affected_services") or []
+    spec = get_registry().get(services[0]) if len(services) == 1 else None
+    return None if spec is None else {"service": spec.name, "depends_on": list(spec.depends_on),
+                                      **spec.remediation.model_dump()}
+
+
+def _chain_summary():
+    from app.remediation.audit import verify_chain
+    result = verify_chain()
+    return {key: result[key] for key in ("valid", "records", "chained", "legacy_unchained", "head_hash")} | {
+        "problems": len(result["problems"])}

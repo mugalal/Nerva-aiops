@@ -11,6 +11,8 @@ Everything here is PowerShell from the repository root (the folder that contains
 
 Start with Path A. Move to Path B when you want to show a real fix.
 
+Safety controls (incident coalescing, measured scale-down, autoscaler and dependency guards, hash-chained audit, leader election and their settings) are listed in [docs/SAFETY_CONTROLS.md](docs/SAFETY_CONTROLS.md).
+
 ---
 
 ## 0. Prerequisites (both paths)

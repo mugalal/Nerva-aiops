@@ -30,11 +30,43 @@ export function lifecycle(bundle) {
   ];
 }
 
+// What the proposal would change, in words; built only from the recorded proposal.
+export function changeSummary(bundle) {
+  const decision = bundle.decision; if (!decision) return null;
+  const params = decision.parameters || {}, target = decision.target || 'the service';
+  const current = bundle.evidence?.before?.metrics?.replica_count ?? bundle.finops_context?.current_replicas;
+  if (decision.recommended_action === 'SCALE' && params.replicas) {
+    const down = params.direction === 'down';
+    return `${down ? 'Scale down' : 'Scale out'} ${target}${current !== undefined ? ` from ${current}` : ''} to ${params.replicas} replicas${params.via_hpa ? ` by raising autoscaler ${params.via_hpa}'s minimum` : ''}`;
+  }
+  if (decision.recommended_action === 'ROLLBACK') return `Roll ${target} back from ${params.from_version || 'the current version'} to ${params.to_version || 'the previous version'}`;
+  if (decision.recommended_action === 'ESCALATE') return `No automated action: handed to a human (${decision.reason || 'no reason recorded'})`;
+  return null;
+}
+
+// Safety controls that acted on this incident, stated so an operator sees them without opening raw records.
+export function safetyNotes(bundle) {
+  const w = bundle.workflow || {}, notes = [];
+  if (w.kind === 'rightsizing') notes.push(['info', `Capacity right-sizing proposal from M4 (not an M3 diagnosis): ${bundle.decision?.reason || 'measured spare capacity'}`]);
+  if (w.coalesced_incident_ids?.length) notes.push(['info', `Merged ${w.coalesced_incident_ids.length} repeat detection${w.coalesced_incident_ids.length > 1 ? 's' : ''} into this incident instead of opening new ones: ${w.coalesced_incident_ids.join(', ')}`]);
+  if (w.recurrences_in_cooldown) notes.push(['warn', `The service alerted ${w.recurrences_in_cooldown} more time${w.recurrences_in_cooldown > 1 ? 's' : ''} during the post-incident cooldown; recorded, not acted on again.`]);
+  if (w.diagnosis_failed) notes.push(['warn', `Diagnosis failed and was escalated to a human: ${w.diagnosis_error || 'no error recorded'}`]);
+  if (w.withdrawn) notes.push(['info', `Proposal withdrawn without any action: ${w.withdrawn}`]);
+  if (w.rejected_by) notes.push(['info', `Rejected by ${w.rejected_by}; no infrastructure action was taken.`]);
+  return notes;
+}
+
 function nextStep(bundle, blocked) {
   const status = bundle.incident?.status;
   if (status === 'AWAITING_APPROVAL') return blocked && blocked !== 'No proposal is awaiting approval.' ? ['warn', `A proposal is waiting, but it cannot be approved here: ${blocked}`] : ['action', 'A proposal is waiting for your decision. Review the recommended action below.'];
   if (bundle.workflow?.execution_ambiguous && !bundle.workflow?.reconciliation) return ['warn', 'The action outcome is unknown. An operator must reconcile it with evidence before anything else happens.'];
-  if (status === 'ESCALATED') return ['warn', 'This incident was escalated. Review the evidence and handle it manually.'];
+  if (status === 'ESCALATED') {
+    const w = bundle.workflow || {};
+    const why = w.withdrawn ? `the proposal was withdrawn (${w.withdrawn})` : w.rejected_by ? `${w.rejected_by} rejected the proposal`
+      : w.diagnosis_failed ? 'diagnosis failed' : bundle.decision?.recommended_action === 'ESCALATE' ? bundle.decision.reason
+      : bundle.recovery_result?.recovered === false || bundle.recovery_validation?.timed_out ? 'recovery was not measured within the deadline' : null;
+    return ['warn', `This incident was escalated${why ? `: ${why}` : ''}. Review the evidence and handle it manually.`];
+  }
   if (status === 'RESOLVED' && bundle.recovery_result?.recovered !== true) return ['warn', 'Marked resolved, but no successful recovery measurement is recorded.'];
   if (status === 'RESOLVED') return ['ok', 'Resolved with measured recovery. Check the similar incidents below to confirm the pattern.'];
   if (status === 'EXECUTING' || status === 'VALIDATING') return ['info', 'The action is in progress. Refresh to check the measured recovery.'];
@@ -60,16 +92,35 @@ function summary(bundle, blocked, onAsk) {
   next.append(element('span', text));
   if (onAsk) { const ask = element('a', 'Ask Copilot about this incident', 'link'); ask.href = '#copilot'; ask.addEventListener('click', event => { event.preventDefault(); onAsk(); }); next.append(ask); }
   box.append(next);
+  for (const [tone, text] of safetyNotes(bundle)) box.append(element('div', text, `next-step ${tone}`));
   return box;
 }
 
-function formatTimeline(events) {
+const EVENT_LABELS = {INCIDENT_COALESCED:'Repeat detection merged into this incident', DECISION_PROPOSED:'Action proposed',
+  MANUAL_APPROVAL_GRANTED:'Operator approved', MANUAL_APPROVAL_REJECTED:'Operator rejected', ACTION_APPROVED:'Action authorised',
+  ACTION_EXECUTED:'Action executed', ACTION_EXECUTION_FAILED:'Action failed', ACTION_APPLIED_ROLLOUT_UNCONFIRMED:'Action applied, rollout unconfirmed',
+  ACTION_OUTCOME_UNKNOWN:'Action outcome unknown', RECOVERY_STABILIZING:'Recovery measured: not yet healthy', RECOVERY_VALIDATION:'Recovery decided',
+  RECOVERY_TIMEOUT:'Recovery deadline passed', DIAGNOSIS_FAILED:'Diagnosis failed: escalated', DIAGNOSIS_INTERRUPTED:'Diagnosis interrupted by restart',
+  FINOPS_UNAVAILABLE:'FinOps unavailable', PROPOSAL_EXPIRED:'Proposal expired', SCALE_DOWN_PROPOSED:'Scale-down proposed',
+  SCALE_DOWN_WITHDRAWN:'Scale-down withdrawn', INCIDENT_OPENED_AFTER_COOLDOWN:'Opened after the cooldown ended',
+  MANUAL_RECONCILIATION_CONFIRMED:'Operator confirmed the outcome', MANUAL_RECONCILIATION_FAILED:'Operator reported the action failed'};
+
+function offsetText(seconds) {
+  const size = Math.abs(seconds), sign = seconds < 0 ? '−' : '+';
+  if (size < 120) return `${sign}${Math.round(size)}s`;
+  if (size < 7200) return `${sign}${Math.round(size / 60)}m`;
+  if (size < 172800) return `${sign}${Math.round(size / 3600)}h`;
+  return `${sign}${Math.round(size / 86400)}d`;
+}
+
+// Offsets are relative to the incident start (T0), so "+40s" means 40 s after detection.
+function formatTimeline(events, anchor) {
   const list = element('ol', undefined, 'timeline'), sorted = events.filter(item => item[0]).sort((a, b) => Date.parse(a[0]) - Date.parse(b[0]));
-  const first = Date.parse(sorted[0]?.[0]);
+  const first = Number.isFinite(Date.parse(anchor)) ? Date.parse(anchor) : Date.parse(sorted[0]?.[0]);
   for (const [time, title] of sorted) {
-    const li = element('li'), stamp = element('time', time), offset = (Date.parse(time) - first) / 1000;
+    const li = element('li'), stamp = element('time', formatTime(time)), offset = (Date.parse(time) - first) / 1000;
     stamp.setAttribute('datetime', time);
-    if (Number.isFinite(offset) && offset > 0) stamp.append(element('span', ` · +${offset < 120 ? `${Math.round(offset)}s` : `${Math.round(offset / 60)}m`}`, 'offset'));
+    if (Number.isFinite(offset) && Math.abs(offset) >= 1) stamp.append(element('span', ` · T${offsetText(offset)}`, 'offset'));
     li.append(stamp, element('span', title)); list.append(li);
   }
   return list.childNodes.length ? list : empty('No timeline timestamps recorded.');
@@ -84,7 +135,7 @@ export function renderIncident(bundle, config, onApproval, onStore, onAsk) {
   if(missing.length){const gaps=panel('Missing information');const list=element('ul',undefined,'evidence');for(const item of missing)list.append(element('li',`${item}: not recorded`));gaps.append(list);root.append(gaps);}
   if(bundle.status==='degraded'||bundle.reason||bundle.errors?.length){const state=panel('Unavailable evidence');state.append(fields({reason:bundle.reason,errors:bundle.errors}));root.append(state);}
   const timeline=panel('Incident timeline');
-  timeline.append(formatTimeline([[bundle.deployment_event?.timestamp,'Deployment recorded'],[bundle.incident?.started_at,'Incident started'],[bundle.action_result?.started_at,'Action started'],[bundle.action_result?.completed_at,'Action completed'],...(bundle.audit||[]).map(item=>[item.timestamp,item.event||item.event_type||'Recorded workflow event'])]));
+  timeline.append(formatTimeline([[bundle.deployment_event?.timestamp,'Deployment recorded'],[bundle.incident?.started_at,'Incident started'],[bundle.action_result?.started_at,'Action started'],[bundle.action_result?.completed_at,'Action completed'],...(bundle.audit||[]).map(item=>[item.timestamp,EVENT_LABELS[item.event_type]?`${EVENT_LABELS[item.event_type]} (${item.event_type})`:item.event||item.event_type||'Recorded workflow event'])],bundle.incident?.started_at));
   root.append(timeline);
   const anomaly=panel('1 · Detect: linked anomaly');anomaly.append(fields(bundle.anomaly?{anomaly_id:bundle.anomaly.anomaly_id,timestamp:bundle.anomaly.timestamp,score:bundle.anomaly.score,model:bundle.anomaly.model,features:bundle.anomaly.features}:null));root.append(anomaly);
   const rca=panel('2 · Diagnose: root cause and evidence');rca.append(fields(bundle.rca ? {root_cause:bundle.rca.root_cause,affected_component:bundle.rca.affected_component,confidence:bundle.rca.confidence}:null));
@@ -116,6 +167,8 @@ export function renderIncident(bundle, config, onApproval, onStore, onAsk) {
   root.append(rca);
   const decision=panel('3 · Decide: recommended action');decision.id='decision';
   if(bundle.incident?.status==='AWAITING_APPROVAL')decision.classList.add('attention');
+  const change=changeSummary(bundle);if(change)decision.append(element('p',change,'change-summary'));
+  if(bundle.service_policy){const p=bundle.service_policy;decision.append(element('p',`Registry limits for ${p.service}: ${p.min_replicas}-${p.max_replicas} replicas, at most +${p.max_scale_step} / −${p.max_scale_down_step} per step${p.depends_on?.length?`; depends on ${p.depends_on.join(', ')}`:''}. Approval is always required.`,'muted'));}
   decision.append(fields(bundle.decision));
   if(bundle.proposal_state)decision.append(fields({proposal_created:bundle.proposal_state.created_at,expires:bundle.proposal_state.expires_at,expired:bundle.proposal_state.expired,proposal_digest:bundle.proposal_digest}));
   let token;
@@ -199,7 +252,9 @@ export function renderIncident(bundle, config, onApproval, onStore, onAsk) {
       link.download=`nerva-audit-${id}.json`;link.click();URL.revokeObjectURL(link.href);
       note.textContent=data.verification?.valid?` Chain verified (${data.records.length} records).`:' Audit chain check FAILED: see the file.';
     }catch(error){note.textContent=` ${error.message}`;}finally{download.disabled=false;}});
-    const audit=panel('Audit trail');audit.append(download,note);root.append(audit);
+    const audit=panel('Audit trail');const chain=bundle.audit_chain;
+    if(chain)audit.append(element('p',chain.valid?`Hash chain verified: ${chain.chained} chained record${chain.chained===1?'':'s'}${chain.legacy_unchained?` (${chain.legacy_unchained} older unchained)`:''}, head ${String(chain.head_hash||'').slice(0,12)}…`:`Hash chain check FAILED: ${chain.problems} problem${chain.problems===1?'':'s'}. The trail may have been edited.`,chain.valid?'next-step ok':'next-step warn'));
+    audit.append(download,note);root.append(audit);
   }
   return similar;
 }
@@ -232,7 +287,8 @@ export function renderFinops(bundle) {
       capLabel.append(element('strong', 'Traffic Headroom & Pod Allocation'), element('span', `Current: ${currentPods ?? 'not recorded'} → Target: ${targetPods ?? 'no scale proposal'}`, 'muted'));
       const capTrack = element('div', undefined, 'capacity-track');
       const capFill = element('div', undefined, 'capacity-fill');
-      const pct = targetPods ? Math.min(100, Math.round((targetPods / 10) * 100)) : 0;
+      const maxPods = bundle.service_policy?.max_replicas;
+      const pct = targetPods && maxPods ? Math.min(100, Math.round((targetPods / maxPods) * 100)) : 0;
       capFill.style = `width: ${pct}%`;
       capTrack.append(capFill);
       const capFooter = element('div', undefined, 'capacity-footer');
