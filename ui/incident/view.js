@@ -93,6 +93,15 @@ function summary(bundle, blocked, onAsk) {
   if (onAsk) { const ask = element('a', 'Ask Copilot about this incident', 'link'); ask.href = '#copilot'; ask.addEventListener('click', event => { event.preventDefault(); onAsk(); }); next.append(ask); }
   box.append(next);
   for (const [tone, text] of safetyNotes(bundle)) box.append(element('div', text, `next-step ${tone}`));
+  const dependencyBlock = bundle.workflow?.blocked_by;
+  if (dependencyBlock?.incident_id) {
+    // The dependency guard, made visible: this service was not scaled because what it calls is the problem.
+    const banner = element('div', undefined, 'next-step warn dependency-block');
+    banner.append(element('span', `Blocked by dependency: ${dependencyBlock.dependency} has open incident ${dependencyBlock.incident_id}. Scaling this service would only add load to it.`));
+    const link = element('a', 'View the root incident →', 'link');
+    link.href = `#incident/${encodeURIComponent(dependencyBlock.incident_id)}`;
+    banner.append(link); box.append(banner);
+  }
   return box;
 }
 

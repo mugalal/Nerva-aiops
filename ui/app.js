@@ -1,5 +1,5 @@
 import {api, element, empty, panel, fields} from './components/render.js';
-import {renderOverview} from './overview/view.js';
+import {renderOverview, renderTopology} from './overview/view.js';
 import {renderIncident, renderFinops} from './incident/view.js';
 import {questions, renderAnswer, setOperatorAuth} from './copilot/view.js';
 import {ChatStore, readUI, saveUI} from './copilot/storage.mjs';
@@ -89,6 +89,7 @@ async function load(){
     $('#chat-mode').textContent=config.chat?.enabled?'AI chat':'AI connection needed · recorded answers available';
     const data=await api('/internal/ui/overview');knownIds=new Set(data.incidents.map(r=>r.incident_id));
     renderOverview(data,id=>{select(id);go('incident');});
+    try{renderTopology((await api('/internal/ui/services')).services,id=>{select(id);go('incident');});}catch{renderTopology(null);}
     const awaiting=data.incidents.filter(r=>r.status==='AWAITING_APPROVAL').length,badgeCount=$('#nav-attention');badgeCount.hidden=!awaiting;badgeCount.textContent=String(awaiting);badgeCount.title=`${awaiting} awaiting your decision`;
     const picker=$('#incident-select');picker.replaceChildren();for(const record of data.incidents){const option=element('option',`${record.incident_id} · ${(record.status||'UNKNOWN').replaceAll('_',' ')}`);option.value=record.incident_id;picker.append(option);}
     $('#updated').textContent=`Updated ${new Date().toLocaleTimeString()}`;

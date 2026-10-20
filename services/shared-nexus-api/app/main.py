@@ -14,6 +14,7 @@ from app.api.remediation import router as remediation_router
 from app.api.recovery import router as recovery_router
 from app.api.anomalies import router as anomalies_router
 from app.api.experiments import router as experiments_router
+from app.api.services import router as services_router
 from app.api.auth import (approval_token, ingest_token, named_approver_tokens, read_auth_required,
                           verify_reader_auth)
 from app.db import workflow_store
@@ -91,6 +92,7 @@ app.include_router(remediation_router)
 app.include_router(recovery_router)
 app.include_router(anomalies_router)
 app.include_router(experiments_router)
+app.include_router(services_router)
 
 
 _OPEN_PATHS = {"/live", "/health", "/ready", "/metrics", "/docs", "/openapi.json", "/redoc"}

@@ -155,3 +155,16 @@ test('safety controls, the change in words, registry limits and the audit chain 
   renderIncident({...bundle,audit_chain:{valid:false,problems:1}},{approval_enabled:false,source:'real'},()=>{},()=>{});
   assert.match(text(roots['#incident-body']),/Hash chain check FAILED: 1 problem/);
 });
+test('a dependency block links to the root incident and the topology shows callers before dependencies',async()=>{
+  renderIncident({...base,incident:{...base.incident,status:'ESCALATED'},workflow:{blocked_by:{dependency:'payment-service',incident_id:'INC-PAY'}}},{approval_enabled:false},()=>{},()=>{});
+  assert.match(text(roots['#incident-body']),/Blocked by dependency: payment-service has open incident INC-PAY/);
+  assert.equal(find(roots['#incident-body'],'a').find(a=>a.textContent.includes('root incident')).href,'#incident/INC-PAY');
+  const {renderTopology}=await import('../overview/view.js');
+  roots['#topology']=new Node('div');let opened;
+  renderTopology([{name:'payment-service',depends_on:[],open_incidents:[{incident_id:'INC-PAY',status:'AWAITING_APPROVAL',kind:'incident'}]},
+    {name:'checkout-service',depends_on:['payment-service'],open_incidents:[],latest_dependency_block:{dependency:'payment-service'}}],id=>opened=id);
+  const nodes=find(roots['#topology'],'button');
+  assert.deepEqual(nodes.map(n=>n.childNodes[0].textContent),['checkout-service','payment-service']);
+  assert.match(text(roots['#topology']),/No open incident/);assert.doesNotMatch(text(roots['#topology']),/healthy/i);
+  assert.equal(nodes[0].disabled,true);nodes[1].listeners.click();assert.equal(opened,'INC-PAY');
+});

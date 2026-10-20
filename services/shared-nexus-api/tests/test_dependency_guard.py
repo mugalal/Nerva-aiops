@@ -65,3 +65,16 @@ def test_the_dependency_is_named_even_when_finops_has_no_safe_option(monkeypatch
     result = orchestrator.build_decision("INC-PAY")
     assert result.action == DecisionAction.ESCALATE and "depends on cart-service" in result.reason
     assert calls == []  # no capacity costing for a service that must not be scaled
+
+
+def test_the_block_is_recorded_as_data_and_shown_in_the_services_view():
+    _create("INC-CART", "cart-service")
+    _create("INC-PAY", "payment-service")
+    orchestrator.build_decision("INC-PAY")
+    context = client.get("/api/incidents/INC-PAY/context").json()
+    assert context["workflow"]["blocked_by"] == {"dependency": "cart-service", "incident_id": "INC-CART"}
+    services = {s["name"]: s for s in client.get("/api/services").json()["services"]}
+    assert services["payment-service"]["depends_on"] == ["cart-service"]
+    assert services["payment-service"]["latest_dependency_block"]["incident_id"] == "INC-CART"
+    assert services["cart-service"]["state"] == "incident_open"
+    assert services["cart-service"]["open_incidents"][0]["incident_id"] == "INC-CART"

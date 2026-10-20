@@ -4,6 +4,33 @@ const RANK = status => status === 'AWAITING_APPROVAL' ? 0 : status !== 'RESOLVED
 export function sortIncidents(records) {
   return [...records].sort((a, b) => RANK(a.status) - RANK(b.status) || (Date.parse(b.started_at) || 0) - (Date.parse(a.started_at) || 0));
 }
+// Callers first, then what they depend on: checkout-service -> payment-service.
+function orderByDependency(services) {
+  const byName = new Map(services.map(s => [s.name, s]));
+  const depth = name => { const s = byName.get(name); return s && s.depends_on?.length ? 1 + Math.max(...s.depends_on.map(depth)) : 0; };
+  return [...services].sort((a, b) => depth(b.name) - depth(a.name) || a.name.localeCompare(b.name));
+}
+
+// State comes only from recorded incidents; "no open incident" is not a health claim.
+export function renderTopology(services, onSelect) {
+  const root = document.querySelector('#topology'); if (!root) return; root.replaceChildren();
+  if (!Array.isArray(services)) { root.append(empty('Service topology unavailable.')); return; }
+  const strip = element('div', undefined, 'topology');
+  orderByDependency(services).forEach((service, index) => {
+    if (index) strip.append(element('span', '→', 'topology-edge'));
+    const open = (service.open_incidents || []).filter(i => i.kind !== 'rightsizing');
+    const node = element('button', undefined, `topology-node ${open.length ? 'incident' : 'quiet'}`);
+    node.append(element('strong', service.name),
+      element('span', open.length ? `${open.length} open incident${open.length > 1 ? 's' : ''}: ${open[0].status.replaceAll('_', ' ')}` : 'No open incident', 'muted'));
+    if (service.depends_on?.length) node.append(element('span', `calls ${service.depends_on.join(', ')}`, 'muted'));
+    if (service.latest_dependency_block) node.append(element('span', `Last escalation: blocked by ${service.latest_dependency_block.dependency}`, 'muted'));
+    node.disabled = !open.length;
+    if (open.length) node.addEventListener('click', () => onSelect(open[0].incident_id));
+    strip.append(node);
+  });
+  root.append(element('h2', 'Services'), strip);
+}
+
 export function renderOverview(data, onSelect) {
   const records = sortIncidents(data.incidents);
   const summary = document.querySelector('#summary'); summary.replaceChildren();

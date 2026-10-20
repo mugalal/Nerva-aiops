@@ -246,8 +246,10 @@ def _gather_diagnosis(attempt):
     # The dependency check comes before any capacity costing: if a service this one
     # calls is the problem, more replicas here only add load to it, whatever M6 offers.
     blocked = degraded_dependencies(service, incident_id) if scaling else []
+    blocked_by = None
     if blocked:
         dependency, other = blocked[0]
+        blocked_by = {"dependency": dependency, "incident_id": other}
         result = _escalation(rca, f"{service} depends on {dependency}, which has open incident {other}. "
                                   f"Adding {service} replicas would add load to the struggling dependency; "
                                   f"fix {dependency} first.")
@@ -324,7 +326,8 @@ def _gather_diagnosis(attempt):
                 expected_state["hpa"] = hpa
                 parameters["via_hpa"] = hpa["name"]
     return {"rca": rca, "result": result, "finops": finops, "finops_error": finops_error, "evidence": evidence,
-            "expected_state": expected_state, "scenario": scenario, "parameters": parameters}
+            "expected_state": expected_state, "scenario": scenario, "parameters": parameters,
+            "blocked_by": blocked_by}
 
 
 def degraded_dependencies(service, incident_id):
@@ -380,6 +383,8 @@ def _commit_diagnosis(attempt, gathered):
                                           else result.scale_option.get("risk", "HIGH") if result.action == DecisionAction.SCALE
                                           else "HIGH"),
                                     reason=result.reason, approval_required=result.approval_required)
+        if gathered.get("blocked_by"):
+            incident["_blocked_by"] = gathered["blocked_by"]
         incident.update(root_cause=rca["root_cause"], proposed_action=result.action.value,
                         scale_option=result.scale_option, _proposal=proposal.model_dump(mode="json"),
                         _decision=result.model_dump(mode="json"),

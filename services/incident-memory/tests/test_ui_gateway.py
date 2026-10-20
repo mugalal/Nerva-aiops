@@ -64,6 +64,18 @@ class GatewayTests(unittest.TestCase):
         with TestClient(create_app(self.repo, Provider("mock"))) as client:
             self.assertEqual(client.get("/internal/ui/incidents/INC-001/audit").status_code, 404)
 
+    def test_services_topology_is_proxied_read_only(self):
+        seen = []
+
+        def upstream(request):
+            seen.append(request)
+            return httpx.Response(200, json={"services": [{"name": "checkout-service", "depends_on": ["payment-service"]}]})
+
+        with httpx.Client(transport=httpx.MockTransport(upstream)) as transport,                 TestClient(create_app(self.repo, Provider("live", transport))) as client:
+            body = client.get("/internal/ui/services").json()
+        self.assertEqual(body["services"][0]["depends_on"], ["payment-service"])
+        self.assertEqual((seen[0].method, seen[0].url.path), ("GET", "/api/services"))
+
     def test_m4_array_listing_and_aggregate_preserve_unknown_outcomes(self):
         with httpx.Client(transport=httpx.MockTransport(self.upstream)) as transport:
             with TestClient(create_app(self.repo, Provider("live", transport))) as client:

@@ -87,6 +87,17 @@ class Provider:
             raise ProviderUnavailable("Shared detail must explicitly identify evidence provenance")
         return {**result, "connection_source": "shared_api"}
 
+    def services(self):
+        if self.mode == "mock":
+            names = sorted({r["memory"]["service"] for r in demo_records()})
+            return {"source": "mock", "services": [{"name": name, "depends_on": [], "open_incidents": [],
+                                                    "state": "no_open_incident", "latest_dependency_block": None}
+                                                   for name in names]}
+        result = self.request("GET", "/api/services")
+        if not isinstance(result.get("services"), list):
+            raise ProviderUnavailable("Shared services view must contain a services list")
+        return {"source": "real", **result}
+
     def audit_export(self, incident_id):
         if self.mode == "mock":
             raise ProviderUnavailable("Mock data has no audit trail", 404)

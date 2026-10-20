@@ -974,3 +974,34 @@ nav .chat-delete {
   font-weight: 600;
   margin: 0 0 8px;
 }
+
+/* Service topology: callers on the left, dependencies on the right. */
+.topology {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.topology-edge {
+  align-self: center;
+  font-size: 22px;
+  color: #64748b;
+}
+.topology-node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 220px;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  text-align: left;
+  cursor: default;
+}
+.topology-node.quiet { border-left: 4px solid #94a3b8; }
+.topology-node.incident { border-left: 4px solid #b91c1c; cursor: pointer; }
+.topology-node:disabled { opacity: 1; color: inherit; }
+.dependency-block { border-left: 4px solid #b45309; }

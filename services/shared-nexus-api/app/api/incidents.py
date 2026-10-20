@@ -445,7 +445,8 @@ def get_incident_context(incident_id: str):
             "kind": incident.get("_kind") or "incident",
             "withdrawn": incident.get("_withdrawn"),
             "rejected_by": incident.get("_rejected_by"),
-            "rightsizing": incident.get("_rightsizing")},
+            "rightsizing": incident.get("_rightsizing"),
+            "blocked_by": incident.get("_blocked_by")},
         "service_policy": _service_policy(incident),
         "audit_chain": _chain_summary(),
         "audit": [record for record in list(audit_records) if record["incident_id"] == incident_id]}
