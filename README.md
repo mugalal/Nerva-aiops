@@ -254,12 +254,55 @@ Start a second, bigger generator by copying `infrastructure/k8s/traffic-demo.yam
 kubectl delete pod <your-pod-name> -n nexus-demo
 ```
 
+### B9b. Demo 3: two services and the dependency guard
+
+```powershell
+.\scripts\demo-cascade.ps1        # or .\scripts\demo-defense.ps1 for a menu of all three demos
+```
+
+A surge on checkout-service overloads payment-service, which it calls. Expected: two incidents; payment-service
+gets a SCALE proposal you approve on the website; checkout-service is escalated by the dependency guard with a
+"Blocked by dependency" banner linking to the payment incident.
+
 ### B10. Stop
 
 ```powershell
 kubectl delete -f infrastructure/k8s/traffic-demo.yaml --ignore-not-found
 kind delete cluster --name nexus     # ONLY if you want to throw the whole cluster and its data away
 ```
+
+---
+
+## Optional: AI chat in the Copilot (Gemini)
+
+The Copilot works without any key: it gives recorded, cited answers. For free-form AI answers, get a free key from
+[Google AI Studio](https://aistudio.google.com/apikey) and save it **once** as user environment variables:
+
+```powershell
+setx GEMINI_API_KEY "<paste-your-key>"
+setx M5_LLM_MODEL "gemini-3.5-flash-lite"
+```
+
+Close and reopen PowerShell (`setx` only affects new windows), then rerun `.\scripts\start-stack.ps1 -NoBuild`.
+Never paste the key into chat, code or a committed file. `gemini-3.5-flash-lite` suits the free tier;
+`gemini-3.5-flash` reaches its free quota quickly.
+
+---
+
+## Preview only the web app (no Docker, labelled demo data)
+
+For UI work. SQLite and clearly labelled mock incidents; approvals are disabled:
+
+```powershell
+cd services\incident-memory
+pip install -r requirements.txt
+$env:M5_UI_MODE = 'mock'
+$env:DATABASE_URL = 'sqlite:///./data/demo.db'
+python scripts\seed_demo.py
+python -m uvicorn app.main:app --port 18005
+```
+
+Open <http://127.0.0.1:18005>. The badge shows **MOCK DATA · demo only**. Changes in `ui/` show after **Ctrl+F5**.
 
 ---
 
@@ -292,3 +335,10 @@ If pytest fails with a temp-folder permission error on Windows, add `--basetemp 
 | Approve says "digest required" / "expired" | Reload the incident and approve the fresh proposal |
 | Pods CrashLoopBackOff in Kubernetes | `kubectl logs <pod> -n nexus-demo`; a missing Secret key is the usual cause (repeat B3) |
 | Port already in use | Another stack is running; stop it first, or change the left side of the port mapping |
+| `The filename, directory name, or volume label syntax is incorrect` | A PowerShell command was run in Command Prompt. Type `powershell` first |
+| Running scripts is disabled | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
+| Database authentication failed (Docker) | `.review-branches\stack-runtime.json` was deleted or changed and no longer matches the database volume; restore it |
+| Incident stays in `VALIDATING` | Recovery is not measured yet: keep the traffic running (and v1 restored after a faulty release) until the hold window passes |
+| Copilot: "usage or quota limit was reached" | Gemini free quota used up; switch `M5_LLM_MODEL` to `gemini-3.5-flash-lite` and rerun `start-stack.ps1 -NoBuild` |
+| Web page looks outdated | Hard refresh with **Ctrl+F5** |
+| Before a live demo | `.\scripts\doctor.ps1` checks the cluster read-only; `.\scripts\demo-defense.ps1` runs the scenarios |
