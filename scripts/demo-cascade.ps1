@@ -51,16 +51,7 @@ Write-Step "Injecting a surge on checkout-service only: +$CheckoutSurgeRps check
 Start-TrafficGenerator -Name 'checkout-spike-load' -Rps $CheckoutSurgeRps -DurationSeconds 1800 -Target 'http://checkout-service/checkout'
 Write-Note 'Expected: two incidents; payment-service gets a SCALE proposal, checkout-service is escalated by the dependency guard.'
 
-$approve = $null
-if ($Rehearse) {
-    $approve = {
-        param($id, $context)
-        if ($context.decision.recommended_action -ne 'SCALE') { return }
-        $code = Get-Content -Raw (Join-Path $root 'scripts/live-drill.py')
-        $out = ($code | K exec -i deployment/incident-memory '--' python - ui-approve $id | Out-String) | ConvertFrom-Json
-        Write-Host ("        rehearsal approval through the website gateway: without token HTTP {0}, with token HTTP {1}" -f $out.without_operator_token[0], $out.approved[0])
-    }
-}
+$approve = if ($Rehearse) { { param($id, $context) if ($context.decision.recommended_action -eq 'SCALE') { Approve-ThroughWebsite $id } } } else { $null }
 $null = Watch-NewIncidents -KnownIds $known -Expected 2 -OnAwaitingApproval $approve
 K get deployment payment-service checkout-service | Out-Host
 

@@ -246,8 +246,17 @@ function Wait-ForRecording([string]$Action) {
     [void](Read-Host "Press Enter to $Action")
 }
 
+# Rehearsal only: approve exactly as the website button does (M5 gateway, M5's own operator token, digest-bound).
+function Approve-ThroughWebsite([string]$IncidentId) {
+    $code = Get-Content -LiteralPath (Join-Path $script:Root 'scripts/live-drill.py') -Raw
+    $out = ($code | K exec -i deployment/incident-memory '--' python - ui-approve $IncidentId | Out-String) | ConvertFrom-Json
+    Write-Host ("        rehearsal approval through the website gateway: without token HTTP {0}, with token HTTP {1}" -f
+        $out.without_operator_token[0], $out.approved[0])
+}
+
 function Watch-NewIncident {
-    param([string[]]$KnownIds, [string]$ExpectedCause, [string]$ExpectedAction, [int]$TimeoutMinutes = 20)
+    param([string[]]$KnownIds, [string]$ExpectedCause, [string]$ExpectedAction, [int]$TimeoutMinutes = 20,
+          [scriptblock]$OnAwaitingApproval)
     Write-Step "Watching for the new incident (expected: $ExpectedCause -> $ExpectedAction). Ctrl+C stops watching only."
     $deadline = [DateTimeOffset]::UtcNow.AddMinutes($TimeoutMinutes)
     $incidentId = $null; $lastStatus = $null; $announced = $false
@@ -271,7 +280,8 @@ function Watch-NewIncident {
                 if ($context.rca.root_cause -ne $ExpectedCause -or $context.decision.recommended_action -ne $ExpectedAction) {
                     Write-Note "This is not the expected $ExpectedCause -> $ExpectedAction proposal. Review it before approving, or Reject it."
                 }
-                Write-Host '    >>> Open this incident on the website, paste the token (Ctrl+V) and click Approve within 5 minutes.' -ForegroundColor Magenta
+                if ($OnAwaitingApproval) { & $OnAwaitingApproval $incidentId $context }
+                else { Write-Host '    >>> Open this incident on the website, paste the token (Ctrl+V) and click Approve within 5 minutes.' -ForegroundColor Magenta }
             }
             if ($status -in @('RESOLVED', 'ESCALATED')) {
                 $context | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath (Join-Path $script:RunDir 'final-context.json') -Encoding utf8
@@ -349,6 +359,6 @@ function Watch-NewIncidents {
     return $seen
 }
 
-Export-ModuleMember -Function Reset-CheckoutService, Measure-ServiceBaseline, Watch-NewIncidents, Initialize-NervaDemo, Start-BrowserForwards, K, Invoke-Api, Get-Incidents, Assert-StackReady, Assert-NoActiveWork,
+Export-ModuleMember -Function Approve-ThroughWebsite, Reset-CheckoutService, Measure-ServiceBaseline, Watch-NewIncidents, Initialize-NervaDemo, Start-BrowserForwards, K, Invoke-Api, Get-Incidents, Assert-StackReady, Assert-NoActiveWork,
     Get-PaymentDeployment, Reset-PaymentService, Start-TrafficGenerator, Stop-TrafficGenerator, Measure-HealthyBaseline,
     Wait-M2Quiet, Copy-OperatorToken, Wait-ForRecording, Watch-NewIncident, Write-Step, Write-Ok, Write-Note

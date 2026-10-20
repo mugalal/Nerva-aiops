@@ -20,7 +20,8 @@
 param(
     [ValidateRange(1, 10)][int]$Replicas = 3,
     [int]$WarmupMinutes = 4,
-    [switch]$NoForwards
+    [switch]$NoForwards,
+    [switch]$Rehearse   # practice run: no pauses; approves through the website gateway as a click would
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -45,9 +46,9 @@ Start-TrafficGenerator -Name 'payment-traffic' -Rps 10 -DurationSeconds 86400
 Measure-HealthyBaseline -Replicas $Replicas -WarmupMinutes $WarmupMinutes
 Wait-M2Quiet
 $known = @(@(Get-Incidents) | ForEach-Object { $_.incident_id })
-Copy-OperatorToken
+if (-not $Rehearse) { Copy-OperatorToken }
 
-Wait-ForRecording 'release the faulty v2 version'
+if (-not $Rehearse) { Wait-ForRecording 'release the faulty v2 version' }
 Assert-NoActiveWork
 $run = [DateTimeOffset]::UtcNow.ToString('yyyyMMdd-HHmmss')
 Write-Step "Releasing faulty v2 (release id demo-faulty-$run)"
@@ -67,11 +68,12 @@ K rollout status deployment/payment-service --timeout=300s | Out-Null
 Write-Ok 'faulty v2 is live'
 Write-Note 'Expected: detection within about a minute, then a ROLLBACK v2 -> v1 proposal after the 60 s settle.'
 
-$result = Watch-NewIncident -KnownIds $known -ExpectedCause 'faulty_deployment' -ExpectedAction 'ROLLBACK'
+$approve = if ($Rehearse) { { param($id, $context) Approve-ThroughWebsite $id } } else { $null }
+$result = Watch-NewIncident -KnownIds $known -ExpectedCause 'faulty_deployment' -ExpectedAction 'ROLLBACK' -OnAwaitingApproval $approve
 $deployment = Get-PaymentDeployment
 Write-Host ("payment-service now: version {0}, {1}/{2} ready" -f $deployment.spec.template.metadata.labels.version,
     $deployment.status.readyReplicas, $deployment.spec.replicas)
-[void](Read-Host 'Show the result on camera, then press Enter to reset for the next run')
+if (-not $Rehearse) { [void](Read-Host 'Show the result on camera, then press Enter to reset for the next run') }
 Assert-NoActiveWork
 Reset-PaymentService -Replicas $Replicas
 Write-Host ''

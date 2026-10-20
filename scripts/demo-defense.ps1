@@ -12,12 +12,14 @@
     4  Health check          scripts/doctor.ps1 (read-only)
 .EXAMPLE
   .\scripts\demo-defense.ps1
+.EXAMPLE
+  .\scripts\demo-defense.ps1 -Rehearse    # practice: no pauses; approvals go through the website gateway
 #>
 [CmdletBinding()]
-param([switch]$NoForwards)
+param([switch]$NoForwards, [switch]$Rehearse)   # -Rehearse: practice runs with no pauses
 $ErrorActionPreference = 'Stop'
 $scripts = $PSScriptRoot
-$forward = if ($NoForwards) { @('-NoForwards') } else { @() }
+$forward = @(); if ($NoForwards) { $forward += '-NoForwards' }; if ($Rehearse) { $forward += '-Rehearse' }
 
 while ($true) {
     Write-Host ''

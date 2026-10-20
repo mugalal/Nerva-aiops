@@ -18,7 +18,8 @@
 param(
     [int]$SpikeRps = 150,
     [int]$WarmupMinutes = 4,
-    [switch]$NoForwards
+    [switch]$NoForwards,
+    [switch]$Rehearse   # practice run: no pauses; approves through the website gateway as a click would
 )
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
@@ -38,18 +39,19 @@ Start-TrafficGenerator -Name 'payment-traffic' -Rps 10 -DurationSeconds 86400
 Measure-HealthyBaseline -Replicas 1 -WarmupMinutes $WarmupMinutes
 Wait-M2Quiet
 $known = @(@(Get-Incidents) | ForEach-Object { $_.incident_id })
-Copy-OperatorToken
+if (-not $Rehearse) { Copy-OperatorToken }
 
-Wait-ForRecording "start the $SpikeRps requests/s traffic spike"
+if (-not $Rehearse) { Wait-ForRecording "start the $SpikeRps requests/s traffic spike" }
 Assert-NoActiveWork
 Write-Step "Injecting the traffic spike: +$SpikeRps requests/s on one replica"
 Start-TrafficGenerator -Name 'payment-spike-load' -Rps $SpikeRps -DurationSeconds 1800
 Write-Note 'Expected: detection within about a minute, then a SCALE proposal after the 60 s settle.'
 
-$result = Watch-NewIncident -KnownIds $known -ExpectedCause 'traffic_spike' -ExpectedAction 'SCALE'
+$approve = if ($Rehearse) { { param($id, $context) Approve-ThroughWebsite $id } } else { $null }
+$result = Watch-NewIncident -KnownIds $known -ExpectedCause 'traffic_spike' -ExpectedAction 'SCALE' -OnAwaitingApproval $approve
 K get deployment payment-service | Out-Host
 
-[void](Read-Host 'Show the result on camera, then press Enter to reset for the next run')
+if (-not $Rehearse) { [void](Read-Host 'Show the result on camera, then press Enter to reset for the next run') }
 Stop-TrafficGenerator 'payment-spike-load'
 Assert-NoActiveWork
 Reset-PaymentService -Replicas 1
