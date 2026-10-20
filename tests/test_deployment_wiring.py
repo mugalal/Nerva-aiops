@@ -79,3 +79,17 @@ def test_no_secret_values_are_committed_in_manifests():
                     for entry in container.get("env", []):
                         if any(word in entry["name"] for word in ("TOKEN", "PASSWORD", "DATABASE_URL", "API_KEY")):
                             assert "value" not in entry, f"{path}: {entry['name']} must come from a Secret"
+
+
+def test_every_reader_of_m4_has_a_credential_when_reads_are_authenticated():
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    m4 = (root / "services/shared-nexus-api/k8s/shared-nexus-api.yaml").read_text(encoding="utf-8")
+    assert 'name: NEXUS_REQUIRE_READ_AUTH\n              value: "true"' in m4
+    assert "key: NEXUS_READ_TOKEN" in m4 and "key: NEXUS_AUDIT_HMAC_KEY" in m4
+    # M3 reads incidents and anomalies with its own read-only token; M5 with its service token.
+    assert "key: NEXUS_READ_TOKEN" in (root / "services/root-cause-analysis/k8s/root-cause-analysis.yaml").read_text(encoding="utf-8")
+    assert "M5_SHARED_API_TOKEN" in (root / "services/incident-memory/k8s/incident-memory.yaml").read_text(encoding="utf-8")
+    # The demo tooling reads M4 from inside the M4 pod with that pod's token.
+    assert "NEXUS_READ_TOKEN" in (root / "scripts/demo/NervaDemo.psm1").read_text(encoding="utf-8")
+    assert "read_headers()" in (root / "scripts/live-drill.py").read_text(encoding="utf-8")

@@ -35,6 +35,13 @@ spec:
               value: http://telemetry-intelligence:8001
             - name: SHARED_NEXUS_API_BASE_URL
               value: http://shared-nexus-api:8004
+            # Read-only credential for M4's incident and anomaly reads (least privilege:
+            # M3 never holds the ingest token, which can create incidents).
+            - name: NEXUS_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: NEXUS_READ_TOKEN
           resources:
             requests:
               cpu: 50m

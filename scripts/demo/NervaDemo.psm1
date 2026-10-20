@@ -53,6 +53,15 @@ function ConvertFrom-JsonText($Lines) {
 }
 
 function Invoke-Api([string]$Service, [string]$Path) {
+    # M4 requires a token for reads (NEXUS_REQUIRE_READ_AUTH); probes stay open. A Kubernetes API
+    # proxy request cannot carry that header, so M4 reads run inside the M4 pod with its own token.
+    if ($Service -like 'shared-nexus-api*' -and $Path -notin @('/ready', '/live', '/health')) {
+        $code = "import json, os, urllib.request`n" +
+            "token = os.environ.get('NEXUS_READ_TOKEN') or os.environ['NEXUS_INGEST_TOKEN']`n" +
+            "request = urllib.request.Request('http://127.0.0.1:8004' + '$Path', headers={'Authorization': 'Bearer ' + token})`n" +
+            "print(urllib.request.urlopen(request, timeout=30).read().decode())"
+        return ConvertFrom-JsonText ($code | K exec -i deployment/shared-nexus-api '--' python -)
+    }
     ConvertFrom-JsonText (K get --raw "/api/v1/namespaces/$script:Namespace/services/${Service}/proxy$Path")
 }
 

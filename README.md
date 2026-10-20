@@ -159,7 +159,15 @@ kubectl -n nexus-demo create secret generic nexus-runtime `
   --from-literal=POSTGRES_USER=nexus --from-literal=POSTGRES_DB=nexus --from-literal=POSTGRES_PASSWORD=$db `
   --from-literal=DATABASE_URL="postgresql://nexus:$db@postgres:5432/nexus" `
   --from-literal=NEXUS_APPROVAL_TOKEN=$(New-Secret) --from-literal=NEXUS_INGEST_TOKEN=$(New-Secret) `
-  --from-literal=M5_UI_OPERATOR_TOKEN=$(New-Secret) --from-literal=M5_OPERATOR_ID=$env:USERNAME
+  --from-literal=M5_UI_OPERATOR_TOKEN=$(New-Secret) --from-literal=M5_OPERATOR_ID=$env:USERNAME `
+  --from-literal=NEXUS_READ_TOKEN=$(New-Secret) --from-literal=NEXUS_AUDIT_HMAC_KEY=$(New-Secret)
+```
+
+`NEXUS_READ_TOKEN` is the read-only credential M3 uses (M4 requires a token on reads in Kubernetes);
+`NEXUS_AUDIT_HMAC_KEY` keys the audit hash chain. On an existing cluster, add them without touching the others:
+
+```powershell
+kubectl -n nexus-demo patch secret nexus-runtime --type merge -p (@{stringData=@{NEXUS_READ_TOKEN=(New-Secret); NEXUS_AUDIT_HMAC_KEY=(New-Secret)}} | ConvertTo-Json -Compress)
 ```
 
 The two token values must differ from each other (M4 refuses to start otherwise). To read your operator token later (for the browser page):

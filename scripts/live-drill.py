@@ -35,6 +35,13 @@ def call(method, url, body=None, headers=None, timeout=60):
         return exc.code, payload, dict(exc.headers)
 
 
+def read_headers():
+    """M4 requires a token on reads; use this pod's own credential (never printed)."""
+    token = (os.environ.get("NEXUS_READ_TOKEN") or os.environ.get("NEXUS_INGEST_TOKEN")
+             or os.environ.get("M5_SHARED_API_TOKEN"))
+    return {"Authorization": "Bearer " + token} if token else {}
+
+
 def now():
     return datetime.now(timezone.utc)
 
@@ -58,12 +65,12 @@ def main(command, *args):
         query = urllib.parse.urlencode({"service": "payment-service", "start": args[0], "end": args[1], "step_seconds": 15})
         out(call("GET", M1 + "/internal/telemetry/window?" + query, timeout=120)[1])
     elif command == "status":
-        incidents = call("GET", M4 + "/api/incidents/")[1]
+        incidents = call("GET", M4 + "/api/incidents/", headers=read_headers())[1]
         out({"m4": [(i["incident_id"], i["status"], i["anomaly_ids"][-1:] if i["anomaly_ids"] else []) for i in incidents][-6:],
              "m2": [(c["incident_id"], c["status"]) for c in call("GET", M2 + "/internal/correlation/incidents?limit=5")[1]],
              "m2_health": call("GET", M2 + "/health")[1].get("dispatch")})
     elif command == "context":
-        out(call("GET", M4 + f"/api/incidents/{args[0]}/context")[1])
+        out(call("GET", M4 + f"/api/incidents/{args[0]}/context", headers=read_headers())[1])
     elif command == "m2detail":
         out(call("GET", M2 + f"/internal/correlation/incidents/{args[0]}")[1])
     elif command == "experiment":

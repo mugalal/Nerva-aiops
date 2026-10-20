@@ -111,6 +111,30 @@ spec:
                 secretKeyRef:
                   name: nexus-runtime
                   key: NEXUS_INGEST_TOKEN
+            # Reads need a token too (probes /live, /health, /ready stay open). Readers:
+            # M3 (NEXUS_READ_TOKEN), M5 (its service token), demo tooling (inside this pod).
+            - name: NEXUS_REQUIRE_READ_AUTH
+              value: "true"
+            - name: NEXUS_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: NEXUS_READ_TOKEN
+                  optional: true
+            # Keyed audit chain: someone who can write the database cannot recompute it.
+            - name: NEXUS_AUDIT_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: NEXUS_AUDIT_HMAC_KEY
+                  optional: true
+            # Personal approver secrets (name:secret,...) for API/CLI approvals; see docs/SAFETY_CONTROLS.md.
+            - name: NEXUS_APPROVER_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: nexus-runtime
+                  key: NEXUS_APPROVER_TOKENS
+                  optional: true
             - name: NEXUS_SERVICES_CONFIG
               value: /app/config/services.yaml
             - name: M4_WORKER_CONCURRENCY
