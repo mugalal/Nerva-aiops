@@ -1,0 +1,138 @@
+{
+  "benchmark_metadata": {
+    "data_source": "synthetic: services/anomaly-engine/app/evaluation/scenarios.py (seeded generator, not cluster measurements; auth-service and search-service exist only in the generator)",
+    "reproduce": "cd services/anomaly-engine; python -m app.evaluation.compare",
+    "reverified": "2026-10-20, identical results",
+    "title": "NERVA / NEXUS Anomaly Detection Model Benchmark",
+    "timestamp": "2026-10-19T07:48:15Z",
+    "eval_seed": 2000,
+    "train_seed": 1500,
+    "tune_seed": 1000,
+    "max_fpr_budget": 0.002,
+    "severity": 1.0,
+    "services_evaluated": [
+      "auth-service",
+      "checkout-service",
+      "payment-service",
+      "search-service"
+    ],
+    "features": [
+      "cpu",
+      "memory",
+      "request_rate",
+      "latency_p95_ms",
+      "http_5xx_rate",
+      "replica_count"
+    ]
+  },
+  "dataset_breakdown": {
+    "training_samples": {
+      "auth-service": 1190,
+      "checkout-service": 1146,
+      "payment-service": 1151,
+      "search-service": 1111,
+      "total_healthy_samples": 4598
+    },
+    "tuning_normal_snapshots": 4617,
+    "held_out_normal_snapshots": 4610
+  },
+  "held_out_evaluation": {
+    "z_score_per_service": {
+      "name": "Z-Score Per-Service (Ruler)",
+      "type": "Statistical / Explainable",
+      "cutoff": 0.678,
+      "cutoff_description": "10.5 usual wobbles (std devs) from service normal baseline",
+      "precision": 0.988,
+      "recall": 1.0,
+      "f1_score": 0.994,
+      "recall_bad_deployment": 1.0,
+      "recall_traffic_spike": 1.0,
+      "false_alarm_rate_healthy_runs": 0.025,
+      "false_alarm_rate_snapshots": 0.00043,
+      "false_alarm_count": "2/4610",
+      "detection_delay_seconds": {
+        "mean": 10.0,
+        "median": 0.0,
+        "worst": 60.0
+      },
+      "missed_runs": []
+    },
+    "isolation_forest_per_service": {
+      "name": "Isolation Forest Per-Service",
+      "type": "Machine Learning (Ensemble)",
+      "cutoff": 0.644,
+      "cutoff_description": "Per-service isolation tree depth anomaly score",
+      "precision": 0.988,
+      "recall": 1.0,
+      "f1_score": 0.994,
+      "recall_bad_deployment": 1.0,
+      "recall_traffic_spike": 1.0,
+      "false_alarm_rate_healthy_runs": 0.025,
+      "false_alarm_rate_snapshots": 0.00108,
+      "false_alarm_count": "5/4610",
+      "detection_delay_seconds": {
+        "mean": 12.0,
+        "median": 0.0,
+        "worst": 225.0
+      },
+      "missed_runs": []
+    },
+    "isolation_forest_pooled": {
+      "name": "Isolation Forest Pooled (Global)",
+      "type": "Machine Learning (Single Global Model)",
+      "cutoff": 0.615,
+      "cutoff_description": "Cross-service pooled isolation tree depth anomaly score",
+      "precision": 0.96,
+      "recall": 0.9,
+      "f1_score": 0.929,
+      "recall_bad_deployment": 0.825,
+      "recall_traffic_spike": 0.975,
+      "false_alarm_rate_healthy_runs": 0.075,
+      "false_alarm_rate_snapshots": 0.00108,
+      "false_alarm_count": "5/4610",
+      "detection_delay_seconds": {
+        "mean": 21.0,
+        "median": 0.0,
+        "worst": 330.0
+      },
+      "missed_runs": [
+        "auth-service: bad_deployment x4",
+        "checkout-service: traffic_spike x1",
+        "payment-service: bad_deployment x3"
+      ]
+    },
+    "static_baseline": {
+      "name": "Static Threshold Baseline (Global)",
+      "type": "Static Thresholds (Heuristic)",
+      "cutoff": null,
+      "cutoff_description": "Static threshold limits on metrics",
+      "precision": 0.955,
+      "recall": 0.8,
+      "f1_score": 0.871,
+      "recall_bad_deployment": 1.0,
+      "recall_traffic_spike": 0.6,
+      "false_alarm_rate_healthy_runs": 0.075,
+      "false_alarm_rate_snapshots": 0.0013,
+      "false_alarm_count": "6/4610",
+      "detection_delay_seconds": {
+        "mean": 4.0,
+        "median": 0.0,
+        "worst": 45.0
+      },
+      "missed_runs": [
+        "auth-service: traffic_spike x7",
+        "checkout-service: traffic_spike x5",
+        "payment-service: traffic_spike x4"
+      ]
+    }
+  },
+  "conclusions": {
+    "chosen_production_model": "z_score_per_service",
+    "rationale": [
+      "Identical F1 score (0.994) to Isolation Forest with 60% fewer false alarms (2 vs 5 out of 4610 normal snapshots, 0.04% vs 0.11%).",
+      "Significantly faster worst-case detection latency (60s vs 225s for Isolation Forest and 330s for pooled forest).",
+      "Zero false negatives across all four microservices and scenarios.",
+      "Complete mathematical explainability and zero non-deterministic tree splits, critical for automated remediation safety."
+    ]
+  }
+}

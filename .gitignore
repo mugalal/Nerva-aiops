@@ -23,3 +23,9 @@ services/telemetry-intelligence/data/
 *.egg-info/
 /data/
 /scratch/
+# Generated document exports (PDF/HTML builds of the guides); regenerate them, never commit binaries.
+/output/
+
+# This repository is public: personal documents never belong in it (keep them outside the project folder).
+/*Resume*
+/*Cover_Letter*
