@@ -100,6 +100,62 @@ data:
           "targets": [{"expr": "count(nexus_service_info{service_name=\"payment-service\"})", "legendFormat": "replicas", "refId": "A"}],
           "title": "Replica count",
           "type": "stat"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 24},
+          "id": 7,
+          "title": "checkout-service (calls payment-service) and CPU throttling",
+          "type": "row"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 25},
+          "id": 8,
+          "targets": [
+            {"expr": "sum(rate(nexus_http_requests_total{service_name=\"checkout-service\",route=\"/checkout\"}[1m]))", "legendFormat": "checkout requests", "refId": "A"},
+            {"expr": "sum(rate(nexus_http_requests_total{service_name=\"payment-service\",route=\"/pay\"}[1m]))", "legendFormat": "payment requests", "refId": "B"}
+          ],
+          "title": "Request rate: checkout and payment",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 25},
+          "id": 9,
+          "targets": [
+            {"expr": "histogram_quantile(0.95, sum by (le) (rate(nexus_http_request_duration_seconds_bucket{service_name=\"checkout-service\",route=\"/checkout\"}[1m]))) * 1000", "legendFormat": "checkout p95", "refId": "A"},
+            {"expr": "histogram_quantile(0.95, sum by (le) (rate(nexus_http_request_duration_seconds_bucket{service_name=\"payment-service\",route=\"/pay\"}[1m]))) * 1000", "legendFormat": "payment p95", "refId": "B"}
+          ],
+          "title": "P95 latency: checkout and payment",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "description": "Share of CFS periods in which the container's CPU limit throttled it (from each pod's own cgroup cpu.stat).",
+          "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 33},
+          "id": 10,
+          "targets": [
+            {"expr": "100 * sum(rate(nexus_cpu_cfs_throttled_periods_total{service_name=\"payment-service\"}[1m])) / clamp_min(sum(rate(nexus_cpu_cfs_periods_total{service_name=\"payment-service\"}[1m])), 0.000001)", "legendFormat": "payment throttled", "refId": "A"},
+            {"expr": "100 * sum(rate(nexus_cpu_cfs_throttled_periods_total{service_name=\"checkout-service\"}[1m])) / clamp_min(sum(rate(nexus_cpu_cfs_periods_total{service_name=\"checkout-service\"}[1m])), 0.000001)", "legendFormat": "checkout throttled", "refId": "B"}
+          ],
+          "title": "CPU throttling (CFS periods throttled)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {"defaults": {"decimals": 0, "min": 0, "unit": "short"}, "overrides": []},
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 33},
+          "id": 11,
+          "targets": [
+            {"expr": "count(nexus_service_info{service_name=\"checkout-service\"})", "legendFormat": "checkout replicas", "refId": "A"},
+            {"expr": "count(nexus_service_info{service_name=\"payment-service\"})", "legendFormat": "payment replicas", "refId": "B"}
+          ],
+          "title": "Replicas: checkout and payment",
+          "type": "timeseries"
         }
       ],
       "refresh": "5s",
