@@ -15,6 +15,8 @@ import queue
 import random
 import socket
 import time
+import urllib.error
+import urllib.request
 
 import anyio
 from fastapi import FastAPI, Request, Response
@@ -41,6 +43,10 @@ if not 1 <= PAYMENT_MAX_CONCURRENCY <= 40:
 # Queue CPU work asynchronously instead of competing with probes in the
 # default 40-worker pool. Waiting remains part of measured payment latency.
 payment_cpu_limiter = anyio.CapacityLimiter(PAYMENT_MAX_CONCURRENCY)
+# checkout-service runs this same instrumented app (SERVICE_NAME=checkout-service): every
+# /checkout calls payment-service, so a payment problem really reaches its callers.
+DOWNSTREAM_PAY_URL = os.getenv("DOWNSTREAM_PAY_URL", "")
+DOWNSTREAM_TIMEOUT_SECONDS = float(os.getenv("DOWNSTREAM_TIMEOUT_SECONDS", "10"))
 LOG_QUEUE_MAX_RECORDS = int(os.getenv("LOG_QUEUE_MAX_RECORDS", "1024"))
 if not 1 <= LOG_QUEUE_MAX_RECORDS <= 100_000:
     raise ValueError("LOG_QUEUE_MAX_RECORDS must be between 1 and 100000")
@@ -312,6 +318,41 @@ async def pay(response: Response) -> dict:
         logger.error("simulated payment failure")
         return {"ok": False, "error": "simulated v2 failure", "version": VERSION}
 
+    return {"ok": True, "version": VERSION}
+
+
+def _call_payment() -> int:
+    request = urllib.request.Request(DOWNSTREAM_PAY_URL, data=b"{}", method="POST",
+                                     headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=DOWNSTREAM_TIMEOUT_SECONDS) as reply:
+            return reply.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return 0
+
+
+@app.post("/checkout")
+async def checkout(response: Response) -> dict:
+    """Checkout = this service's own work, then a payment call. A failed payment fails the checkout."""
+    if not DOWNSTREAM_PAY_URL:
+        response.status_code = 404
+        return {"ok": False, "error": "checkout is not enabled on this service"}
+    if PAYMENT_WORK_ITERATIONS:
+        await anyio.to_thread.run_sync(
+            hashlib.pbkdf2_hmac,
+            "sha256", b"nexus-demo-checkout", b"nexus-demo-fixed-salt",
+            PAYMENT_WORK_ITERATIONS,
+            limiter=payment_cpu_limiter,
+        )
+    if FAULT_LATENCY_MS:
+        await asyncio.sleep(FAULT_LATENCY_MS / 1000.0)
+    status = await anyio.to_thread.run_sync(_call_payment)
+    if status != 200:
+        response.status_code = 502
+        logger.error("payment call failed during checkout", extra={"downstream_status": status})
+        return {"ok": False, "error": "payment failed", "downstream_status": status, "version": VERSION}
     return {"ok": True, "version": VERSION}
 
 

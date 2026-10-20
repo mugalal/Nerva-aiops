@@ -29,6 +29,8 @@ spec:
               value: 0.1.0
             - name: ENVIRONMENT
               value: integration
+            - name: M2_POLL_SERVICES
+              value: payment-service,checkout-service
             - name: M2_POLL_ENABLED
               value: "true"
             - name: M2_HANDOFF_ENABLED

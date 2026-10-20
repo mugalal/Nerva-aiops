@@ -12,11 +12,11 @@ metadata:
 rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
-    resourceNames: ["payment-service"]
+    resourceNames: ["payment-service", "checkout-service"]
     verbs: ["get", "list", "patch", "watch"]
   - apiGroups: ["apps"]
     resources: ["deployments/scale"]
-    resourceNames: ["payment-service"]
+    resourceNames: ["payment-service", "checkout-service"]
     verbs: ["get", "patch", "update"]
   - apiGroups: ["apps"]
     resources: ["replicasets"]

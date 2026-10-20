@@ -1,10 +1,11 @@
 # NEXUS service registry: the remediation policy enforced by M4 and M6.
 # Semantics and loading rules: shared/registry.py.
 #
-# Only payment-service is listed because it is the only workload in this
-# repository that M1 scrapes and that runs as a Kubernetes Deployment.
-# Adding an entry grants guardrails; it does not create telemetry or an
-# actuator. See config/services.multi-example.yaml for the multi-service shape.
+# Two real workloads: payment-service, and checkout-service, which calls it
+# (apps/demo-microservices/k8s/checkout-service.yaml). Adding an entry grants
+# guardrails; it does not create telemetry: M1 also needs the service's route
+# (M1_SERVICE_ROUTES) and health URL (M1_SERVICE_HEALTH_URLS), and M2 must poll
+# it (M2_POLL_SERVICES).
 version: 1
 services:
   - name: payment-service
@@ -19,4 +20,18 @@ services:
       min_replicas: 1
       max_replicas: 10
       max_scale_step: 7
+      approval: always
+  - name: checkout-service
+    namespace: nexus-demo
+    workload:
+      kind: Deployment
+      name: checkout-service
+    tier: critical          # informational only
+    depends_on: [payment-service]   # never scaled while payment-service has an open incident
+    remediation:
+      actions: [SCALE]
+      min_replicas: 1
+      max_replicas: 6
+      max_scale_step: 4
+      max_scale_down_step: 2
       approval: always

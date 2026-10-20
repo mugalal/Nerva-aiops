@@ -101,6 +101,11 @@ spec:
               value: http://loki:3100
             - name: PAYMENT_SERVICE_BASE_URL
               value: http://payment-service
+            # Further services: their business route and health URL (config.parse_pairs).
+            - name: M1_SERVICE_ROUTES
+              value: checkout-service=/checkout
+            - name: M1_SERVICE_HEALTH_URLS
+              value: checkout-service=http://checkout-service
             - name: M1_DATA_DIR
               value: /data
             - name: M1_REQUEST_RATE_WINDOW

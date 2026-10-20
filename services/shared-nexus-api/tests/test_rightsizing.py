@@ -75,6 +75,8 @@ def test_registry_scale_down_limits():
 
 @pytest.fixture
 def telemetry(monkeypatch):
+    # One registered service, so each sweep has exactly one candidate; the fake telemetry serves any service.
+    registry.set_registry(registry.default_registry())
     state = {"window": window(), "baseline": BASELINE}
     monkeypatch.setattr(telemetry_provider, "get_window", lambda service, start, end, step_seconds=15: state["window"])
     monkeypatch.setattr(telemetry_provider, "get_baseline", lambda service: state["baseline"])

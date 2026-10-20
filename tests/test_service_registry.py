@@ -37,9 +37,23 @@ def test_default_registry_has_payment_service():
 
 
 def test_repository_registry_lists_only_services_with_telemetry_and_a_workload():
+    import re
+    root = ROOT
     reg = load()
-    assert reg.allowed_services() == {"payment-service"}
+    assert reg.allowed_services() == {"payment-service", "checkout-service"}
     assert registry.registry_info()["source"].endswith("services.yaml")
+    manifests = "\n".join(path.read_text(encoding="utf-8") for path in (root / "apps/demo-microservices/k8s").glob("*.yaml"))
+    m1 = (root / "services/telemetry-intelligence/k8s/telemetry-intelligence.yaml").read_text(encoding="utf-8")
+    m2 = (root / "services/anomaly-engine/k8s/anomaly-engine.yaml").read_text(encoding="utf-8")
+    m4 = (root / "services/shared-nexus-api/k8s/shared-nexus-api.yaml").read_text(encoding="utf-8")
+    for service in reg.allowed_services():
+        # A workload to act on, telemetry M1 can measure, M2 watching it, and M4 allowed to scale it.
+        assert re.search(rf"kind: Deployment\nmetadata:\n  name: {service}\n", manifests), service
+        assert service == "payment-service" or f"{service}=/" in m1, service
+        assert service == "payment-service" or f"{service}=http://" in m1, service
+        assert service in m2.split("M2_POLL_SERVICES", 1)[1].split("\n")[1], service
+        assert f'"{service}"' in m4, service
+    assert reg.target_for("checkout-service").depends_on == ["payment-service"]
 
 
 def test_multi_service_example_is_valid_but_not_loaded_by_default():
