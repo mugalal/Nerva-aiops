@@ -149,12 +149,13 @@ function Reset-PaymentService([int]$Replicas) {
     Write-Ok 'M2 restarted'
 }
 
-function Start-TrafficGenerator([string]$Name, [int]$Rps, [int]$DurationSeconds) {
+function Start-TrafficGenerator([string]$Name, [int]$Rps, [int]$DurationSeconds,
+                                [string]$Target = 'http://payment-service/pay') {
     K create configmap payment-traffic-script "--from-file=k8s-traffic.py=$(Join-Path $script:Root 'scripts/k8s-traffic.py')" --dry-run=client -o json |
         K apply -f - | Out-Null
     K delete pod $Name --ignore-not-found --wait=true | Out-Null
     $env = @(
-        @{ name = 'TARGET_URL'; value = 'http://payment-service/pay' }, @{ name = 'RPS'; value = "$Rps" },
+        @{ name = 'TARGET_URL'; value = $Target }, @{ name = 'RPS'; value = "$Rps" },
         @{ name = 'DURATION_SECONDS'; value = "$DurationSeconds" }, @{ name = 'MAX_IN_FLIGHT'; value = '500' },
         @{ name = 'REQUEST_TIMEOUT_SECONDS'; value = '10' }, @{ name = 'REPORT_INTERVAL_SECONDS'; value = '10' })
     $pod = @{
@@ -173,7 +174,7 @@ function Start-TrafficGenerator([string]$Name, [int]$Rps, [int]$DurationSeconds)
     $pod | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $file -Encoding utf8
     K apply -f $file | Out-Null
     K wait --for=condition=Ready "pod/$Name" --timeout=120s | Out-Null
-    Write-Ok "$Name running at $Rps requests/s"
+    Write-Ok "$Name running at $Rps requests/s -> $Target"
 }
 
 function Stop-TrafficGenerator([string]$Name) { K delete pod $Name --ignore-not-found | Out-Null; Write-Ok "$Name stopped" }
@@ -291,6 +292,63 @@ function Watch-NewIncident {
     Write-Note "Stopped watching after $TimeoutMinutes minutes. Check the website; nothing was changed."
 }
 
-Export-ModuleMember -Function Initialize-NervaDemo, Start-BrowserForwards, K, Invoke-Api, Get-Incidents, Assert-StackReady, Assert-NoActiveWork,
+function Reset-CheckoutService([int]$Replicas = 1) {
+    Write-Step "Resetting checkout-service to $Replicas replica(s)"
+    K scale deployment/checkout-service "--replicas=$Replicas" | Out-Null
+    K rollout status deployment/checkout-service --timeout=300s | Out-Null
+    Write-Ok "$Replicas ready checkout-service replica(s)"
+}
+
+function Measure-ServiceBaseline([string]$Service) {
+    Write-Step "Measuring the healthy baseline for $Service (M1)"
+    $result = @(Invoke-Drill baseline $Service)
+    $baseline = $result[1]
+    if ($result[0] -ne 200 -or $baseline.sample_count -lt 5 -or $baseline.http_5xx_rate.maximum -ne 0) {
+        $result | ConvertTo-Json -Depth 12 | Out-Host
+        throw "Healthy baseline for $Service failed. Let traffic run longer and rerun."
+    }
+    Write-Ok ("{0}: {1:N1} req/s, p95 {2:N2} ms, recovery ceiling {3:N2} ms" -f $Service, $baseline.request_rate.average,
+        $baseline.latency_p95_ms.average, $baseline.thresholds.latency_p95_ms_max)
+}
+
+# Follows every new incident (any service) until all of them are RESOLVED or ESCALATED.
+function Watch-NewIncidents {
+    param([string[]]$KnownIds, [int]$Expected = 2, [int]$TimeoutMinutes = 20, [scriptblock]$OnAwaitingApproval)
+    Write-Step "Watching the new incidents. Ctrl+C stops watching only."
+    $deadline = [DateTimeOffset]::UtcNow.AddMinutes($TimeoutMinutes)
+    $seen = @{}; $announced = @{}
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        $new = @(@(Get-Incidents) | Where-Object { $_.incident_id -notin $KnownIds })
+        foreach ($incident in $new) {
+            $id = $incident.incident_id
+            $context = Invoke-Api 'shared-nexus-api:8004' "/api/incidents/$id/context"
+            $status = $context.incident.status
+            if ($seen[$id] -ne $status) {
+                Write-Host ("    {0}  {1,-44} {2}" -f [DateTime]::Now.ToString('HH:mm:ss'), $id, $status)
+                if ($status -in 'AWAITING_APPROVAL', 'ESCALATED' -and $context.decision.reason) { Write-Host "        $($context.decision.reason)" }
+                if ($context.workflow.blocked_by) { Write-Host "        dependency guard: blocked by $($context.workflow.blocked_by.dependency) ($($context.workflow.blocked_by.incident_id))" -ForegroundColor Yellow }
+                $seen[$id] = $status
+            }
+            if ($status -eq 'AWAITING_APPROVAL' -and -not $announced[$id]) {
+                $announced[$id] = $true
+                if ($OnAwaitingApproval) { & $OnAwaitingApproval $id $context }
+                else { Write-Host "    >>> Open $id on the website, paste the token (Ctrl+V) and review the proposal." -ForegroundColor Magenta }
+            }
+        }
+        if ($seen.Count -ge $Expected -and @($seen.Values | Where-Object { $_ -notin 'RESOLVED', 'ESCALATED' }).Count -eq 0) {
+            foreach ($id in $seen.Keys) {
+                $context = Invoke-Api 'shared-nexus-api:8004' "/api/incidents/$id/context"
+                $context | ConvertTo-Json -Depth 50 | Set-Content -LiteralPath (Join-Path $script:RunDir "$id.json") -Encoding utf8
+            }
+            Write-Ok "evidence saved in $script:RunDir"
+            return $seen
+        }
+        Start-Sleep -Seconds 10
+    }
+    Write-Note "Stopped watching after $TimeoutMinutes minutes. Check the website; nothing was changed."
+    return $seen
+}
+
+Export-ModuleMember -Function Reset-CheckoutService, Measure-ServiceBaseline, Watch-NewIncidents, Initialize-NervaDemo, Start-BrowserForwards, K, Invoke-Api, Get-Incidents, Assert-StackReady, Assert-NoActiveWork,
     Get-PaymentDeployment, Reset-PaymentService, Start-TrafficGenerator, Stop-TrafficGenerator, Measure-HealthyBaseline,
     Wait-M2Quiet, Copy-OperatorToken, Wait-ForRecording, Watch-NewIncident, Write-Step, Write-Ok, Write-Note

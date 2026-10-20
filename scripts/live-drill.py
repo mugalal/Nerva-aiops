@@ -57,9 +57,9 @@ def out(value):
 def main(command, *args):
     if command == "snapshot":
         out(call("GET", M1 + "/internal/telemetry/snapshot?service=payment-service")[:2])
-    elif command == "baseline":
+    elif command == "baseline":                 # optional service name; default payment-service
         end = now() - timedelta(seconds=15)
-        out(call("POST", M1 + "/internal/baselines/measure", {"service": "payment-service",
+        out(call("POST", M1 + "/internal/baselines/measure", {"service": args[0] if args else "payment-service",
             "start": (end - timedelta(seconds=75)).isoformat(), "end": end.isoformat(), "step_seconds": 15})[:2])
     elif command == "window":
         query = urllib.parse.urlencode({"service": "payment-service", "start": args[0], "end": args[1], "step_seconds": 15})
