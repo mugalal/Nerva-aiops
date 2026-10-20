@@ -341,4 +341,5 @@ If pytest fails with a temp-folder permission error on Windows, add `--basetemp 
 | Incident stays in `VALIDATING` | Recovery is not measured yet: keep the traffic running (and v1 restored after a faulty release) until the hold window passes |
 | Copilot: "usage or quota limit was reached" | Gemini free quota used up; switch `M5_LLM_MODEL` to `gemini-3.5-flash-lite` and rerun `start-stack.ps1 -NoBuild` |
 | Web page looks outdated | Hard refresh with **Ctrl+F5** |
+| M2 health says `degraded: checkout-service telemetry_missing` | checkout-service has no traffic, so there is nothing to measure or score. Start its demo load (`.\scripts\demo-cascade.ps1` does) or ignore it while only payment-service is demonstrated |
 | Before a live demo | `.\scripts\doctor.ps1` checks the cluster read-only; `.\scripts\demo-defense.ps1` runs the scenarios |
