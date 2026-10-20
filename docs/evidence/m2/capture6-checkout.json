@@ -1,0 +1,676 @@
+{
+  "format": 1,
+  "service": "checkout-service",
+  "step_seconds": 15,
+  "m1_url": "http://telemetry-intelligence:8001",
+  "recorded_at": "2026-10-20T02:21:41.466000Z",
+  "events": [
+    {
+      "at": "2026-10-20T02:09:39.233Z",
+      "event": "healthy traffic running: checkout 5/s, payment 10/s"
+    },
+    {
+      "at": "2026-10-20T02:17:39.248Z",
+      "event": "spike started: +60 checkouts/s"
+    },
+    {
+      "at": "2026-10-20T02:21:40.148Z",
+      "event": "spike stopped"
+    }
+  ],
+  "runs": [
+    {
+      "run_id": "healthy-1",
+      "scenario": "healthy",
+      "start": "2026-10-20T02:09:39.233000Z",
+      "end": "2026-10-20T02:17:38.248000Z",
+      "fault_start": null
+    },
+    {
+      "run_id": "traffic_spike-1",
+      "scenario": "traffic_spike",
+      "start": "2026-10-20T02:14:39.248000Z",
+      "end": "2026-10-20T02:21:40.148000Z",
+      "fault_start": "2026-10-20T02:17:39.248000Z"
+    }
+  ],
+  "points": [
+    {
+      "timestamp": "2026-10-20T02:09:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.03777861730260774,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580302,
+        "latency_p95_ms": 9.850230414746544,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:09:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.03778029646420974,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 9.671945701357467,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:10:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04000177785679389,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 12.019230769230772,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:10:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.0404471409205044,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 12.019230769230743,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:10:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04355749144406373,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 19.181034482758616,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:10:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.044891881681000556,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 19.556451612903224,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:11:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04577981243610832,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 20.312499999999993,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:11:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.041780563148654255,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 16.118421052631568,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:11:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.039557313658385475,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 13.75,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:11:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.039559071917504435,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000444483954129,
+        "latency_p95_ms": 12.946428571428534,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:12:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.0408897975510574,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580302,
+        "latency_p95_ms": 15.624999999999996,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:12:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.040890706253610715,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 12.187500000000007,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:12:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.039556434587435935,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580302,
+        "latency_p95_ms": 9.895833333333334,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:12:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04000266684445529,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 9.850230414746544,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:13:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.0404462420552023,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 9.988317757009346,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:13:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04311302724565405,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 13.173076923076911,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:13:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04177870619347086,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580302,
+        "latency_p95_ms": 16.907894736842103,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:13:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04089161499655604,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 15.07352941176469,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:14:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.0404462420552023,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 18.509615384615373,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:14:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.042225975642278805,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000444483954129,
+        "latency_p95_ms": 18.249999999999986,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:14:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04400195564247214,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 18.749999999999996,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:14:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04178056314865552,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 12.019230769230743,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:15:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.0413342518722654,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580303,
+        "latency_p95_ms": 10.937499999999979,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:15:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.03911284945997706,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 9.895833333333334,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:15:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.03911198026622793,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580302,
+        "latency_p95_ms": 9.941860465116278,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:15:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.037780296464208475,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 9.671945701357467,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:16:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.040445343229848135,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580302,
+        "latency_p95_ms": 14.453124999999993,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:16:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04355845945285196,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.0003333555570375,
+        "latency_p95_ms": 17.96875,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:16:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04533333333333378,
+        "memory": 0.1082916259765625,
+        "request_rate": 4.999999999999999,
+        "latency_p95_ms": 18.97321428571428,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:16:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.045781847275314674,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000444483954129,
+        "latency_p95_ms": 17.968749999999993,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:17:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.045335348237699906,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000222232099205,
+        "latency_p95_ms": 16.56249999999999,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:17:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.045337363321183294,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000444483954129,
+        "latency_p95_ms": 17.329545454545446,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:17:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.04311206915709233,
+        "memory": 0.1082916259765625,
+        "request_rate": 5.000111113580302,
+        "latency_p95_ms": 14.453124999999993,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:17:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.0711142717454094,
+        "memory": 0.1082916259765625,
+        "request_rate": 8.600382239210631,
+        "latency_p95_ms": 16.707142857142863,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:18:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.22667170381564136,
+        "memory": 0.1082916259765625,
+        "request_rate": 28.600635569679326,
+        "latency_p95_ms": 18.306390977443606,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:18:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.38269217947863127,
+        "memory": 0.1082916259765625,
+        "request_rate": 48.603240216014406,
+        "latency_p95_ms": 18.382543103448285,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:18:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.5026778372852745,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.00144447654394,
+        "latency_p95_ms": 17.699468085106375,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:18:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.5071449207724958,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.00433362224149,
+        "latency_p95_ms": 18.520642201834857,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:19:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.5097891064245884,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.02366719260428,
+        "latency_p95_ms": 19.987603305785118,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:19:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.4840430260467591,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.00577829140367,
+        "latency_p95_ms": 19.093450479233223,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:19:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.4715765145117554,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.00288901728966,
+        "latency_p95_ms": 19.122596153846146,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:19:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.4493632908860572,
+        "memory": 0.1082916259765625,
+        "request_rate": 64.98210991843901,
+        "latency_p95_ms": 15.795744680851042,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:20:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.4657777777777785,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.02222222222221,
+        "latency_p95_ms": 16.95353159851299,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:20:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.44136275751716814,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.02655732604396,
+        "latency_p95_ms": 9.980969479353679,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:20:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.42401884528201345,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.00288901728966,
+        "latency_p95_ms": 9.82237539766702,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:20:54Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.4058228692076895,
+        "memory": 0.1082916259765625,
+        "request_rate": 64.98499833314813,
+        "latency_p95_ms": 9.682119205298013,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:21:09Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.41467588168626024,
+        "memory": 0.1082916259765625,
+        "request_rate": 64.97922176048357,
+        "latency_p95_ms": 9.794781382228491,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:21:24Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.41736115741049346,
+        "memory": 0.1082916259765625,
+        "request_rate": 65.00433362224149,
+        "latency_p95_ms": 9.770569620253163,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    },
+    {
+      "timestamp": "2026-10-20T02:21:39Z",
+      "service": "checkout-service",
+      "version": "v1",
+      "metrics": {
+        "cpu": 0.44533333333333247,
+        "memory": 0.1082916259765625,
+        "request_rate": 64.99999999999999,
+        "latency_p95_ms": 11.19897959183671,
+        "http_5xx_rate": 0.0,
+        "replica_count": 1
+      }
+    }
+  ]
+}

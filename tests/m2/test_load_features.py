@@ -61,7 +61,8 @@ def test_committed_reference_on_held_out_genuine_data():
     """The frozen reference keeps fault detection on capture3 and stops alarming on a
     healthy, scaled-out workload measured in the isolated cluster."""
     reference = reference_mod.load_reference(ROOT / "services/anomaly-engine/reference/reference.json")
-    assert reference.trained_on == ("capture1.json", "capture2.json")
+    # payment-service from capture1-2; checkout-service from capture4-5 (both recorded on the kind cluster).
+    assert reference.trained_on == ("capture1.json", "capture2.json", "capture4-checkout.json", "capture5-checkout.json")
     faults = heldout.fault_metrics(reference, json.loads((EVIDENCE / "m2/capture3.json").read_text()))
     assert faults["bad_deployment"]["recall"] >= 0.9 and faults["traffic_spike"]["recall"] >= 0.9
     assert faults["bad_deployment"]["detection_latency_s"] <= 60 and faults["traffic_spike"]["detection_latency_s"] <= 60
@@ -87,3 +88,16 @@ def test_a_spike_beyond_capacity_still_scores_its_change():
     spike = vector(548, 1)
     spike[FEATURES.index("request_rate_change")] = 5.0
     assert ruler.explain("svc", spike)[FEATURES.index("request_rate_change")] > 0
+
+
+def test_committed_reference_on_held_out_checkout_capture():
+    """checkout-service: capture6 was recorded after the reference was frozen and never used to train it."""
+    final = m2_loader.module("realdata.final")
+    reference = reference_mod.load_reference(ROOT / "services/anomaly-engine/reference/reference.json")
+    assert set(reference.services) == {"payment-service", "checkout-service"}
+    assert "capture6-checkout.json" not in reference.trained_on
+    results, _ = final.run_evaluate([str(EVIDENCE / "m2/capture6-checkout.json")], reference)
+    by_scenario = {r.scenario: r for r in results}
+    assert by_scenario["traffic_spike"].detected and by_scenario["traffic_spike"].detection_delay_s <= 60
+    assert by_scenario["healthy"].prediction is False
+    assert all(r.false_alert_snapshots == 0 for r in results)

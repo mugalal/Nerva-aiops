@@ -43,8 +43,9 @@ each run, so use the manual Demo 2 steps if you want to show this.
 
 `checkout-service` (apps/demo-microservices/k8s/checkout-service.yaml) runs the same instrumented demo app
 and calls payment-service on every `POST /checkout`. It is registered with `depends_on: [payment-service]`,
-measured by M1 on `/checkout`, and watched by M2 with the threshold detector (the frozen z-score reference is
-trained on payment-service only). When load on checkout overloads payment-service, M4 proposes scaling
+measured by M1 on `/checkout`, and scored by M2's per-service z-score with its own reference, trained on two real
+captures from the cluster and evaluated on a third held-out capture (precision 1.0, recall 1.0, 0 of 43 false
+alarms; see docs/evidence/LIVE_DRILLS_2026-10-20.md). When load on checkout overloads payment-service, M4 proposes scaling
 payment-service and escalates the checkout incident instead of scaling the caller.
 
 ## What is still future work

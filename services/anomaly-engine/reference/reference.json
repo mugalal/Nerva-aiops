@@ -1,10 +1,12 @@
 {
   "format": 1,
   "detector": "z_score_per_service",
-  "created": "2026-10-10T19:26:12Z",
+  "created": "2026-10-20T02:06:51Z",
   "trained_on": [
     "capture1.json",
-    "capture2.json"
+    "capture2.json",
+    "capture4-checkout.json",
+    "capture5-checkout.json"
   ],
   "feature_order": [
     "request_rate",
@@ -50,6 +52,29 @@
         0.001,
         0.01
       ]
+    },
+    "checkout-service": {
+      "n": 90,
+      "mean": [
+        5.000279042581668,
+        4.960770215057983e-07,
+        16.791953181644683,
+        0.02580129500805238,
+        0.0,
+        0.04338515767642396,
+        0.1087799072265625,
+        1.0
+      ],
+      "spread": [
+        0.05000279042581668,
+        0.001,
+        4.517064631574363,
+        0.15786737009350077,
+        0.001,
+        0.004005581514978979,
+        0.001087799072265625,
+        0.01
+      ]
     }
   },
   "evaluation": {
@@ -64,6 +89,24 @@
       "live/onset-alert/m2-detail.json"
     ],
     "report": "docs/evidence/hardening-2026-10-10/m2/heldout-evaluation.json",
-    "caveat": "Rule-design windows are in-sample for false-alarm claims; only capture3 and the independent window are held out."
+    "caveat": "Rule-design windows are in-sample for false-alarm claims; only capture3 and the independent window are held out.",
+    "checkout_service": {
+      "training_captures": [
+        "capture4-checkout.json",
+        "capture5-checkout.json"
+      ],
+      "held_out_fault_capture": "capture6-checkout.json (recorded after training data was frozen; never used for training)",
+      "held_out_result": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "false_alarms": "0/43 normal readings",
+        "detection_delay_worst_s": 0
+      },
+      "threshold_fallback_on_same_capture": {
+        "auc": 0.594,
+        "fault_readings_above_normal_max": "19%"
+      },
+      "payment_service_unchanged": "payment-service statistics and the alert line are identical to the previous reference; capture3 held-out results are identical (precision 1.0, recall 1.0, 0/64)"
+    }
   }
 }
