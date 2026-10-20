@@ -55,10 +55,12 @@ spec:
                   fieldPath: metadata.name
             - name: DOWNSTREAM_PAY_URL
               value: "http://payment-service/pay"
+            # A light front service: payment-service does the heavy work, so a checkout
+            # surge becomes a payment overload (the dependency-guard scenario).
             - name: PAYMENT_WORK_ITERATIONS
-              value: "20000"
+              value: "1000"
             - name: PAYMENT_MAX_CONCURRENCY
-              value: "2"
+              value: "8"
             - name: CPU_LIMIT_CORES
               value: "0.5"
             - name: MEMORY_LIMIT_BYTES

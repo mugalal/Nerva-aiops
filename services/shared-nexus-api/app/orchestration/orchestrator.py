@@ -242,8 +242,17 @@ def _gather_diagnosis(attempt):
         _checkpoint_rca(attempt, rca, mode)
     result = decide_from_rca(rca)
     finops, finops_error = None, None
+    scaling = rca["root_cause"] == "traffic_spike" and rca["confidence"] >= MIN_RCA_CONFIDENCE
+    # The dependency check comes before any capacity costing: if a service this one
+    # calls is the problem, more replicas here only add load to it, whatever M6 offers.
+    blocked = degraded_dependencies(service, incident_id) if scaling else []
+    if blocked:
+        dependency, other = blocked[0]
+        result = _escalation(rca, f"{service} depends on {dependency}, which has open incident {other}. "
+                                  f"Adding {service} replicas would add load to the struggling dependency; "
+                                  f"fix {dependency} first.")
     # FinOps is needed only for a confident scaling diagnosis.
-    if rca["root_cause"] == "traffic_spike" and rca["confidence"] >= MIN_RCA_CONFIDENCE:
+    elif scaling:
         try:
             _use(attempt, "finops")
             finops = get_finops_context(service)
@@ -261,13 +270,6 @@ def _gather_diagnosis(attempt):
                 validate_scale_step(finops["current_replicas"], replicas, service=service)
         except ValueError as exc:
             result = _escalation(rca, f"Proposed action is outside the service registry guardrails: {exc}")
-    if result.action == DecisionAction.SCALE:
-        blocked = degraded_dependencies(service, incident_id)
-        if blocked:
-            dependency, other = blocked[0]
-            result = _escalation(rca, f"{service} depends on {dependency}, which has open incident {other}. "
-                                      f"Adding {service} replicas would add load to the struggling dependency; "
-                                      f"fix {dependency} first.")
     hpa = None
     if result.action == DecisionAction.SCALE:
         try:

@@ -53,3 +53,15 @@ def test_dependencies_are_directional():
     assert orchestrator.degraded_dependencies("payment-service", "INC-X") == []
     _create("INC-CART", "cart-service")
     assert orchestrator.degraded_dependencies("payment-service", "INC-PAY") == [("cart-service", "INC-CART")]
+
+
+def test_the_dependency_is_named_even_when_finops_has_no_safe_option(monkeypatch):
+    """Live drill finding: M6 offered only a HIGH-risk step, so the escalation said 'no safe action'
+    and never mentioned that the dependency was the problem. The dependency check now comes first."""
+    calls = []
+    monkeypatch.setattr(orchestrator, "get_finops_context", lambda service: calls.append(service) or {})
+    _create("INC-CART", "cart-service")
+    _create("INC-PAY", "payment-service")
+    result = orchestrator.build_decision("INC-PAY")
+    assert result.action == DecisionAction.ESCALATE and "depends on cart-service" in result.reason
+    assert calls == []  # no capacity costing for a service that must not be scaled
