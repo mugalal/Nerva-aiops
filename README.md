@@ -140,6 +140,9 @@ docker build --build-arg VERSION=v1 -t nexus/payment-service:v1 apps/demo-micros
 docker build --build-arg VERSION=v2 -t nexus/payment-service:v2 apps/demo-microservices/payment-service
 kind load docker-image nexus/payment-service:v1 --name nexus
 kind load docker-image nexus/payment-service:v2 --name nexus
+# checkout-service: the same demo app under another name; every checkout calls payment-service
+docker build --build-arg VERSION=v1 -t nexus/checkout-service:v1 apps/demo-microservices/payment-service
+kind load docker-image nexus/checkout-service:v1 --name nexus
 ```
 
 *(If `kind load` fails for the PostgreSQL image, see the note in `docs/FULL_STACK_VERIFICATION.md`.)*
@@ -172,6 +175,7 @@ kubectl apply -f observability/k8s/postgres.yaml
 kubectl rollout status -n nexus-demo statefulset/postgres --timeout=180s
 kubectl apply -f observability/k8s/prometheus.yaml -f observability/k8s/loki.yaml -f observability/k8s/alloy.yaml
 kubectl apply -f apps/demo-microservices/k8s/payment-service.yaml
+kubectl apply -f apps/demo-microservices/k8s/checkout-service.yaml   # second service; depends on payment-service
 kubectl apply -f services/telemetry-intelligence/k8s/telemetry-intelligence.yaml
 kubectl apply -f services/root-cause-analysis/k8s/root-cause-analysis.yaml
 kubectl apply -f services/finops-engine/k8s/deployment.yaml

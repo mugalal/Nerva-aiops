@@ -39,6 +39,14 @@ approval, for example "Scale down payment-service from 7 to 4 replicas". Approve
 M1 then checks that the SLO held on fewer replicas. The one-command demo scripts reset the replica count after
 each run, so use the manual Demo 2 steps if you want to show this.
 
+## Two services
+
+`checkout-service` (apps/demo-microservices/k8s/checkout-service.yaml) runs the same instrumented demo app
+and calls payment-service on every `POST /checkout`. It is registered with `depends_on: [payment-service]`,
+measured by M1 on `/checkout`, and watched by M2 with the threshold detector (the frozen z-score reference is
+trained on payment-service only). When load on checkout overloads payment-service, M4 proposes scaling
+payment-service and escalates the checkout incident instead of scaling the caller.
+
 ## What is still future work
 
 GitOps-driven rollbacks (pull requests instead of direct actuation), coordinated HPA control beyond
