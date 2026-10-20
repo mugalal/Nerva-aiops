@@ -44,7 +44,14 @@ rca_service = RCAService(
 
 @app.get("/health")
 async def health() -> dict:
-    return await rca_service.health()
+    from .deviation import shared_reference
+    result = await rca_service.health()
+    reference = shared_reference()
+    # Which normals the evidence is measured against: learned (M2 reference) or M1 baselines only.
+    result["evidence_normals"] = {"learned_services": reference.services,
+                                  "reference": str(reference.path) if reference.path else None,
+                                  "fallback": "M1 measured healthy baseline"}
+    return result
 
 
 # ---------------------------------------------------------

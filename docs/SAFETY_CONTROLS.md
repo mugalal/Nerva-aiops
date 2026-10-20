@@ -22,6 +22,21 @@ automated tests, and is visible to the operator in the Incident Center
 | Durable M2 handoff | A restart forgetting incidents not yet delivered to M4 | M2 | `M2_STATE_PATH` (next to the evidence log; `/data/candidates.json` in Kubernetes) |
 | Configured service onboarding | Every service measured on payment-service's `/pay` route | M1, M3 | `M1_SERVICE_ROUTES=service=/route,...`, `M1_SERVICE_HEALTH_URLS`, `M3_HEALTH_SERVICE` |
 
+## How M3 diagnoses (learned evidence, rule gates, calibrated confidence)
+
+* **Evidence is learned.** Every signal is measured in usual deviations from the service's normal: M2's learned
+  noise shape (trained on real captures) anchored at the operating point M1 measured just before the incident.
+  The training environment's traffic level is not assumed to hold in the demo environment (payment-service was
+  captured at ~85 req/s per replica; the cluster demo runs at 10).
+* **Decisions are gated by explicit rules.** A release is blamed only if it changed the version within five
+  minutes and the live telemetry shows it; traffic is never blamed right after a release; a release during a
+  traffic surge is ambiguous; a signal counts as degraded only when it is far from normal *and* past the SLO
+  limit M1 judges recovery by; incomplete evidence never yields a confident cause.
+* **Confidence is calibrated** (`services/root-cause-analysis/scripts/calibrate.py`, `app/calibration.json`):
+  a logistic map fitted on real captures 1, 2, 4, 5 with leave-one-capture-out normals, evaluated on held-out
+  captures 3 and 6: Brier 0.011 (release) and 0.010 (traffic), precision 1.0 at the 0.6 decision threshold,
+  recall 0.95 and 0.97; readings predicted 0.8-1.0 were faults 19/19 and 31/31.
+
 ## Audit endpoints
 
 * `GET /internal/remediation/audit/verify`: recomputes the whole hash chain.

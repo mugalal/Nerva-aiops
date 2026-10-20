@@ -1,0 +1,125 @@
+{
+  "model": "P(cause | raw) = 1 / (1 + exp(-(a * raw + b)))",
+  "ridge": 1.0,
+  "training_captures": [
+    "capture1.json",
+    "capture2.json",
+    "capture4-checkout.json",
+    "capture5-checkout.json"
+  ],
+  "held_out_captures": [
+    "capture3.json",
+    "capture6-checkout.json"
+  ],
+  "labels": "positive: readings after a fault of that cause began; negative: healthy readings",
+  "causes": {
+    "faulty_deployment": {
+      "a": 0.808644,
+      "b": -4.34926,
+      "training": {
+        "readings": 188,
+        "faulty_readings": 40,
+        "brier": 0.0159,
+        "accuracy_at_0_5": 0.984,
+        "precision_at_0_6": 1.0,
+        "recall_at_0_6": 0.925,
+        "reliability": [
+          {
+            "predicted": "0.0-0.2",
+            "readings": 151,
+            "mean_predicted": 0.021,
+            "observed_rate": 0.02
+          },
+          {
+            "predicted": "0.8-1.0",
+            "readings": 37,
+            "mean_predicted": 0.995,
+            "observed_rate": 1.0
+          }
+        ]
+      },
+      "held_out": {
+        "readings": 92,
+        "faulty_readings": 20,
+        "brier": 0.0106,
+        "accuracy_at_0_5": 0.9891,
+        "precision_at_0_6": 1.0,
+        "recall_at_0_6": 0.95,
+        "reliability": [
+          {
+            "predicted": "0.0-0.2",
+            "readings": 73,
+            "mean_predicted": 0.021,
+            "observed_rate": 0.014
+          },
+          {
+            "predicted": "0.8-1.0",
+            "readings": 19,
+            "mean_predicted": 0.993,
+            "observed_rate": 1.0
+          }
+        ]
+      }
+    },
+    "traffic_spike": {
+      "a": 1.565262,
+      "b": -5.777346,
+      "training": {
+        "readings": 212,
+        "faulty_readings": 64,
+        "brier": 0.0053,
+        "accuracy_at_0_5": 0.9953,
+        "precision_at_0_6": 1.0,
+        "recall_at_0_6": 0.9844,
+        "reliability": [
+          {
+            "predicted": "0.0-0.2",
+            "readings": 148,
+            "mean_predicted": 0.008,
+            "observed_rate": 0.007
+          },
+          {
+            "predicted": "0.2-0.4",
+            "readings": 1,
+            "mean_predicted": 0.255,
+            "observed_rate": 0.0
+          },
+          {
+            "predicted": "0.6-0.8",
+            "readings": 1,
+            "mean_predicted": 0.753,
+            "observed_rate": 1.0
+          },
+          {
+            "predicted": "0.8-1.0",
+            "readings": 62,
+            "mean_predicted": 0.998,
+            "observed_rate": 1.0
+          }
+        ]
+      },
+      "held_out": {
+        "readings": 104,
+        "faulty_readings": 32,
+        "brier": 0.0095,
+        "accuracy_at_0_5": 0.9904,
+        "precision_at_0_6": 1.0,
+        "recall_at_0_6": 0.9688,
+        "reliability": [
+          {
+            "predicted": "0.0-0.2",
+            "readings": 73,
+            "mean_predicted": 0.008,
+            "observed_rate": 0.014
+          },
+          {
+            "predicted": "0.8-1.0",
+            "readings": 31,
+            "mean_predicted": 0.996,
+            "observed_rate": 1.0
+          }
+        ]
+      }
+    }
+  }
+}

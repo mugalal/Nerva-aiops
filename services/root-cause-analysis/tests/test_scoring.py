@@ -140,9 +140,10 @@ def make_bundle(
 
 
 def test_faulty_deployment_is_selected():
+    # Normal load (10 req/s per replica, payment-service's learned normal); latency and errors far off normal.
     bundle = make_bundle(
-        anomaly=make_anomaly(),
-        telemetry=make_telemetry(),
+        anomaly=make_anomaly(request_rate=30),
+        telemetry=make_telemetry(request_rate=30),
         deployment=make_deployment(),
     )
 
@@ -150,8 +151,32 @@ def test_faulty_deployment_is_selected():
 
     assert result.root_cause == FAULTY_DEPLOYMENT
     assert result.affected_component == "payment-service:v2"
-    assert result.confidence == 0.9
+    assert result.confidence >= 0.9
     assert len(result.evidence) == 3
+    assert "usual deviations from payment-service's learned normal" in result.evidence[1]
+
+
+def cluster_baseline(rate=10.0, latency=9.5, replicas=1):
+    """M1's measured operating point in the kind cluster demo (10 req/s on one replica, p95 ~9.5 ms)."""
+    from app.models import HealthyBaseline
+    stats = lambda value: {"minimum": value, "maximum": value, "average": value, "p95": value}
+    return HealthyBaseline.model_validate({
+        "service": "payment-service", "version": "v1", "measured_at": "2026-09-27T09:58:00Z",
+        "window_start": "2026-09-27T09:56:30Z", "window_end": "2026-09-27T09:57:45Z", "sample_count": 6,
+        "request_rate": stats(rate), "latency_p95_ms": stats(latency), "http_5xx_rate": stats(0.0),
+        "cpu": stats(0.05), "memory": stats(0.2), "replica_count": stats(replicas),
+        "thresholds": {"latency_p95_ms_max": 25.0, "http_5xx_rate_max": 0.01}})
+
+
+def test_a_release_during_a_traffic_surge_stays_ambiguous():
+    # 60 req/s per replica is six times the measured operating point: release or load cannot be told apart.
+    bundle = make_bundle(anomaly=make_anomaly(), telemetry=make_telemetry(), deployment=make_deployment())
+    bundle.baseline = cluster_baseline(rate=30, replicas=3)
+
+    result = determine_root_cause(bundle)
+
+    assert result.root_cause == UNKNOWN and result.confidence <= 0.5
+    assert any("ambiguous" in line for line in result.evidence)
 
 
 def test_traffic_spike_is_selected():
@@ -215,3 +240,18 @@ def test_missing_deployment_does_not_create_fake_deployment_evidence():
         TRAFFIC_SPIKE,
         UNKNOWN,
     }
+
+def test_live_cluster_spike_is_a_confident_traffic_spike():
+    """Regression: payment-service's training captures ran at ~85 req/s per replica, the cluster demo at 10.
+    Load must be judged against M1's measured operating point (with M2's learned noise shape), otherwise the
+    live spike (78 req/s on one replica, p95 9.7 s, measured 2026-10-19) scores zero load and goes unexplained."""
+    spike = dict(request_rate=78.7, latency_p95_ms=9697, http_5xx_rate=0.0, cpu=0.99)
+    bundle = make_bundle(anomaly=make_anomaly(**spike), telemetry=make_telemetry(**spike), deployment=None)
+    bundle.telemetry.metrics.replica_count = 1
+    bundle.telemetry.version = "v1"
+    bundle.baseline = cluster_baseline()
+
+    result = determine_root_cause(bundle)
+
+    assert result.root_cause == TRAFFIC_SPIKE and result.confidence >= 0.9
+    assert any("M2's learned noise at M1's measured operating point" in line for line in result.evidence)

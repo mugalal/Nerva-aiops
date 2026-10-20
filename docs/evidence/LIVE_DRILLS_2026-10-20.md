@@ -95,7 +95,24 @@ Held-out result on capture6:
 
 Limits: one fault shape (a traffic surge) at one load level; a bad release on checkout-service was not captured.
 
-## 6. What these drills do not show
+## 6. Rehearsals with the real demo scripts (`-Rehearse`)
+
+* **Faulty release** (`scripts/demo-faulty-deployment.ps1 -Rehearse`): `INC-20261020-023257-payment-service`,
+  `faulty_deployment` (0.9), ROLLBACK v2 -> v1 approved through the website (401 without token, 200 with),
+  **RESOLVED**: p95 737 -> 9.5 ms, 5xx 16.0% -> 0.0%, 91 s; the script reset itself.
+* **Two-service cascade** (`scripts/demo-cascade.ps1 -Rehearse`): payment-service detected after 12 s, scaled and
+  RESOLVED. checkout-service was detected only ~3 minutes after the surge started, after payment had recovered,
+  so M3 found nothing left to explain and it escalated as `unknown` (not by the dependency guard, which did
+  apply in run 4). The late checkout detection is open and being investigated.
+
+## 7. M3 on the recorded incidents (replay)
+
+The learned-evidence M3 (section on M3 in docs/SAFETY_CONTROLS.md) was replayed on every recorded live incident
+with saved evidence: same root cause in all five; confidences are now calibrated (faulty release 0.9 -> 0.98,
+cascade payment 0.75 -> 1.0). A regression test pins the live spike (78 req/s on one replica, 10 req/s
+operating point), which a naive use of the training-environment normal would have scored as zero load.
+
+## 8. What these drills do not show
 
 * Faults in more than two services at once: each incident is diagnosed on its own; there is no cross-service
   correlation into one root incident.
